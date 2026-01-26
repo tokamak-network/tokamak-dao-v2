@@ -13,6 +13,7 @@ const Navigation = React.forwardRef<
   <nav
     ref={ref}
     className={cn(
+      "relative z-[var(--z-sticky)]",
       "flex items-center justify-between",
       "h-16 px-4 lg:px-6",
       "bg-[var(--nav-bg)]",

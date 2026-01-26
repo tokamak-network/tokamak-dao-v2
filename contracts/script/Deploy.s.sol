@@ -207,3 +207,68 @@ contract MockTON {
         _mint(to, amount);
     }
 }
+
+/// @title Deploy Script for Sepolia Testnet
+/// @notice Deploys all contracts including MockTON for testing
+/// @dev Run with: forge script script/Deploy.s.sol:DeploySepoliaScript --rpc-url $RPC_URL_SEPOLIA --broadcast -vvv
+contract DeploySepoliaScript is Script {
+    function run() public {
+        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
+        address deployer = vm.addr(deployerPrivateKey);
+
+        console.log("Deployer:", deployer);
+        console.log("Chain ID:", block.chainid);
+
+        vm.startBroadcast(deployerPrivateKey);
+
+        // 1. Deploy MockTON
+        MockTON ton = new MockTON();
+        console.log("MockTON deployed at:", address(ton));
+
+        // 2. Deploy vTON
+        vTON vton = new vTON(deployer);
+        console.log("vTON deployed at:", address(vton));
+
+        // 3. Deploy DelegateRegistry
+        DelegateRegistry delegateRegistry = new DelegateRegistry(address(vton), deployer);
+        console.log("DelegateRegistry deployed at:", address(delegateRegistry));
+
+        // 4. Deploy Timelock (7 days)
+        Timelock timelock = new Timelock(deployer, 7 days);
+        console.log("Timelock deployed at:", address(timelock));
+
+        // 5. Deploy DAOGovernor
+        DAOGovernor governor = new DAOGovernor(
+            address(ton), address(vton), address(delegateRegistry), address(timelock), deployer
+        );
+        console.log("DAOGovernor deployed at:", address(governor));
+
+        // 6. Deploy SecurityCouncil (deployer as all members for testing)
+        address[] memory extMembers = new address[](2);
+        extMembers[0] = deployer;
+        extMembers[1] = deployer;
+
+        SecurityCouncil securityCouncil = new SecurityCouncil(
+            deployer, extMembers, address(governor), address(timelock), address(vton)
+        );
+        console.log("SecurityCouncil deployed at:", address(securityCouncil));
+
+        // 7. Configure Timelock
+        timelock.setGovernor(address(governor));
+        timelock.setSecurityCouncil(address(securityCouncil));
+
+        // 8. Setup vTON minter
+        vton.setMinter(deployer, true);
+
+        vm.stopBroadcast();
+
+        // Log summary
+        console.log("\n=== Sepolia Deployment Summary ===");
+        console.log("MockTON:", address(ton));
+        console.log("vTON:", address(vton));
+        console.log("DelegateRegistry:", address(delegateRegistry));
+        console.log("Timelock:", address(timelock));
+        console.log("DAOGovernor:", address(governor));
+        console.log("SecurityCouncil:", address(securityCouncil));
+    }
+}

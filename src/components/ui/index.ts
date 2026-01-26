@@ -108,3 +108,25 @@ export {
   ProposalCard,
   type ProposalCardProps,
 } from "./proposal-card";
+
+// Modal
+export {
+  Modal,
+  ModalHeader,
+  ModalTitle,
+  ModalDescription,
+  ModalBody,
+  ModalFooter,
+  modalContentVariants,
+  modalOverlayVariants,
+  type ModalProps,
+} from "./modal";
+
+// Mobile Navigation
+export {
+  MobileNav,
+  mobileNavOverlayVariants,
+  mobileNavDrawerVariants,
+  type MobileNavProps,
+  type NavItem,
+} from "./mobile-nav";

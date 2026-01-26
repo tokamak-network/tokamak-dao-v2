@@ -1,0 +1,98 @@
+"use client";
+
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { formatBasisPoints, formatDuration, formatVTON } from "@/lib/utils";
+import { useGovernanceParams } from "@/hooks/contracts/useDAOGovernor";
+import { useDelegationParams } from "@/hooks/contracts/useDelegateRegistry";
+
+/**
+ * DAO Parameters Section
+ * Shows governance and delegation parameters
+ */
+export function DAOParameters() {
+  const {
+    quorum,
+    votingPeriod,
+    votingDelay,
+    proposalThreshold,
+    proposalCreationCost,
+    isDeployed,
+  } = useGovernanceParams();
+
+  const { delegationCap, delegationPeriodRequirement } = useDelegationParams();
+
+  const parameters = [
+    {
+      label: "Quorum",
+      value: formatBasisPoints(quorum ?? BigInt(0)),
+      description: "Minimum participation for valid vote",
+    },
+    {
+      label: "Voting Period",
+      value: formatDuration(votingPeriod ?? BigInt(0)),
+      description: "Duration of voting",
+    },
+    {
+      label: "Voting Delay",
+      value: formatDuration(votingDelay ?? BigInt(0)),
+      description: "Delay before voting starts",
+    },
+    {
+      label: "Proposal Threshold",
+      value: `${formatVTON(proposalThreshold ?? BigInt(0), { compact: true })} vTON`,
+      description: "Minimum vTON to create proposal",
+    },
+    {
+      label: "Creation Cost",
+      value: `${formatVTON(proposalCreationCost ?? BigInt(0), { compact: true })} TON`,
+      description: "Cost to create proposal",
+    },
+    {
+      label: "Delegation Cap",
+      value: formatBasisPoints(delegationCap ?? BigInt(0)),
+      description: "Max voting power per delegate",
+    },
+    {
+      label: "Delegation Period",
+      value: formatDuration(delegationPeriodRequirement ?? BigInt(0)),
+      description: "Min delegation duration",
+    },
+  ];
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>DAO Parameters</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {!isDeployed && (
+          <div className="text-center py-2 mb-4 text-[var(--text-tertiary)]">
+            <p className="text-xs">
+              Showing default values (contracts not deployed)
+            </p>
+          </div>
+        )}
+        <div className="space-y-3">
+          {parameters.map((param) => (
+            <div
+              key={param.label}
+              className="flex items-center justify-between py-2 border-b border-[var(--border-subtle)] last:border-0"
+            >
+              <div>
+                <p className="text-sm font-medium text-[var(--text-primary)]">
+                  {param.label}
+                </p>
+                <p className="text-xs text-[var(--text-tertiary)]">
+                  {param.description}
+                </p>
+              </div>
+              <span className="text-sm font-semibold text-[var(--text-primary)]">
+                {param.value}
+              </span>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}

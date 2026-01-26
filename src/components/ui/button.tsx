@@ -102,6 +102,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       rightIcon,
       disabled,
       children,
+      type = "button",
       ...props
     },
     ref
@@ -114,9 +115,12 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         className={cn(buttonVariants({ variant, size, fullWidth, className }))}
         ref={ref}
         disabled={isDisabled}
+        type={asChild ? undefined : type}
         {...props}
       >
-        {loading ? (
+        {asChild ? (
+          children
+        ) : loading ? (
           <>
             <svg
               className="animate-spin"

@@ -1,0 +1,123 @@
+/**
+ * Governance Types for vTON DAO
+ */
+
+// Proposal Status
+export type ProposalStatus =
+  | "active"
+  | "pending"
+  | "executed"
+  | "failed"
+  | "canceled"
+  | "queued";
+
+// Proposal State from Contract (numeric enum)
+export enum ProposalState {
+  Pending = 0,
+  Active = 1,
+  Canceled = 2,
+  Defeated = 3,
+  Succeeded = 4,
+  Queued = 5,
+  Expired = 6,
+  Executed = 7,
+}
+
+// Vote Type for casting votes
+export enum VoteType {
+  For = 0,
+  Against = 1,
+  Abstain = 2,
+}
+
+// Map contract state to UI status
+export function mapProposalState(state: ProposalState): ProposalStatus {
+  switch (state) {
+    case ProposalState.Pending:
+      return "pending";
+    case ProposalState.Active:
+      return "active";
+    case ProposalState.Canceled:
+      return "canceled";
+    case ProposalState.Defeated:
+      return "failed";
+    case ProposalState.Succeeded:
+      return "queued";
+    case ProposalState.Queued:
+      return "queued";
+    case ProposalState.Expired:
+      return "failed";
+    case ProposalState.Executed:
+      return "executed";
+    default:
+      return "pending";
+  }
+}
+
+// Proposal Data
+export interface Proposal {
+  id: bigint;
+  proposer: `0x${string}`;
+  title: string;
+  description: string;
+  status: ProposalStatus;
+  forVotes: bigint;
+  againstVotes: bigint;
+  abstainVotes: bigint;
+  startTime: bigint;
+  endTime: bigint;
+  eta?: bigint;
+}
+
+// Delegator Info
+export interface DelegatorInfo {
+  address: `0x${string}`;
+  delegatedAmount: bigint;
+  delegatee?: `0x${string}`;
+}
+
+// DAO Parameters
+export interface DAOParameters {
+  quorum: bigint; // in basis points (e.g., 400 = 4%)
+  votingPeriod: bigint; // in seconds
+  votingDelay: bigint; // in seconds
+  proposalThreshold: bigint; // minimum vTON to create proposal
+  proposalCreationCost: bigint; // TON cost to create proposal
+}
+
+// Delegation Parameters
+export interface DelegationParameters {
+  delegationCap: bigint; // in basis points (e.g., 500 = 5%)
+  delegationPeriodRequirement: bigint; // in seconds
+}
+
+// vTON Token Info
+export interface VTONInfo {
+  totalSupply: bigint;
+  emissionRatio: bigint; // in basis points
+}
+
+// Security Council Info
+export interface SecurityCouncilInfo {
+  members: `0x${string}`[];
+  threshold: number;
+  pendingActionsCount: number;
+}
+
+// User Status
+export interface UserStatus {
+  vtonBalance: bigint;
+  delegatedTo?: `0x${string}`;
+  delegatedAmount: bigint;
+  receivedDelegations: bigint;
+  votingPower: bigint;
+}
+
+// Contract Addresses
+export interface ContractAddresses {
+  vton: `0x${string}`;
+  delegateRegistry: `0x${string}`;
+  daoGovernor: `0x${string}`;
+  securityCouncil: `0x${string}`;
+  timelock: `0x${string}`;
+}

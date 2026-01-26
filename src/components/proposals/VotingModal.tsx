@@ -1,0 +1,218 @@
+"use client";
+
+import * as React from "react";
+import { useAccount } from "wagmi";
+import { Modal, ModalBody, ModalFooter } from "@/components/ui/modal";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/input";
+import { cn, formatVTON } from "@/lib/utils";
+import { VoteType } from "@/types/governance";
+import { useCastVote } from "@/hooks/contracts/useDAOGovernor";
+import { useVotingPower } from "@/hooks/contracts/useVTON";
+
+export interface VotingModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  proposalId: bigint;
+  proposalTitle: string;
+}
+
+interface VoteOption {
+  type: VoteType;
+  label: string;
+  description: string;
+  color: string;
+  bgColor: string;
+}
+
+const VOTE_OPTIONS: VoteOption[] = [
+  {
+    type: VoteType.For,
+    label: "For",
+    description: "Support this proposal",
+    color: "text-[var(--color-vote-for)]",
+    bgColor: "bg-[var(--color-vote-for)]/10 border-[var(--color-vote-for)]",
+  },
+  {
+    type: VoteType.Against,
+    label: "Against",
+    description: "Oppose this proposal",
+    color: "text-[var(--color-vote-against)]",
+    bgColor: "bg-[var(--color-vote-against)]/10 border-[var(--color-vote-against)]",
+  },
+  {
+    type: VoteType.Abstain,
+    label: "Abstain",
+    description: "Neither support nor oppose",
+    color: "text-[var(--color-vote-abstain)]",
+    bgColor: "bg-[var(--color-vote-abstain)]/10 border-[var(--color-vote-abstain)]",
+  },
+];
+
+export function VotingModal({
+  isOpen,
+  onClose,
+  proposalId,
+  proposalTitle,
+}: VotingModalProps) {
+  const { address } = useAccount();
+  const [selectedVote, setSelectedVote] = React.useState<VoteType | null>(null);
+  const [reason, setReason] = React.useState("");
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+
+  const { data: votingPower } = useVotingPower(address);
+  const { castVote, castVoteWithReason, isPending, isSuccess } = useCastVote();
+
+  // Reset state when modal closes
+  React.useEffect(() => {
+    if (!isOpen) {
+      setSelectedVote(null);
+      setReason("");
+      setIsSubmitting(false);
+    }
+  }, [isOpen]);
+
+  // Close modal on success
+  React.useEffect(() => {
+    if (isSuccess && isSubmitting) {
+      onClose();
+    }
+  }, [isSuccess, isSubmitting, onClose]);
+
+  const handleSubmit = async () => {
+    if (selectedVote === null) return;
+
+    setIsSubmitting(true);
+
+    if (reason.trim()) {
+      castVoteWithReason(proposalId, selectedVote, reason);
+    } else {
+      castVote(proposalId, selectedVote);
+    }
+  };
+
+  const formattedVotingPower = votingPower
+    ? formatVTON(votingPower, { compact: true })
+    : "0";
+
+  return (
+    <Modal
+      open={isOpen}
+      onClose={onClose}
+      title="Cast Your Vote"
+      description={proposalTitle}
+      size="md"
+    >
+      <ModalBody className="space-y-6">
+        {/* Voting Power Display */}
+        <div className="p-4 rounded-lg bg-[var(--bg-tertiary)]">
+          <p className="text-sm text-[var(--text-secondary)]">Your Voting Power</p>
+          <p className="text-2xl font-bold text-[var(--text-primary)]">
+            {formattedVotingPower} vTON
+          </p>
+        </div>
+
+        {/* Vote Options */}
+        <div className="space-y-3">
+          <p className="text-sm font-medium text-[var(--text-primary)]">
+            Select your vote
+          </p>
+          <div className="grid gap-3">
+            {VOTE_OPTIONS.map((option) => (
+              <button
+                key={option.type}
+                type="button"
+                onClick={() => setSelectedVote(option.type)}
+                className={cn(
+                  "w-full p-4 rounded-lg border-2 text-left transition-all",
+                  "hover:border-[var(--border-hover)]",
+                  "focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-500)] focus:ring-offset-2",
+                  selectedVote === option.type
+                    ? option.bgColor
+                    : "border-[var(--border-default)] bg-[var(--bg-secondary)]"
+                )}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p
+                      className={cn(
+                        "font-medium",
+                        selectedVote === option.type
+                          ? option.color
+                          : "text-[var(--text-primary)]"
+                      )}
+                    >
+                      {option.label}
+                    </p>
+                    <p className="text-sm text-[var(--text-secondary)]">
+                      {option.description}
+                    </p>
+                  </div>
+
+                  {/* Checkmark */}
+                  <div
+                    className={cn(
+                      "size-6 rounded-full border-2 flex items-center justify-center shrink-0",
+                      selectedVote === option.type
+                        ? `${option.bgColor} border-current`
+                        : "border-[var(--border-default)]"
+                    )}
+                  >
+                    {selectedVote === option.type && (
+                      <svg
+                        className={cn("size-4", option.color)}
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={3}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M4.5 12.75l6 6 9-13.5"
+                        />
+                      </svg>
+                    )}
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Reason (Optional) */}
+        <div className="space-y-2">
+          <label
+            htmlFor="vote-reason"
+            className="text-sm font-medium text-[var(--text-primary)]"
+          >
+            Reason (Optional)
+          </label>
+          <Textarea
+            id="vote-reason"
+            placeholder="Share why you're voting this way..."
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            rows={3}
+          />
+          <p className="text-xs text-[var(--text-tertiary)]">
+            Your reason will be recorded on-chain and visible to others.
+          </p>
+        </div>
+      </ModalBody>
+
+      <ModalFooter>
+        <Button variant="secondary" onClick={onClose} disabled={isPending}>
+          Cancel
+        </Button>
+        <Button
+          onClick={handleSubmit}
+          disabled={selectedVote === null || !address}
+          loading={isPending}
+        >
+          {isPending ? "Submitting..." : "Submit Vote"}
+        </Button>
+      </ModalFooter>
+    </Modal>
+  );
+}
