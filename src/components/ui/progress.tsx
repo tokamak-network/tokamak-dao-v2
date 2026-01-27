@@ -9,9 +9,18 @@ export interface ProgressProps extends React.HTMLAttributes<HTMLDivElement> {
   indicatorClassName?: string;
 }
 
+/**
+ * Calculate percentage with bounds checking
+ */
+const calculatePercentage = (value: number, max: number): number =>
+  Math.min(Math.max((value / max) * 100, 0), 100);
+
+/**
+ * Basic progress bar component
+ */
 const Progress = React.forwardRef<HTMLDivElement, ProgressProps>(
   ({ className, value = 0, max = 100, indicatorClassName, ...props }, ref) => {
-    const percentage = Math.min(Math.max((value / max) * 100, 0), 100);
+    const percentage = calculatePercentage(value, max);
 
     return (
       <div
@@ -20,8 +29,10 @@ const Progress = React.forwardRef<HTMLDivElement, ProgressProps>(
         aria-valuemin={0}
         aria-valuemax={max}
         aria-valuenow={value}
+        aria-label={`${Math.round(percentage)}% complete`}
         className={cn(
-          "h-[var(--progress-height)] w-full overflow-hidden rounded-[var(--progress-radius)] bg-[var(--progress-bg)]",
+          "h-[var(--progress-height)] w-full overflow-hidden",
+          "rounded-[var(--progress-radius)] bg-[var(--progress-bg)]",
           className
         )}
         {...props}
@@ -29,7 +40,7 @@ const Progress = React.forwardRef<HTMLDivElement, ProgressProps>(
         <div
           className={cn(
             "h-full transition-all duration-[var(--duration-slow)] ease-[var(--ease-out)]",
-            "bg-[var(--interactive-primary)]",
+            "bg-[var(--fg-brand-primary)]",
             indicatorClassName
           )}
           style={{ width: `${percentage}%` }}
@@ -40,7 +51,9 @@ const Progress = React.forwardRef<HTMLDivElement, ProgressProps>(
 );
 Progress.displayName = "Progress";
 
-// Voting Progress Bar (For / Against / Abstain)
+/**
+ * Voting progress bar props
+ */
 export interface VotingProgressProps extends React.HTMLAttributes<HTMLDivElement> {
   forVotes: number;
   againstVotes: number;
@@ -48,6 +61,33 @@ export interface VotingProgressProps extends React.HTMLAttributes<HTMLDivElement
   showLabels?: boolean;
 }
 
+/**
+ * Vote segment component
+ */
+const VoteSegment = ({
+  percentage,
+  color,
+  label,
+}: {
+  percentage: number;
+  color: string;
+  label: string;
+}) =>
+  percentage > 0 ? (
+    <div
+      className={cn(
+        "h-full transition-all duration-[var(--duration-slow)]",
+        color
+      )}
+      style={{ width: `${percentage}%` }}
+      role="presentation"
+      aria-label={`${label}: ${Math.round(percentage)}%`}
+    />
+  ) : null;
+
+/**
+ * Voting progress bar with For/Against/Abstain segments
+ */
 const VotingProgress = React.forwardRef<HTMLDivElement, VotingProgressProps>(
   (
     {
@@ -66,48 +106,32 @@ const VotingProgress = React.forwardRef<HTMLDivElement, VotingProgressProps>(
     const abstainPercentage = total > 0 ? (abstainVotes / total) * 100 : 0;
 
     return (
-      <div ref={ref} className={cn("space-y-2", className)} {...props}>
+      <div ref={ref} className={cn("space-y-[var(--space-2)]", className)} {...props}>
         {showLabels && (
           <div className="flex items-center justify-between text-sm">
-            <div className="flex items-center gap-4">
-              <span className="text-[var(--color-vote-for)]">{forVotes}</span>
-              <span className="text-[var(--text-tertiary)]">•</span>
-              <span className="text-[var(--color-vote-against)]">{againstVotes}</span>
+            <div className="flex items-center gap-[var(--space-4)]">
+              <span className="text-[var(--color-vote-for)] font-medium">{forVotes}</span>
+              <span className="text-[var(--text-tertiary)]" aria-hidden="true">•</span>
+              <span className="text-[var(--color-vote-against)] font-medium">{againstVotes}</span>
               {abstainVotes > 0 && (
                 <>
-                  <span className="text-[var(--text-tertiary)]">•</span>
-                  <span className="text-[var(--color-vote-abstain)]">{abstainVotes}</span>
+                  <span className="text-[var(--text-tertiary)]" aria-hidden="true">•</span>
+                  <span className="text-[var(--color-vote-abstain)] font-medium">{abstainVotes}</span>
                 </>
               )}
             </div>
-            <span className="text-[var(--text-secondary)]">{total}</span>
+            <span className="text-[var(--text-secondary)]">{total} total</span>
           </div>
         )}
         <div
           role="progressbar"
-          aria-label="Voting progress"
-          className={cn(
-            "flex h-2 w-full overflow-hidden rounded-[var(--progress-radius)] bg-[var(--progress-bg)]"
-          )}
+          aria-label={`Voting progress: ${Math.round(forPercentage)}% for, ${Math.round(againstPercentage)}% against${abstainVotes > 0 ? `, ${Math.round(abstainPercentage)}% abstain` : ""}`}
+          aria-valuenow={total}
+          className="flex h-2 w-full overflow-hidden rounded-[var(--progress-radius)] bg-[var(--progress-bg)]"
         >
-          {forPercentage > 0 && (
-            <div
-              className="h-full bg-[var(--color-vote-for)] transition-all duration-[var(--duration-slow)]"
-              style={{ width: `${forPercentage}%` }}
-            />
-          )}
-          {againstPercentage > 0 && (
-            <div
-              className="h-full bg-[var(--color-vote-against)] transition-all duration-[var(--duration-slow)]"
-              style={{ width: `${againstPercentage}%` }}
-            />
-          )}
-          {abstainPercentage > 0 && (
-            <div
-              className="h-full bg-[var(--color-vote-abstain)] transition-all duration-[var(--duration-slow)]"
-              style={{ width: `${abstainPercentage}%` }}
-            />
-          )}
+          <VoteSegment percentage={forPercentage} color="bg-[var(--color-vote-for)]" label="For" />
+          <VoteSegment percentage={againstPercentage} color="bg-[var(--color-vote-against)]" label="Against" />
+          <VoteSegment percentage={abstainPercentage} color="bg-[var(--color-vote-abstain)]" label="Abstain" />
         </div>
       </div>
     );

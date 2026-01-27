@@ -4,28 +4,36 @@ import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
+/**
+ * Modal overlay variants
+ */
 const modalOverlayVariants = cva([
-  "fixed inset-0 z-50",
-  "bg-black/50 backdrop-blur-sm",
+  "fixed inset-0 z-[var(--z-overlay)]",
+  "bg-[var(--modal-backdrop)]",
+  "backdrop-blur-sm",
   "transition-opacity duration-[var(--duration-normal)]",
   "data-[state=open]:animate-in data-[state=closed]:animate-out",
   "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
 ]);
 
+/**
+ * Modal content variants
+ */
 const modalContentVariants = cva(
   [
-    "fixed left-1/2 top-1/2 z-50",
+    "fixed left-1/2 top-1/2 z-[var(--z-modal)]",
     "-translate-x-1/2 -translate-y-1/2",
-    "bg-[var(--card-bg)]",
-    "border border-[var(--card-border)]",
-    "rounded-[var(--card-radius)]",
-    "shadow-[var(--shadow-lg)]",
+    "bg-[var(--modal-bg)]",
+    "border border-[var(--modal-border)]",
+    "rounded-[var(--modal-radius)]",
+    "shadow-[var(--modal-shadow)]",
     "transition-all duration-[var(--duration-normal)]",
     "data-[state=open]:animate-in data-[state=closed]:animate-out",
     "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
     "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
     "data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%]",
     "data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%]",
+    "max-h-[90vh] overflow-y-auto",
   ],
   {
     variants: {
@@ -52,10 +60,34 @@ export interface ModalProps extends VariantProps<typeof modalContentVariants> {
 }
 
 /**
+ * Close icon for modal
+ */
+const CloseIcon = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="20"
+    height="20"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <line x1="18" y1="6" x2="6" y2="18" />
+    <line x1="6" y1="6" x2="18" y2="18" />
+  </svg>
+);
+
+/**
  * Modal component for dialogs and overlays
  */
 const Modal = React.forwardRef<HTMLDivElement, ModalProps>(
   ({ open, onClose, title, description, children, size, className }, ref) => {
+    const titleId = React.useId();
+    const descriptionId = React.useId();
+
     // Handle escape key
     React.useEffect(() => {
       const handleEscape = (e: KeyboardEvent) => {
@@ -71,12 +103,16 @@ const Modal = React.forwardRef<HTMLDivElement, ModalProps>(
     // Prevent body scroll when modal is open
     React.useEffect(() => {
       if (open) {
+        const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
         document.body.style.overflow = "hidden";
+        document.body.style.paddingRight = `${scrollbarWidth}px`;
       } else {
         document.body.style.overflow = "";
+        document.body.style.paddingRight = "";
       }
       return () => {
         document.body.style.overflow = "";
+        document.body.style.paddingRight = "";
       };
     }, [open]);
 
@@ -97,17 +133,17 @@ const Modal = React.forwardRef<HTMLDivElement, ModalProps>(
           ref={ref}
           role="dialog"
           aria-modal="true"
-          aria-labelledby={title ? "modal-title" : undefined}
-          aria-describedby={description ? "modal-description" : undefined}
+          aria-labelledby={title ? titleId : undefined}
+          aria-describedby={description ? descriptionId : undefined}
           data-state={open ? "open" : "closed"}
           className={cn(modalContentVariants({ size }), className)}
         >
           {/* Header */}
           {(title || description) && (
             <ModalHeader>
-              {title && <ModalTitle id="modal-title">{title}</ModalTitle>}
+              {title && <ModalTitle id={titleId}>{title}</ModalTitle>}
               {description && (
-                <ModalDescription id="modal-description">
+                <ModalDescription id={descriptionId}>
                   {description}
                 </ModalDescription>
               )}
@@ -122,28 +158,17 @@ const Modal = React.forwardRef<HTMLDivElement, ModalProps>(
             type="button"
             onClick={onClose}
             className={cn(
-              "absolute right-4 top-4",
+              "absolute right-[var(--space-4)] top-[var(--space-4)]",
               "text-[var(--text-tertiary)]",
               "hover:text-[var(--text-primary)]",
               "transition-colors duration-[var(--duration-fast)]",
-              "focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-500)] rounded"
+              "focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-500)]",
+              "rounded-[var(--radius-sm)]",
+              "p-1"
             )}
-            aria-label="Close"
+            aria-label="Close dialog"
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
+            <CloseIcon />
           </button>
         </div>
       </>
@@ -161,7 +186,11 @@ const ModalHeader = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn("px-6 pt-6 pb-4 flex flex-col gap-1.5", className)}
+    className={cn(
+      "px-[var(--space-6)] pt-[var(--space-6)] pb-[var(--space-4)]",
+      "flex flex-col gap-[var(--space-1-5)]",
+      className
+    )}
     {...props}
   />
 ));
@@ -177,7 +206,8 @@ const ModalTitle = React.forwardRef<
   <h2
     ref={ref}
     className={cn(
-      "text-lg font-semibold text-[var(--text-primary)] leading-tight pr-8",
+      "text-lg font-semibold text-[var(--text-primary)]",
+      "leading-[var(--line-height-tight)] pr-[var(--space-8)]",
       className
     )}
     {...props}
@@ -207,7 +237,11 @@ const ModalBody = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement>
 >(({ className, ...props }, ref) => (
-  <div ref={ref} className={cn("px-6 py-4", className)} {...props} />
+  <div
+    ref={ref}
+    className={cn("px-[var(--space-6)] py-[var(--space-4)]", className)}
+    {...props}
+  />
 ));
 ModalBody.displayName = "ModalBody";
 
@@ -221,7 +255,9 @@ const ModalFooter = React.forwardRef<
   <div
     ref={ref}
     className={cn(
-      "px-6 py-4 flex items-center justify-end gap-3 border-t border-[var(--border-default)]",
+      "px-[var(--space-6)] py-[var(--space-4)]",
+      "flex items-center justify-end gap-[var(--space-3)]",
+      "border-t border-[var(--border-secondary)]",
       className
     )}
     {...props}

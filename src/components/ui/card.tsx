@@ -4,12 +4,16 @@ import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
+/**
+ * Card component variants using design tokens
+ * @see design-tokens.css for token definitions
+ */
 const cardVariants = cva(
   [
     "bg-[var(--card-bg)]",
     "border border-[var(--card-border)]",
     "rounded-[var(--card-radius)]",
-    "transition-shadow duration-[var(--duration-normal)] ease-[var(--ease-default)]",
+    "transition-all duration-[var(--duration-normal)] ease-[var(--ease-default)]",
   ],
   {
     variants: {
@@ -21,15 +25,16 @@ const cardVariants = cva(
       },
       padding: {
         none: "",
-        sm: "p-4",
-        md: "p-6",
-        lg: "p-8",
+        sm: "p-[var(--space-4)]",
+        md: "p-[var(--space-6)]",
+        lg: "p-[var(--space-8)]",
       },
       interactive: {
         true: [
           "cursor-pointer",
           "hover:shadow-[var(--shadow-md)]",
-          "hover:border-[var(--border-strong)]",
+          "hover:border-[var(--border-primary)]",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary-500)]",
         ],
       },
     },
@@ -44,24 +49,36 @@ export interface CardProps
   extends React.HTMLAttributes<HTMLDivElement>,
     VariantProps<typeof cardVariants> {}
 
+/**
+ * Card container component
+ */
 const Card = React.forwardRef<HTMLDivElement, CardProps>(
   ({ className, variant, padding, interactive, ...props }, ref) => (
     <div
       ref={ref}
       className={cn(cardVariants({ variant, padding, interactive, className }))}
+      tabIndex={interactive ? 0 : undefined}
+      role={interactive ? "button" : undefined}
       {...props}
     />
   )
 );
 Card.displayName = "Card";
 
+/**
+ * Card header section
+ */
 const CardHeader = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement>
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn("flex flex-col gap-1.5", className)}
+    className={cn(
+      "flex flex-col gap-[var(--space-1-5)]",
+      "mb-[var(--space-4)]",
+      className
+    )}
     {...props}
   />
 ));
@@ -102,13 +119,16 @@ const CardContent = React.forwardRef<
 ));
 CardContent.displayName = "CardContent";
 
+/**
+ * Card footer section
+ */
 const CardFooter = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement>
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn("flex items-center pt-4", className)}
+    className={cn("flex items-center pt-[var(--space-4)]", className)}
     {...props}
   />
 ));

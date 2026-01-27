@@ -5,14 +5,17 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 import { Card } from "./card";
 
+/**
+ * Stat card variants
+ */
 const statCardVariants = cva(
-  ["flex flex-col gap-1"],
+  ["flex flex-col gap-[var(--space-1)]"],
   {
     variants: {
       size: {
-        sm: "p-4",
-        md: "p-6",
-        lg: "p-8",
+        sm: "p-[var(--space-4)]",
+        md: "p-[var(--space-6)]",
+        lg: "p-[var(--space-8)]",
       },
     },
     defaultVariants: {
@@ -35,6 +38,49 @@ export interface StatCardProps
   interactive?: boolean;
 }
 
+/**
+ * Chevron icon for interactive state
+ */
+const ChevronIcon = () => (
+  <svg
+    className="size-4 text-[var(--text-tertiary)]"
+    fill="none"
+    viewBox="0 0 24 24"
+    stroke="currentColor"
+    strokeWidth={2}
+    aria-hidden="true"
+  >
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+  </svg>
+);
+
+/**
+ * Trend indicator component
+ */
+const TrendIndicator = ({
+  value,
+  isPositive,
+}: {
+  value: number;
+  isPositive: boolean;
+}) => (
+  <span
+    className={cn(
+      "text-sm font-medium",
+      isPositive
+        ? "text-[var(--fg-success-primary)]"
+        : "text-[var(--fg-error-primary)]"
+    )}
+    aria-label={`${isPositive ? "Increased" : "Decreased"} by ${Math.abs(value)}%`}
+  >
+    {isPositive ? "+" : "-"}
+    {Math.abs(value)}%
+  </span>
+);
+
+/**
+ * Statistics display card component
+ */
 const StatCard = React.forwardRef<HTMLDivElement, StatCardProps>(
   (
     {
@@ -49,64 +95,38 @@ const StatCard = React.forwardRef<HTMLDivElement, StatCardProps>(
       ...props
     },
     ref
-  ) => {
-    return (
-      <Card
-        ref={ref}
-        padding="none"
-        interactive={interactive}
-        className={cn(statCardVariants({ size, className }))}
-        {...props}
-      >
-        <div className="flex items-start justify-between">
-          <span className="text-sm font-medium text-[var(--text-secondary)]">
-            {label}
-          </span>
-          {icon && (
-            <span className="text-[var(--text-tertiary)]">{icon}</span>
-          )}
-          {interactive && (
-            <svg
-              className="size-4 text-[var(--text-tertiary)]"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M9 5l7 7-7 7"
-              />
-            </svg>
-          )}
-        </div>
-        <div className="flex items-baseline gap-2">
-          <span className="text-3xl font-bold text-[var(--text-primary)]">
-            {value}
-          </span>
-          {trend && (
-            <span
-              className={cn(
-                "text-sm font-medium",
-                trend.isPositive
-                  ? "text-[var(--status-success)]"
-                  : "text-[var(--status-error)]"
-              )}
-            >
-              {trend.isPositive ? "+" : "-"}
-              {Math.abs(trend.value)}%
-            </span>
-          )}
-        </div>
-        {description && (
-          <span className="text-sm text-[var(--text-tertiary)]">
-            {description}
+  ) => (
+    <Card
+      ref={ref}
+      padding="none"
+      interactive={interactive}
+      className={cn(statCardVariants({ size, className }))}
+      {...props}
+    >
+      <div className="flex items-start justify-between">
+        <span className="text-sm font-medium text-[var(--text-secondary)]">
+          {label}
+        </span>
+        {icon && (
+          <span className="text-[var(--text-tertiary)]" aria-hidden="true">
+            {icon}
           </span>
         )}
-      </Card>
-    );
-  }
+        {interactive && !icon && <ChevronIcon />}
+      </div>
+      <div className="flex items-baseline gap-[var(--space-2)]">
+        <span className="text-3xl font-bold text-[var(--text-primary)]">
+          {value}
+        </span>
+        {trend && <TrendIndicator value={trend.value} isPositive={trend.isPositive} />}
+      </div>
+      {description && (
+        <span className="text-sm text-[var(--text-tertiary)]">
+          {description}
+        </span>
+      )}
+    </Card>
+  )
 );
 StatCard.displayName = "StatCard";
 
