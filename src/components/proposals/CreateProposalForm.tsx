@@ -2,13 +2,15 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { useAccount } from "wagmi";
+import { useAccount, useChainId, usePublicClient } from "wagmi";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea, Label, HelperText } from "@/components/ui/input";
 import { cn, formatVTON } from "@/lib/utils";
 import { usePropose, useGovernanceParams } from "@/hooks/contracts/useDAOGovernor";
-import { useVotingPower } from "@/hooks/contracts/useVTON";
+import { useTONAllowance, useApproveTON, useTONBalance } from "@/hooks/contracts/useTON";
+import { getContractAddresses, DAO_GOVERNOR_ABI } from "@/constants/contracts";
+import { parseEventLogs } from "viem";
 
 interface ActionInput {
   target: string;
@@ -23,6 +25,9 @@ export interface CreateProposalFormProps {
 export function CreateProposalForm({ className }: CreateProposalFormProps) {
   const router = useRouter();
   const { address, isConnected } = useAccount();
+  const chainId = useChainId();
+  const publicClient = usePublicClient();
+  const addresses = getContractAddresses(chainId);
 
   const [title, setTitle] = React.useState("");
   const [description, setDescription] = React.useState("");
@@ -31,41 +36,31 @@ export function CreateProposalForm({ className }: CreateProposalFormProps) {
     { target: "", value: "0", calldata: "0x" },
   ]);
 
-  const { proposeAsync, isPending, isSuccess } = usePropose();
-  const { proposalCreationCost, proposalThreshold } = useGovernanceParams();
-  const { data: votingPower } = useVotingPower(address);
+  const { proposeAsync } = usePropose();
+  const { proposalCreationCost } = useGovernanceParams();
 
-  // Validation
-  const hasEnoughVotingPower =
-    votingPower && proposalThreshold
-      ? votingPower >= proposalThreshold
-      : false;
+  // TON approval state
+  const { data: tonBalance } = useTONBalance(address);
+  const { data: tonAllowance, refetch: refetchAllowance } = useTONAllowance(
+    address,
+    addresses.daoGovernor
+  );
+  const { approveAsync } = useApproveTON();
 
   const formattedCost = proposalCreationCost
     ? formatVTON(proposalCreationCost)
     : "100";
 
-  const formattedThreshold = proposalThreshold
-    ? formatVTON(proposalThreshold, { compact: true })
-    : "1,000";
-
-  const formattedVotingPower = votingPower
-    ? formatVTON(votingPower, { compact: true })
-    : "0";
+  const requiredAmount = proposalCreationCost ?? BigInt(100 * 10 ** 18);
+  const hasEnoughTON = tonBalance >= requiredAmount;
+  const hasEnoughAllowance = tonAllowance >= requiredAmount;
 
   // Form validation
-  const isValid =
+  const isFormValid =
     title.trim().length > 0 &&
     description.trim().length > 0 &&
     isConnected &&
-    hasEnoughVotingPower;
-
-  // Redirect on success
-  React.useEffect(() => {
-    if (isSuccess) {
-      router.push("/proposals");
-    }
-  }, [isSuccess, router]);
+    hasEnoughTON;
 
   const handleAddAction = () => {
     setActions([...actions, { target: "", value: "0", calldata: "0x" }]);
@@ -87,22 +82,58 @@ export function CreateProposalForm({ className }: CreateProposalFormProps) {
     setActions(newActions);
   };
 
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [submitStep, setSubmitStep] = React.useState<"idle" | "approving" | "waitingApproval" | "proposing" | "waitingProposal">("idle");
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!isValid) return;
+    if (!isFormValid || !publicClient) return;
 
-    const fullDescription = `# ${title}\n\n${description}`;
-
-    // Prepare action arrays
-    const targets = actions.map((a) => (a.target || "0x0000000000000000000000000000000000000000") as `0x${string}`);
-    const values = actions.map((a) => BigInt(a.value || "0"));
-    const calldatas = actions.map((a) => (a.calldata || "0x") as `0x${string}`);
+    setIsSubmitting(true);
 
     try {
-      await proposeAsync(targets, values, calldatas, fullDescription);
+      // Step 1: Approve if needed
+      if (!hasEnoughAllowance) {
+        setSubmitStep("approving");
+        const approveHash = await approveAsync(addresses.daoGovernor);
+        // Wait for the approval transaction to be confirmed
+        setSubmitStep("waitingApproval");
+        await publicClient.waitForTransactionReceipt({ hash: approveHash });
+        await refetchAllowance();
+      }
+
+      // Step 2: Create proposal
+      setSubmitStep("proposing");
+      const fullDescription = `# ${title}\n\n${description}`;
+
+      // Prepare action arrays
+      const targets = actions.map((a) => (a.target || "0x0000000000000000000000000000000000000000") as `0x${string}`);
+      const values = actions.map((a) => BigInt(a.value || "0"));
+      const calldatas = actions.map((a) => (a.calldata || "0x") as `0x${string}`);
+
+      setSubmitStep("waitingProposal");
+      const proposalHash = await proposeAsync(targets, values, calldatas, fullDescription);
+      const receipt = await publicClient.waitForTransactionReceipt({ hash: proposalHash });
+
+      // Parse ProposalCreated event to get the proposal ID
+      const logs = parseEventLogs({
+        abi: DAO_GOVERNOR_ABI,
+        logs: receipt.logs,
+        eventName: "ProposalCreated",
+      });
+
+      if (logs.length > 0 && logs[0].args.proposalId) {
+        const proposalId = logs[0].args.proposalId.toString();
+        router.push(`/proposals/${proposalId}`);
+      } else {
+        router.push("/proposals");
+      }
     } catch (error) {
       console.error("Failed to create proposal:", error);
+    } finally {
+      setIsSubmitting(false);
+      setSubmitStep("idle");
     }
   };
 
@@ -129,13 +160,16 @@ export function CreateProposalForm({ className }: CreateProposalFormProps) {
 
             <div className="p-4 rounded-lg bg-[var(--bg-tertiary)]">
               <p className="text-sm text-[var(--text-secondary)]">
-                Required Voting Power
+                Your TON Balance
               </p>
-              <p className="text-lg font-semibold text-[var(--text-primary)]">
-                {formattedThreshold} vTON
+              <p className={cn(
+                "text-lg font-semibold",
+                hasEnoughTON ? "text-[var(--text-primary)]" : "text-[var(--status-error-text)]"
+              )}>
+                {formatVTON(tonBalance)} TON
               </p>
               <p className="text-xs text-[var(--text-tertiary)] mt-1">
-                Your power: {formattedVotingPower} vTON
+                {hasEnoughAllowance ? "Approved" : hasEnoughTON ? "Approval needed" : ""}
               </p>
             </div>
           </div>
@@ -146,10 +180,12 @@ export function CreateProposalForm({ className }: CreateProposalFormProps) {
             </div>
           )}
 
-          {isConnected && !hasEnoughVotingPower && (
+          {isConnected && !hasEnoughTON && (
             <div className="mt-4 p-3 rounded-lg bg-[var(--status-error-bg)] text-[var(--status-error-text)] text-sm">
-              You need at least {formattedThreshold} vTON voting power to create a
-              proposal. Your current voting power is {formattedVotingPower} vTON.
+              Insufficient TON balance. You need {formattedCost} TON to create a proposal.{" "}
+              <a href="/faucet" className="underline font-medium">
+                Get TON from faucet
+              </a>
             </div>
           )}
         </CardContent>
@@ -339,8 +375,24 @@ Potential risks and mitigations"
           Cancel
         </Button>
 
-        <Button type="submit" disabled={!isValid} loading={isPending}>
-          {isPending ? "Creating..." : "Create Proposal"}
+        <Button
+          type="submit"
+          disabled={!isFormValid || isSubmitting}
+          loading={isSubmitting}
+        >
+          {isSubmitting
+            ? submitStep === "approving"
+              ? "Approve in Wallet..."
+              : submitStep === "waitingApproval"
+              ? "Approving TON..."
+              : submitStep === "proposing"
+              ? "Confirm in Wallet..."
+              : submitStep === "waitingProposal"
+              ? "Creating Proposal..."
+              : "Processing..."
+            : hasEnoughAllowance
+            ? "Create Proposal"
+            : "Approve & Create Proposal"}
         </Button>
       </div>
     </form>

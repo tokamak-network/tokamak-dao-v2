@@ -120,7 +120,7 @@ export function ProposalDetail({ className, proposal }: ProposalDetailProps) {
             </CardHeader>
             <CardContent>
               <div className="prose prose-sm max-w-none text-[var(--text-secondary)]">
-                <p className="whitespace-pre-wrap">{proposal.description}</p>
+                <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{proposal.description}</p>
               </div>
             </CardContent>
           </Card>
@@ -219,10 +219,6 @@ export function ProposalDetail({ className, proposal }: ProposalDetailProps) {
               <CardTitle>Information</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="flex justify-between text-sm">
-                <span className="text-[var(--text-secondary)]">Proposal ID</span>
-                <span className="font-mono text-[var(--text-primary)]">#{proposal.id}</span>
-              </div>
               <div className="flex justify-between text-sm">
                 <span className="text-[var(--text-secondary)]">Proposer</span>
                 <span className="font-mono text-[var(--text-primary)]">
