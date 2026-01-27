@@ -60,7 +60,7 @@ function DelegatorItem({
 }
 
 /**
- * Delegates List Section
+ * Delegators List Section
  * Shows all registered delegators with their voting power
  */
 export function DelegatesList() {
@@ -68,8 +68,8 @@ export function DelegatesList() {
   const [searchQuery, setSearchQuery] = React.useState("");
   const [selectedDelegatee, setSelectedDelegatee] = React.useState<`0x${string}` | null>(null);
 
-  const { data: delegators, isLoading, isDeployed } = useAllDelegators();
-  const { data: userDelegation } = useDelegation(userAddress);
+  const { data: delegators, isLoading, isDeployed, refetch: refetchDelegators } = useAllDelegators();
+  const { data: userDelegation, refetch: refetchUserDelegation } = useDelegation(userAddress);
 
   // Get current delegatee
   const currentDelegatee =
@@ -94,19 +94,24 @@ export function DelegatesList() {
     setSelectedDelegatee(address);
   };
 
+  const handleDelegationSuccess = React.useCallback(() => {
+    refetchDelegators();
+    refetchUserDelegation();
+  }, [refetchDelegators, refetchUserDelegation]);
+
   return (
     <>
       <Card padding="none">
         <CardHeader className="p-6 pb-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <CardTitle>Delegates</CardTitle>
+            <CardTitle>Delegators</CardTitle>
             <Input
               placeholder="Search by address..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="sm:w-64"
               size="sm"
-              aria-label="Search delegates by address"
+              aria-label="Search delegators by address"
             />
           </div>
         </CardHeader>
@@ -120,7 +125,7 @@ export function DelegatesList() {
           )}
 
           {isLoading ? (
-            <div className="space-y-3" role="status" aria-busy="true" aria-label="Loading delegates">
+            <div className="space-y-3" role="status" aria-busy="true" aria-label="Loading delegators">
               {[1, 2, 3, 4, 5].map((i) => (
                 <div
                   key={i}
@@ -132,8 +137,8 @@ export function DelegatesList() {
             <div className="text-center py-8 text-[var(--text-tertiary)]">
               <p className="text-sm">
                 {searchQuery
-                  ? "No delegates found matching your search"
-                  : "No delegates registered yet"}
+                  ? "No delegators found matching your search"
+                  : "No delegators registered yet"}
               </p>
             </div>
           ) : (
@@ -158,6 +163,7 @@ export function DelegatesList() {
           onClose={() => setSelectedDelegatee(null)}
           delegatee={selectedDelegatee}
           mode="delegate"
+          onSuccess={handleDelegationSuccess}
         />
       )}
     </>

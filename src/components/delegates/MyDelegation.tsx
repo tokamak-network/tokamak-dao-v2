@@ -22,8 +22,8 @@ export function MyDelegation() {
   const [modalOpen, setModalOpen] = React.useState(false);
   const [modalMode, setModalMode] = React.useState<"delegate" | "undelegate">("delegate");
 
-  const { data: vtonBalance, isDeployed } = useVTONBalance(address);
-  const { data: delegation } = useDelegation(address);
+  const { data: vtonBalance, isDeployed, refetch: refetchVTONBalance } = useVTONBalance(address);
+  const { data: delegation, refetch: refetchDelegation } = useDelegation(address);
   const { delegationPeriodRequirement } = useDelegationParams();
 
   const delegatee =
@@ -42,6 +42,11 @@ export function MyDelegation() {
     setModalMode("undelegate");
     setModalOpen(true);
   };
+
+  const handleDelegationSuccess = React.useCallback(() => {
+    refetchDelegation();
+    refetchVTONBalance();
+  }, [refetchDelegation, refetchVTONBalance]);
 
   // Loading state (waiting for hydration and connection restore)
   if (!isReady) {
@@ -131,13 +136,13 @@ export function MyDelegation() {
                 <div className="p-3 bg-[var(--bg-tertiary)] rounded-lg">
                   <p className="text-xs text-[var(--text-tertiary)]">Delegated Amount</p>
                   <p className="text-lg font-semibold text-[var(--text-primary)]">
-                    {formatVTON(delegatedAmount, { compact: true })} vTON
+                    {formatVTON(delegatedAmount)} vTON
                   </p>
                 </div>
                 <div className="p-3 bg-[var(--bg-tertiary)] rounded-lg">
                   <p className="text-xs text-[var(--text-tertiary)]">Available Balance</p>
                   <p className="text-lg font-semibold text-[var(--text-primary)]">
-                    {formatVTON(vtonBalance ?? BigInt(0), { compact: true })} vTON
+                    {formatVTON(vtonBalance ?? BigInt(0))} vTON
                   </p>
                 </div>
               </div>
@@ -163,6 +168,7 @@ export function MyDelegation() {
           delegatee={delegatee}
           mode={modalMode}
           currentDelegatedAmount={delegatedAmount}
+          onSuccess={handleDelegationSuccess}
         />
       </>
     );
@@ -192,7 +198,7 @@ export function MyDelegation() {
           <div className="p-4 bg-[var(--bg-secondary)] rounded-lg text-center">
             <p className="text-xs text-[var(--text-tertiary)] mb-1">Your vTON Balance</p>
             <p className="text-2xl font-bold text-[var(--text-primary)]">
-              {formatVTON(vtonBalance ?? BigInt(0), { compact: true })} vTON
+              {formatVTON(vtonBalance ?? BigInt(0))} vTON
             </p>
           </div>
 

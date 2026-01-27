@@ -8,11 +8,11 @@ import { Badge } from "@/components/ui/badge";
 import { useDelegatorInfo } from "@/hooks/contracts/useDelegateRegistry";
 
 /**
- * Delegates Page
+ * Delegators Page
  *
  * Displays:
  * - User's current delegation status
- * - List of all registered delegates
+ * - List of all registered delegators
  * - Ability to delegate/undelegate vTON
  * - Option to register as a delegator
  *
@@ -41,7 +41,7 @@ export default function DelegatesPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex flex-col gap-1">
           <h1 className="text-2xl font-bold text-[var(--text-primary)]">
-            Delegates
+            Delegators
           </h1>
           <p className="text-sm text-[var(--text-secondary)]">
             Delegate your vTON to participate in governance voting

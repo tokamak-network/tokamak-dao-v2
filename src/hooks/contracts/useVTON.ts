@@ -86,6 +86,7 @@ export function useVTONBalance(address?: `0x${string}`) {
     isLoading: isDeployed ? result.isLoading : false,
     isError: isDeployed ? result.isError : false,
     error: isDeployed ? result.error : null,
+    refetch: result.refetch,
     isDeployed,
   };
 }

@@ -12,7 +12,6 @@ import {
 const MOCK_DATA = {
   delegators: [] as `0x${string}`[],
   totalDelegated: BigInt(0),
-  delegationCap: BigInt(500), // 5%
   delegationPeriodRequirement: BigInt(604800), // 7 days in seconds
   delegatorInfo: {
     profile: "",
@@ -44,6 +43,7 @@ export function useAllDelegators() {
     isLoading: isDeployed ? result.isLoading : false,
     isError: isDeployed ? result.isError : false,
     error: isDeployed ? result.error : null,
+    refetch: result.refetch,
     isDeployed,
   };
 }
@@ -71,6 +71,7 @@ export function useTotalDelegated(address?: `0x${string}`) {
     isLoading: isDeployed ? result.isLoading : false,
     isError: isDeployed ? result.isError : false,
     error: isDeployed ? result.error : null,
+    refetch: result.refetch,
     isDeployed,
   };
 }
@@ -100,6 +101,7 @@ export function useDelegation(address?: `0x${string}`) {
     isLoading: isDeployed ? result.isLoading : false,
     isError: isDeployed ? result.isError : false,
     error: isDeployed ? result.error : null,
+    refetch: result.refetch,
     isDeployed,
   };
 }
@@ -112,15 +114,6 @@ export function useDelegationParams() {
   const addresses = getContractAddresses(chainId);
   const isDeployed = areContractsDeployed(chainId);
 
-  const capResult = useReadContract({
-    address: addresses.delegateRegistry,
-    abi: DELEGATE_REGISTRY_ABI,
-    functionName: "delegationCap",
-    query: {
-      enabled: isDeployed,
-    },
-  });
-
   const periodResult = useReadContract({
     address: addresses.delegateRegistry,
     abi: DELEGATE_REGISTRY_ABI,
@@ -131,12 +124,11 @@ export function useDelegationParams() {
   });
 
   return {
-    delegationCap: isDeployed ? capResult.data : MOCK_DATA.delegationCap,
     delegationPeriodRequirement: isDeployed
       ? periodResult.data
       : MOCK_DATA.delegationPeriodRequirement,
-    isLoading: isDeployed ? capResult.isLoading || periodResult.isLoading : false,
-    isError: isDeployed ? capResult.isError || periodResult.isError : false,
+    isLoading: isDeployed ? periodResult.isLoading : false,
+    isError: isDeployed ? periodResult.isError : false,
     isDeployed,
   };
 }
@@ -303,7 +295,7 @@ export function useRegisterDelegator() {
       address: addresses.delegateRegistry,
       abi: DELEGATE_REGISTRY_ABI,
       functionName: "registerDelegator",
-      args: [profile, philosophy, interests],
+      args: [profile, philosophy, interests.join(", ")],
     });
   };
 

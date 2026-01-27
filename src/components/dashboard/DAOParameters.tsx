@@ -19,7 +19,7 @@ export function DAOParameters() {
     isDeployed,
   } = useGovernanceParams();
 
-  const { delegationCap, delegationPeriodRequirement } = useDelegationParams();
+  const { delegationPeriodRequirement } = useDelegationParams();
 
   const parameters = [
     {
@@ -46,11 +46,6 @@ export function DAOParameters() {
       label: "Creation Cost",
       value: `${formatVTON(proposalCreationCost ?? BigInt(0), { compact: true })} TON`,
       description: "Cost to create proposal",
-    },
-    {
-      label: "Delegation Cap",
-      value: formatBasisPoints(delegationCap ?? BigInt(0)),
-      description: "Max voting power per delegate",
     },
     {
       label: "Delegation Period",

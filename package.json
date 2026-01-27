@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "contracts:build": "cd contracts && forge build",
+    "contracts:test": "cd contracts && forge test",
+    "contracts:deploy:sepolia": "./contracts/scripts/deploy-sepolia.sh"
   },
   "dependencies": {
     "@metamask/sdk": "^0.34.0",

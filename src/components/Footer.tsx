@@ -43,9 +43,9 @@ export function Footer() {
   };
 
   return (
-    <footer className="border-t border-[var(--border-default)] bg-[var(--bg-surface)] mt-12">
+    <footer className="border-t border-[var(--border-secondary)] bg-[var(--surface-primary)] mt-auto">
       <div className="container mx-auto px-4 py-4 max-w-7xl">
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-[var(--text-tertiary)]">
+        <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-[var(--text-tertiary)]">
           <Badge
             variant={isDeployed ? "success" : "warning"}
             size="sm"

@@ -80,15 +80,15 @@ export function MyStatus() {
   const stats = [
     {
       label: "vTON Balance",
-      value: `${formatVTON(balance ?? BigInt(0), { compact: true })} vTON`,
+      value: `${formatVTON(balance ?? BigInt(0))} vTON`,
     },
     {
       label: "Voting Power",
-      value: `${formatVTON(votingPower ?? BigInt(0), { compact: true })} vTON`,
+      value: `${formatVTON(votingPower ?? BigInt(0))} vTON`,
     },
     {
       label: "Received Delegations",
-      value: `${formatVTON(receivedDelegations ?? BigInt(0), { compact: true })} vTON`,
+      value: `${formatVTON(receivedDelegations ?? BigInt(0))} vTON`,
     },
     {
       label: "Delegated To",
@@ -99,7 +99,7 @@ export function MyStatus() {
     {
       label: "Delegated Amount",
       value: hasDelegated
-        ? `${formatVTON(delegatedAmount, { compact: true })} vTON`
+        ? `${formatVTON(delegatedAmount)} vTON`
         : "-",
     },
   ];

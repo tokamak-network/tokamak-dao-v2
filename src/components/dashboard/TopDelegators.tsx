@@ -26,7 +26,7 @@ export function TopDelegators() {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle>Top Delegates</CardTitle>
+        <CardTitle>Top Delegators</CardTitle>
         <Link
           href="/delegates"
           className="text-sm text-[var(--text-brand)] hover:underline"
@@ -39,13 +39,13 @@ export function TopDelegators() {
           <div className="text-center py-4 text-[var(--text-tertiary)]">
             <p className="text-sm">Contracts not deployed</p>
             <p className="text-xs mt-1">
-              No delegates available
+              No delegators available
             </p>
           </div>
         )}
         {isDeployed && topDelegators.length === 0 && (
           <div className="text-center py-4 text-[var(--text-tertiary)]">
-            <p className="text-sm">No delegates yet</p>
+            <p className="text-sm">No delegators yet</p>
             <p className="text-xs mt-1">
               Be the first to delegate your voting power
             </p>

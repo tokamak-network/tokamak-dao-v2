@@ -87,7 +87,6 @@ export interface DAOParameters {
 
 // Delegation Parameters
 export interface DelegationParameters {
-  delegationCap: bigint; // in basis points (e.g., 500 = 5%)
   delegationPeriodRequirement: bigint; // in seconds
 }
 
@@ -120,4 +119,19 @@ export interface ContractAddresses {
   daoGovernor: `0x${string}`;
   securityCouncil: `0x${string}`;
   timelock: `0x${string}`;
+  faucet?: `0x${string}`;
+}
+
+// Faucet Info
+export interface FaucetInfo {
+  claimAmount: bigint;
+  cooldownPeriod: bigint;
+  totalClaimed: bigint;
+  paused: boolean;
+}
+
+// Faucet Claim Status
+export interface FaucetClaimStatus {
+  canClaim: boolean;
+  timeUntilNextClaim: bigint;
 }

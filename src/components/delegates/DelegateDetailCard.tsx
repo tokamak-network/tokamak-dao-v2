@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { cn, formatAddress, formatVTON } from "@/lib/utils";
+import { cn, formatVTON } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
 import { AddressAvatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -40,7 +40,7 @@ const DelegateDetailCard = React.forwardRef<
     },
     ref
   ) => {
-    const displayName = ensName || formatAddress(address);
+    const displayName = ensName || address;
     const formattedVotingPower =
       typeof votingPower === "bigint"
         ? formatVTON(votingPower, { compact: true })

@@ -19,14 +19,16 @@ export const CONTRACT_ADDRESSES: Record<number, ContractAddresses> = {
     daoGovernor: ZERO_ADDRESS,
     securityCouncil: ZERO_ADDRESS,
     timelock: ZERO_ADDRESS,
+    faucet: ZERO_ADDRESS,
   },
   // Sepolia Testnet
   11155111: {
-    vton: "0xDa2953E9B2a63fe1B8dB34C67f8371C64f16914d",
-    delegateRegistry: "0x934A14DA1c9b9094a6f9Ba964a847936eEa8a5f2",
-    daoGovernor: "0xaC09Dea1309252781ae4C2c8e9aA57BF08F950da",
-    securityCouncil: "0xa98e65E6cc6B0104A8253792DD3340223D5cfc5D",
-    timelock: "0xd996a24d80845f910C54465B27F655f750C419D9",
+    vton: "0x4e5e1844506b96A48c9eF01c4244506F591eA5D2",
+    delegateRegistry: "0x472195554F448d0bb90EcfB4326e03d6aAf72053",
+    daoGovernor: "0xeBD668a520813d7CdD2628A2f70a112F4648864C",
+    securityCouncil: "0x18c6e285e837c6ae94808D5b96C03E3700cEE2D8",
+    timelock: "0x0D82f0C60eA0577b5767FA2464aF7f1f58531FB3",
+    faucet: "0xf879a6C57607CD184230eeAd1A55162505913a21"
   },
   // Ethereum Mainnet
   1: {
@@ -182,13 +184,6 @@ export const DELEGATE_REGISTRY_ABI = [
     ],
   },
   {
-    name: "delegationCap",
-    type: "function",
-    stateMutability: "view",
-    inputs: [],
-    outputs: [{ name: "", type: "uint256" }],
-  },
-  {
     name: "delegationPeriodRequirement",
     type: "function",
     stateMutability: "view",
@@ -264,7 +259,7 @@ export const DELEGATE_REGISTRY_ABI = [
     inputs: [
       { name: "profile", type: "string" },
       { name: "philosophy", type: "string" },
-      { name: "interests", type: "string[]" },
+      { name: "interests", type: "string" },
     ],
     outputs: [],
   },
@@ -276,7 +271,7 @@ export const DELEGATE_REGISTRY_ABI = [
       { name: "delegator", type: "address", indexed: true },
       { name: "profile", type: "string", indexed: false },
       { name: "philosophy", type: "string", indexed: false },
-      { name: "interests", type: "string[]", indexed: false },
+      { name: "interests", type: "string", indexed: false },
     ],
   },
   {
@@ -702,5 +697,100 @@ export const TIMELOCK_ABI = [
     name: "TransactionCanceled",
     type: "event",
     inputs: [{ name: "txHash", type: "bytes32", indexed: true }],
+  },
+] as const;
+
+export const VTON_FAUCET_ABI = [
+  // Read functions
+  {
+    name: "vton",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "address" }],
+  },
+  {
+    name: "claimAmount",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    name: "cooldownPeriod",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    name: "lastClaimTime",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "user", type: "address" }],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    name: "totalClaimed",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    name: "paused",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "bool" }],
+  },
+  {
+    name: "canClaim",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "user", type: "address" }],
+    outputs: [
+      { name: "canClaimNow", type: "bool" },
+      { name: "timeUntilNextClaim", type: "uint256" },
+    ],
+  },
+  // Write functions
+  {
+    name: "claim",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [],
+    outputs: [],
+  },
+  // Events
+  {
+    name: "Claimed",
+    type: "event",
+    inputs: [
+      { name: "user", type: "address", indexed: true },
+      { name: "amount", type: "uint256", indexed: false },
+      { name: "timestamp", type: "uint256", indexed: false },
+    ],
+  },
+  {
+    name: "ClaimAmountUpdated",
+    type: "event",
+    inputs: [
+      { name: "oldAmount", type: "uint256", indexed: false },
+      { name: "newAmount", type: "uint256", indexed: false },
+    ],
+  },
+  {
+    name: "CooldownPeriodUpdated",
+    type: "event",
+    inputs: [
+      { name: "oldPeriod", type: "uint256", indexed: false },
+      { name: "newPeriod", type: "uint256", indexed: false },
+    ],
+  },
+  {
+    name: "PauseStatusUpdated",
+    type: "event",
+    inputs: [{ name: "paused", type: "bool", indexed: false }],
   },
 ] as const;

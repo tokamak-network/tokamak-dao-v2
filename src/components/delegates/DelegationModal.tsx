@@ -18,6 +18,7 @@ export interface DelegationModalProps {
   delegateeName?: string;
   mode: "delegate" | "undelegate";
   currentDelegatedAmount?: bigint;
+  onSuccess?: () => void;
 }
 
 /**
@@ -30,6 +31,7 @@ export function DelegationModal({
   delegateeName,
   mode,
   currentDelegatedAmount = BigInt(0),
+  onSuccess,
 }: DelegationModalProps) {
   const { address } = useAccount();
   const { data: vtonBalance } = useVTONBalance(address);
@@ -80,12 +82,13 @@ export function DelegationModal({
   // Close modal on successful transaction
   React.useEffect(() => {
     if (isConfirmed) {
+      onSuccess?.();
       const timeout = setTimeout(() => {
         onClose();
       }, 2000);
       return () => clearTimeout(timeout);
     }
-  }, [isConfirmed, onClose]);
+  }, [isConfirmed, onClose, onSuccess]);
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;

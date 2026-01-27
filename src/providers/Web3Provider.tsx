@@ -3,8 +3,9 @@
 import * as React from 'react';
 import { createAppKit } from '@reown/appkit/react';
 import { WagmiProvider } from 'wagmi';
+import { reconnect } from '@wagmi/core';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { wagmiAdapter, projectId, networks, metadata } from '@/config/wagmi';
+import { wagmiAdapter, projectId, networks, metadata, config } from '@/config/wagmi';
 import { WalletConnectionProvider } from '@/hooks/useWalletConnection';
 
 // Initialize AppKit at module level (must be outside component)
@@ -28,6 +29,11 @@ createAppKit({
 export function Web3Provider({ children }: { children: React.ReactNode }) {
   // SSR-safe QueryClient 생성 - 모듈 레벨이 아닌 컴포넌트 내부에서 생성
   const [queryClient] = React.useState(() => new QueryClient());
+
+  // 앱 시작 시 이전 세션 연결 복원
+  React.useEffect(() => {
+    reconnect(config);
+  }, []);
 
   return (
     <WagmiProvider config={wagmiAdapter.wagmiConfig}>
