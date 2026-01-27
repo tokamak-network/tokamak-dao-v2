@@ -52,6 +52,7 @@ export function areContractsDeployed(chainId: number): boolean {
 // ABIs
 
 export const VTON_ABI = [
+  // Read functions
   {
     name: "totalSupply",
     type: "function",
@@ -81,6 +82,16 @@ export const VTON_ABI = [
     outputs: [{ name: "", type: "uint256" }],
   },
   {
+    name: "getPastVotes",
+    type: "function",
+    stateMutability: "view",
+    inputs: [
+      { name: "account", type: "address" },
+      { name: "blockNumber", type: "uint256" },
+    ],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
     name: "decimals",
     type: "function",
     stateMutability: "view",
@@ -94,9 +105,58 @@ export const VTON_ABI = [
     inputs: [],
     outputs: [{ name: "", type: "string" }],
   },
+  {
+    name: "allowance",
+    type: "function",
+    stateMutability: "view",
+    inputs: [
+      { name: "owner", type: "address" },
+      { name: "spender", type: "address" },
+    ],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  // Write functions
+  {
+    name: "approve",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "spender", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+    outputs: [{ name: "", type: "bool" }],
+  },
+  {
+    name: "transfer",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "to", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+    outputs: [{ name: "", type: "bool" }],
+  },
+  // Events
+  {
+    name: "Minted",
+    type: "event",
+    inputs: [
+      { name: "to", type: "address", indexed: true },
+      { name: "amount", type: "uint256", indexed: false },
+    ],
+  },
+  {
+    name: "EmissionRatioUpdated",
+    type: "event",
+    inputs: [
+      { name: "oldRatio", type: "uint256", indexed: false },
+      { name: "newRatio", type: "uint256", indexed: false },
+    ],
+  },
 ] as const;
 
 export const DELEGATE_REGISTRY_ABI = [
+  // Read functions
   {
     name: "getAllDelegators",
     type: "function",
@@ -136,6 +196,37 @@ export const DELEGATE_REGISTRY_ABI = [
     outputs: [{ name: "", type: "uint256" }],
   },
   {
+    name: "getDelegatorInfo",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "delegator", type: "address" }],
+    outputs: [
+      { name: "profile", type: "string" },
+      { name: "philosophy", type: "string" },
+      { name: "interests", type: "string[]" },
+      { name: "isRegistered", type: "bool" },
+    ],
+  },
+  {
+    name: "isRegisteredDelegator",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "delegator", type: "address" }],
+    outputs: [{ name: "", type: "bool" }],
+  },
+  {
+    name: "getVotingPower",
+    type: "function",
+    stateMutability: "view",
+    inputs: [
+      { name: "delegator", type: "address" },
+      { name: "blockNumber", type: "uint256" },
+      { name: "snapshotBlock", type: "uint256" },
+    ],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  // Write functions
+  {
     name: "delegate",
     type: "function",
     stateMutability: "nonpayable",
@@ -156,6 +247,17 @@ export const DELEGATE_REGISTRY_ABI = [
     outputs: [],
   },
   {
+    name: "redelegate",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "fromDelegator", type: "address" },
+      { name: "toDelegator", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+    outputs: [],
+  },
+  {
     name: "registerDelegator",
     type: "function",
     stateMutability: "nonpayable",
@@ -166,16 +268,34 @@ export const DELEGATE_REGISTRY_ABI = [
     ],
     outputs: [],
   },
+  // Events
   {
-    name: "getDelegatorInfo",
-    type: "function",
-    stateMutability: "view",
-    inputs: [{ name: "delegator", type: "address" }],
-    outputs: [
-      { name: "profile", type: "string" },
-      { name: "philosophy", type: "string" },
-      { name: "interests", type: "string[]" },
-      { name: "isRegistered", type: "bool" },
+    name: "DelegatorRegistered",
+    type: "event",
+    inputs: [
+      { name: "delegator", type: "address", indexed: true },
+      { name: "profile", type: "string", indexed: false },
+      { name: "philosophy", type: "string", indexed: false },
+      { name: "interests", type: "string[]", indexed: false },
+    ],
+  },
+  {
+    name: "Delegated",
+    type: "event",
+    inputs: [
+      { name: "owner", type: "address", indexed: true },
+      { name: "delegator", type: "address", indexed: true },
+      { name: "amount", type: "uint256", indexed: false },
+      { name: "expiresAt", type: "uint256", indexed: false },
+    ],
+  },
+  {
+    name: "Undelegated",
+    type: "event",
+    inputs: [
+      { name: "owner", type: "address", indexed: true },
+      { name: "delegator", type: "address", indexed: true },
+      { name: "amount", type: "uint256", indexed: false },
     ],
   },
 ] as const;
@@ -254,6 +374,20 @@ export const DAO_GOVERNOR_ABI = [
       { name: "account", type: "address" },
     ],
     outputs: [{ name: "", type: "bool" }],
+  },
+  {
+    name: "proposalEta",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "proposalId", type: "uint256" }],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    name: "proposalSnapshot",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "proposalId", type: "uint256" }],
+    outputs: [{ name: "", type: "uint256" }],
   },
   // Write functions
   {
@@ -358,6 +492,7 @@ export const DAO_GOVERNOR_ABI = [
 ] as const;
 
 export const SECURITY_COUNCIL_ABI = [
+  // Read functions
   {
     name: "getMembers",
     type: "function",
@@ -378,5 +513,194 @@ export const SECURITY_COUNCIL_ABI = [
     stateMutability: "view",
     inputs: [],
     outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    name: "getPendingActions",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256[]" }],
+  },
+  {
+    name: "isMember",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "account", type: "address" }],
+    outputs: [{ name: "", type: "bool" }],
+  },
+  {
+    name: "getAction",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "actionId", type: "uint256" }],
+    outputs: [
+      { name: "actionType", type: "uint8" },
+      { name: "target", type: "address" },
+      { name: "data", type: "bytes" },
+      { name: "reason", type: "string" },
+      { name: "proposer", type: "address" },
+      { name: "approvalCount", type: "uint256" },
+      { name: "executed", type: "bool" },
+    ],
+  },
+  {
+    name: "hasApproved",
+    type: "function",
+    stateMutability: "view",
+    inputs: [
+      { name: "actionId", type: "uint256" },
+      { name: "member", type: "address" },
+    ],
+    outputs: [{ name: "", type: "bool" }],
+  },
+  // Write functions
+  {
+    name: "proposeEmergencyAction",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "actionType", type: "uint8" },
+      { name: "target", type: "address" },
+      { name: "data", type: "bytes" },
+      { name: "reason", type: "string" },
+    ],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    name: "approveEmergencyAction",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "actionId", type: "uint256" }],
+    outputs: [],
+  },
+  {
+    name: "executeEmergencyAction",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "actionId", type: "uint256" }],
+    outputs: [],
+  },
+  {
+    name: "cancelProposal",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "proposalId", type: "uint256" }],
+    outputs: [],
+  },
+  {
+    name: "pauseProtocol",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "reason", type: "string" }],
+    outputs: [],
+  },
+  // Events
+  {
+    name: "EmergencyActionProposed",
+    type: "event",
+    inputs: [
+      { name: "actionId", type: "uint256", indexed: false },
+      { name: "actionType", type: "uint8", indexed: false },
+      { name: "target", type: "address", indexed: false },
+      { name: "data", type: "bytes", indexed: false },
+      { name: "reason", type: "string", indexed: false },
+      { name: "proposer", type: "address", indexed: false },
+    ],
+  },
+  {
+    name: "EmergencyActionApproved",
+    type: "event",
+    inputs: [
+      { name: "actionId", type: "uint256", indexed: false },
+      { name: "approver", type: "address", indexed: false },
+    ],
+  },
+  {
+    name: "EmergencyActionExecuted",
+    type: "event",
+    inputs: [
+      { name: "actionId", type: "uint256", indexed: false },
+      { name: "executor", type: "address", indexed: false },
+    ],
+  },
+] as const;
+
+export const TIMELOCK_ABI = [
+  // Read functions
+  {
+    name: "delay",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    name: "MINIMUM_DELAY",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    name: "MAXIMUM_DELAY",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    name: "GRACE_PERIOD",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    name: "isQueued",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "txHash", type: "bytes32" }],
+    outputs: [{ name: "", type: "bool" }],
+  },
+  {
+    name: "isReady",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "txHash", type: "bytes32" }],
+    outputs: [{ name: "", type: "bool" }],
+  },
+  {
+    name: "getTransactionEta",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "txHash", type: "bytes32" }],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  // Events
+  {
+    name: "TransactionQueued",
+    type: "event",
+    inputs: [
+      { name: "txHash", type: "bytes32", indexed: true },
+      { name: "target", type: "address", indexed: true },
+      { name: "value", type: "uint256", indexed: false },
+      { name: "data", type: "bytes", indexed: false },
+      { name: "eta", type: "uint256", indexed: false },
+    ],
+  },
+  {
+    name: "TransactionExecuted",
+    type: "event",
+    inputs: [
+      { name: "txHash", type: "bytes32", indexed: true },
+      { name: "target", type: "address", indexed: true },
+      { name: "value", type: "uint256", indexed: false },
+      { name: "data", type: "bytes", indexed: false },
+    ],
+  },
+  {
+    name: "TransactionCanceled",
+    type: "event",
+    inputs: [{ name: "txHash", type: "bytes32", indexed: true }],
   },
 ] as const;

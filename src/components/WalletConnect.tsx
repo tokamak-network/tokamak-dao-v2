@@ -1,16 +1,25 @@
 'use client';
 
-import { ConnectButton } from '@rainbow-me/rainbowkit';
-import { useAccount, useBalance } from 'wagmi';
+import { useAppKit, useAppKitAccount, useAppKitNetwork } from '@reown/appkit/react';
+import { useBalance } from 'wagmi';
 import { formatEther } from 'viem';
+import { Button } from '@/components/ui/button';
 
 export function WalletConnect() {
-  const { address, isConnected, chain } = useAccount();
-  const { data: balance } = useBalance({ address });
+  const { open } = useAppKit();
+  const { address, isConnected } = useAppKitAccount();
+  const { caipNetwork } = useAppKitNetwork();
+  const { data: balance } = useBalance({ address: address as `0x${string}` | undefined });
 
   return (
     <div className="flex flex-col items-center gap-6">
-      <ConnectButton />
+      <Button
+        variant="primary"
+        size="lg"
+        onClick={() => open()}
+      >
+        {isConnected ? 'Open Wallet' : 'Connect Wallet'}
+      </Button>
 
       {isConnected && address && (
         <div className="mt-4 p-6 rounded-xl bg-zinc-100 dark:bg-zinc-900 w-full max-w-md">
@@ -27,7 +36,7 @@ export function WalletConnect() {
             <div className="flex justify-between">
               <span className="text-zinc-500">Network:</span>
               <span className="text-zinc-900 dark:text-zinc-100">
-                {chain?.name ?? 'Unknown'}
+                {caipNetwork?.name ?? 'Unknown'}
               </span>
             </div>
             {balance && (

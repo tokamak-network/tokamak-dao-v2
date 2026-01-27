@@ -1,6 +1,6 @@
 "use client";
 
-import { useReadContract, useChainId } from "wagmi";
+import { useReadContract, useChainId, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { getContractAddresses, areContractsDeployed, VTON_ABI } from "@/constants/contracts";
 
 // Mock data for when contracts are not deployed
@@ -113,6 +113,92 @@ export function useVotingPower(address?: `0x${string}`) {
     isLoading: isDeployed ? result.isLoading : false,
     isError: isDeployed ? result.isError : false,
     error: isDeployed ? result.error : null,
+    isDeployed,
+  };
+}
+
+/**
+ * Hook to get vTON allowance for a spender
+ */
+export function useVTONAllowance(owner?: `0x${string}`, spender?: `0x${string}`) {
+  const chainId = useChainId();
+  const addresses = getContractAddresses(chainId);
+  const isDeployed = areContractsDeployed(chainId);
+
+  const result = useReadContract({
+    address: addresses.vton,
+    abi: VTON_ABI,
+    functionName: "allowance",
+    args: owner && spender ? [owner, spender] : undefined,
+    query: {
+      enabled: isDeployed && !!owner && !!spender,
+    },
+  });
+
+  return {
+    data: isDeployed && owner && spender ? result.data : BigInt(0),
+    isLoading: isDeployed ? result.isLoading : false,
+    isError: isDeployed ? result.isError : false,
+    error: isDeployed ? result.error : null,
+    refetch: result.refetch,
+    isDeployed,
+  };
+}
+
+/**
+ * Hook to approve vTON spending
+ */
+export function useVTONApprove() {
+  const chainId = useChainId();
+  const addresses = getContractAddresses(chainId);
+  const isDeployed = areContractsDeployed(chainId);
+
+  const {
+    data: hash,
+    isPending,
+    writeContract,
+    writeContractAsync,
+    error,
+    reset,
+  } = useWriteContract();
+
+  const { isLoading: isConfirming, isSuccess: isConfirmed } =
+    useWaitForTransactionReceipt({ hash });
+
+  const approve = (spender: `0x${string}`, amount: bigint) => {
+    if (!isDeployed) {
+      console.warn("Contracts not deployed, approve action skipped");
+      return;
+    }
+    writeContract({
+      address: addresses.vton,
+      abi: VTON_ABI,
+      functionName: "approve",
+      args: [spender, amount],
+    });
+  };
+
+  const approveAsync = async (spender: `0x${string}`, amount: bigint) => {
+    if (!isDeployed) {
+      throw new Error("Contracts not deployed");
+    }
+    return writeContractAsync({
+      address: addresses.vton,
+      abi: VTON_ABI,
+      functionName: "approve",
+      args: [spender, amount],
+    });
+  };
+
+  return {
+    approve,
+    approveAsync,
+    hash,
+    isPending,
+    isConfirming,
+    isConfirmed,
+    error,
+    reset,
     isDeployed,
   };
 }

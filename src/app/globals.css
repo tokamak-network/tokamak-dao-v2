@@ -4,9 +4,6 @@
 @import "tailwindcss";
 @import "../styles/design-tokens.css";
 
-/* RainbowKit Styles - Must be imported AFTER Tailwind to avoid being overridden */
-@import "@rainbow-me/rainbowkit/styles.css";
-
 /* ============================================
    Tailwind v4 Theme Configuration
    ============================================ */
@@ -378,21 +375,3 @@ a:not([class]):hover {
   }
 }
 
-/* ============================================
-   RainbowKit Modal Overrides
-   ============================================ */
-
-/* Ensure RainbowKit modals appear above everything */
-[data-rk] {
-  z-index: 99999 !important;
-}
-
-/* RainbowKit modal backdrop */
-[data-rk-modal-backdrop] {
-  z-index: 99998 !important;
-}
-
-/* RainbowKit modal content */
-[data-rk-modal] {
-  z-index: 99999 !important;
-}

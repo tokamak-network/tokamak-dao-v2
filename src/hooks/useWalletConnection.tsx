@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useAccount } from "wagmi";
+import { useAppKitAccount } from "@reown/appkit/react";
 
 /**
  * Wallet connection context for consistent state across all components
@@ -22,32 +22,26 @@ const WalletConnectionContext = React.createContext<WalletConnectionContextValue
  * This ensures all components see the same connection state at the same time
  */
 export function WalletConnectionProvider({ children }: { children: React.ReactNode }) {
-  const { address, status } = useAccount();
+  const { address, isConnected, status } = useAppKitAccount();
   const [isReady, setIsReady] = React.useState(false);
 
-  // Mark as ready when wagmi reaches a stable state
+  // Mark as ready when AppKit reaches a stable state
+  // status: 'connecting' | 'reconnecting' | 'connected' | 'disconnected'
   React.useEffect(() => {
-    // 'connecting' with address = connected (RainbowKit pattern - wagmi may stay in 'connecting' but address is available)
-    // 'connected' = connected (normal case)
-    // 'disconnected' = not connected (stable state)
     const isStable =
-      (status === 'connecting' && !!address) ||  // Connected (address available)
-      status === 'connected' ||                   // Connected (normal case)
-      status === 'disconnected';                  // Not connected (confirmed)
+      status === 'connected' ||   // Connected
+      status === 'disconnected';  // Not connected (confirmed)
 
     if (isStable && !isReady) {
       setIsReady(true);
     }
-  }, [status, address, isReady]);
-
-  // Determine connection based on address presence (matches RainbowKit behavior)
-  const isConnected = !!address;
+  }, [status, isReady]);
 
   const value = React.useMemo(
     () => ({
       isReady,
       isConnected,
-      address,
+      address: address as `0x${string}` | undefined,
     }),
     [isReady, isConnected, address]
   );

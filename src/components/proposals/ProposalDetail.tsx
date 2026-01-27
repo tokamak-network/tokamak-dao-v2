@@ -130,12 +130,11 @@ export function ProposalDetail({ className, proposal }: ProposalDetailProps) {
             <CardHeader>
               <CardTitle>Voting Results</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent className="space-y-4">
               <VotingProgress
                 forVotes={proposal.forVotes}
                 againstVotes={proposal.againstVotes}
                 abstainVotes={proposal.abstainVotes}
-                showLabels
               />
 
               <div className="grid gap-4 sm:grid-cols-3">

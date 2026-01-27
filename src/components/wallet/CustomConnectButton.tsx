@@ -1,88 +1,76 @@
 "use client";
 
-import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { useAppKit, useAppKitAccount, useAppKitNetwork } from "@reown/appkit/react";
 import { Button } from "@/components/ui/button";
 import { NetworkButton } from "./NetworkButton";
 import { AccountButton } from "./AccountButton";
 
 /**
- * CustomConnectButton - RainbowKit 공식 패턴 사용
+ * CustomConnectButton - AppKit hooks 사용
  */
 export function CustomConnectButton() {
+  const { open } = useAppKit();
+  const { address, isConnected, status } = useAppKitAccount();
+  const { caipNetwork } = useAppKitNetwork();
+
+  const ready = status !== "connecting" && status !== "reconnecting";
+
   return (
-    <ConnectButton.Custom>
-      {({
-        account,
-        chain,
-        openAccountModal,
-        openChainModal,
-        openConnectModal,
-        authenticationStatus,
-        mounted,
-      }) => {
-        const ready = mounted && authenticationStatus !== "loading";
-        const connected =
-          ready &&
-          account &&
-          chain &&
-          (!authenticationStatus || authenticationStatus === "authenticated");
+    <div
+      {...(!ready && {
+        "aria-hidden": true,
+        style: {
+          opacity: 0,
+          pointerEvents: "none",
+          userSelect: "none",
+        },
+      })}
+    >
+      {(() => {
+        if (!isConnected || !address) {
+          return (
+            <Button
+              variant="primary"
+              size="md"
+              onClick={() => open({ view: "Connect" })}
+            >
+              Connect Wallet
+            </Button>
+          );
+        }
+
+        if (!caipNetwork) {
+          return (
+            <Button
+              variant="destructive"
+              size="md"
+              onClick={() => open({ view: "Networks" })}
+            >
+              Wrong network
+            </Button>
+          );
+        }
+
+        // Format display address (truncate)
+        const displayAddress = `${address.slice(0, 6)}...${address.slice(-4)}`;
+        const chainIcon = caipNetwork.assets?.imageUrl;
 
         return (
-          <div
-            {...(!ready && {
-              "aria-hidden": true,
-              style: {
-                opacity: 0,
-                pointerEvents: "none",
-                userSelect: "none",
-              },
-            })}
-          >
-            {(() => {
-              if (!connected) {
-                return (
-                  <Button
-                    variant="primary"
-                    size="md"
-                    onClick={openConnectModal}
-                  >
-                    Connect Wallet
-                  </Button>
-                );
-              }
-
-              if (chain.unsupported) {
-                return (
-                  <Button
-                    variant="destructive"
-                    size="md"
-                    onClick={openChainModal}
-                  >
-                    Wrong network
-                  </Button>
-                );
-              }
-
-              return (
-                <div className="flex items-center gap-2">
-                  <NetworkButton
-                    chainName={chain.name ?? "Unknown"}
-                    chainIcon={chain.iconUrl}
-                    hasIcon={chain.hasIcon}
-                    onClick={openChainModal}
-                  />
-                  <AccountButton
-                    address={account.address}
-                    displayAddress={account.displayName}
-                    ensAvatar={account.ensAvatar}
-                    onClick={openAccountModal}
-                  />
-                </div>
-              );
-            })()}
+          <div className="flex items-center gap-2">
+            <NetworkButton
+              chainName={caipNetwork.name ?? "Unknown"}
+              chainIcon={chainIcon}
+              hasIcon={!!chainIcon}
+              onClick={() => open({ view: "Networks" })}
+            />
+            <AccountButton
+              address={address}
+              displayAddress={displayAddress}
+              onClick={() => open({ view: "Account" })}
+            />
           </div>
         );
-      }}
-    </ConnectButton.Custom>
+      })()}
+    </div>
   );
 }

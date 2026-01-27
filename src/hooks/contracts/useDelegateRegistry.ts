@@ -318,3 +318,113 @@ export function useRegisterDelegator() {
     isDeployed,
   };
 }
+
+/**
+ * Hook to check if an address is a registered delegator
+ */
+export function useIsRegisteredDelegator(address?: `0x${string}`) {
+  const chainId = useChainId();
+  const addresses = getContractAddresses(chainId);
+  const isDeployed = areContractsDeployed(chainId);
+
+  const result = useReadContract({
+    address: addresses.delegateRegistry,
+    abi: DELEGATE_REGISTRY_ABI,
+    functionName: "isRegisteredDelegator",
+    args: address ? [address] : undefined,
+    query: {
+      enabled: isDeployed && !!address,
+    },
+  });
+
+  return {
+    data: isDeployed && address ? result.data : false,
+    isLoading: isDeployed ? result.isLoading : false,
+    isError: isDeployed ? result.isError : false,
+    error: isDeployed ? result.error : null,
+    refetch: result.refetch,
+    isDeployed,
+  };
+}
+
+/**
+ * Hook to get voting power for a delegator at a specific block
+ */
+export function useDelegatorVotingPower(
+  delegator?: `0x${string}`,
+  blockNumber?: bigint,
+  snapshotBlock?: bigint
+) {
+  const chainId = useChainId();
+  const addresses = getContractAddresses(chainId);
+  const isDeployed = areContractsDeployed(chainId);
+
+  const result = useReadContract({
+    address: addresses.delegateRegistry,
+    abi: DELEGATE_REGISTRY_ABI,
+    functionName: "getVotingPower",
+    args:
+      delegator && blockNumber && snapshotBlock
+        ? [delegator, blockNumber, snapshotBlock]
+        : undefined,
+    query: {
+      enabled: isDeployed && !!delegator && !!blockNumber && !!snapshotBlock,
+    },
+  });
+
+  return {
+    data: result.data ?? BigInt(0),
+    isLoading: isDeployed ? result.isLoading : false,
+    isError: isDeployed ? result.isError : false,
+    error: isDeployed ? result.error : null,
+    isDeployed,
+  };
+}
+
+/**
+ * Hook to redelegate vTON from one delegatee to another
+ */
+export function useRedelegate() {
+  const chainId = useChainId();
+  const addresses = getContractAddresses(chainId);
+  const isDeployed = areContractsDeployed(chainId);
+
+  const {
+    data: hash,
+    isPending,
+    writeContract,
+    error,
+    reset,
+  } = useWriteContract();
+
+  const { isLoading: isConfirming, isSuccess: isConfirmed } =
+    useWaitForTransactionReceipt({ hash });
+
+  const redelegate = (
+    fromDelegator: `0x${string}`,
+    toDelegator: `0x${string}`,
+    amount: bigint
+  ) => {
+    if (!isDeployed) {
+      console.warn("Contracts not deployed, redelegate action skipped");
+      return;
+    }
+    writeContract({
+      address: addresses.delegateRegistry,
+      abi: DELEGATE_REGISTRY_ABI,
+      functionName: "redelegate",
+      args: [fromDelegator, toDelegator, amount],
+    });
+  };
+
+  return {
+    redelegate,
+    hash,
+    isPending,
+    isConfirming,
+    isConfirmed,
+    error,
+    reset,
+    isDeployed,
+  };
+}
