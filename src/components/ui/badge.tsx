@@ -68,7 +68,9 @@ type ProposalStatus =
   | "executed"
   | "failed"
   | "canceled"
-  | "queued";
+  | "queued"
+  | "succeeded"
+  | "expired";
 
 /**
  * Status configuration mapping
@@ -78,11 +80,13 @@ const statusConfig: Record<
   { variant: NonNullable<BadgeProps["variant"]>; label: string }
 > = {
   active: { variant: "info", label: "ACTIVE" },
-  pending: { variant: "warning", label: "PENDING EXECUTION" },
+  pending: { variant: "warning", label: "PENDING" },
   executed: { variant: "success", label: "EXECUTED" },
   failed: { variant: "error", label: "FAILED" },
   canceled: { variant: "error", label: "CANCELED" },
   queued: { variant: "warning", label: "QUEUED" },
+  succeeded: { variant: "success", label: "SUCCEEDED" },
+  expired: { variant: "error", label: "EXPIRED" },
 } as const;
 
 export interface StatusBadgeProps extends Omit<BadgeProps, "variant"> {

@@ -9,7 +9,9 @@ export type ProposalStatus =
   | "executed"
   | "failed"
   | "canceled"
-  | "queued";
+  | "queued"
+  | "succeeded"
+  | "expired";
 
 // Proposal State from Contract (numeric enum)
 export enum ProposalState {
@@ -42,11 +44,11 @@ export function mapProposalState(state: ProposalState): ProposalStatus {
     case ProposalState.Defeated:
       return "failed";
     case ProposalState.Succeeded:
-      return "queued";
+      return "succeeded";
     case ProposalState.Queued:
       return "queued";
     case ProposalState.Expired:
-      return "failed";
+      return "expired";
     case ProposalState.Executed:
       return "executed";
     default:
@@ -81,7 +83,6 @@ export interface DAOParameters {
   quorum: bigint; // in basis points (e.g., 400 = 4%)
   votingPeriod: bigint; // in seconds
   votingDelay: bigint; // in seconds
-  proposalThreshold: bigint; // minimum vTON to create proposal
   proposalCreationCost: bigint; // TON cost to create proposal
 }
 
@@ -114,12 +115,14 @@ export interface UserStatus {
 
 // Contract Addresses
 export interface ContractAddresses {
+  ton?: `0x${string}`;
   vton: `0x${string}`;
   delegateRegistry: `0x${string}`;
   daoGovernor: `0x${string}`;
   securityCouncil: `0x${string}`;
   timelock: `0x${string}`;
   faucet?: `0x${string}`;
+  tonFaucet?: `0x${string}`;
 }
 
 // Faucet Info

@@ -12,7 +12,9 @@ type ProposalStatus =
   | "executed"
   | "failed"
   | "canceled"
-  | "queued";
+  | "queued"
+  | "succeeded"
+  | "expired";
 
 export interface ProposalCardProps extends React.HTMLAttributes<HTMLDivElement> {
   id: string;
@@ -22,7 +24,7 @@ export interface ProposalCardProps extends React.HTMLAttributes<HTMLDivElement> 
   forVotes: number;
   againstVotes: number;
   abstainVotes?: number;
-  totalVoters: number;
+  totalVoters?: number;
   infoIcon?: boolean;
 }
 
@@ -100,10 +102,14 @@ const ProposalCard = React.forwardRef<HTMLDivElement, ProposalCardProps>(
               </div>
               <div className="text-sm text-[var(--text-secondary)] mt-0.5">
                 <span className="font-medium">{totalVotes}</span>
-                <br />
-                <span className="text-xs text-[var(--text-tertiary)]">
-                  {totalVoters} addresses
-                </span>
+                {totalVoters !== undefined && totalVoters > 0 && (
+                  <>
+                    <br />
+                    <span className="text-xs text-[var(--text-tertiary)]">
+                      {totalVoters} addresses
+                    </span>
+                  </>
+                )}
               </div>
             </div>
           </div>
