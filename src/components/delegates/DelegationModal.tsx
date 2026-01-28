@@ -273,7 +273,7 @@ export function DelegationModal({
             <Button
               variant="ghost"
               size="xs"
-              className="absolute right-2 top-1/2 -translate-y-1/2 h-6"
+              className="absolute right-2 top-1/2 -translate-y-1/2 h-6 text-[var(--color-primary)] hover:text-[var(--color-primary-600)] font-semibold"
               onClick={handleMax}
             >
               MAX

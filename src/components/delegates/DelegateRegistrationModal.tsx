@@ -3,8 +3,7 @@
 import * as React from "react";
 import { Modal, ModalBody, ModalFooter } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
-import { Input, Textarea, Label, HelperText } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import { Input, Textarea, Label } from "@/components/ui/input";
 import { useRegisterDelegate } from "@/hooks/contracts/useDelegateRegistry";
 
 export interface DelegateRegistrationModalProps {
@@ -13,31 +12,19 @@ export interface DelegateRegistrationModalProps {
   onSuccess?: () => void;
 }
 
-const PROFILE_MIN = 3;
-const PROFILE_MAX = 100;
-const PHILOSOPHY_MIN = 50;
-const PHILOSOPHY_MAX = 1000;
-const INTEREST_MAX_LENGTH = 50;
-const INTERESTS_MIN = 1;
-const INTERESTS_MAX = 10;
-
 /**
  * Modal for registering as a delegate
+ * Note: Form data is not saved yet - will be implemented later
  */
 export function DelegateRegistrationModal({
   open,
   onClose,
   onSuccess,
 }: DelegateRegistrationModalProps) {
-  const [profile, setProfile] = React.useState("");
-  const [philosophy, setPhilosophy] = React.useState("");
-  const [interests, setInterests] = React.useState<string[]>([]);
-  const [interestInput, setInterestInput] = React.useState("");
-  const [errors, setErrors] = React.useState<{
-    profile?: string;
-    philosophy?: string;
-    interests?: string;
-  }>({});
+  const [name, setName] = React.useState("");
+  const [aboutMe, setAboutMe] = React.useState("");
+  const [whyDelegate, setWhyDelegate] = React.useState("");
+  const [addressOrEns, setAddressOrEns] = React.useState("");
 
   const {
     registerDelegate,
@@ -51,11 +38,10 @@ export function DelegateRegistrationModal({
   // Reset state when modal opens/closes
   React.useEffect(() => {
     if (open) {
-      setProfile("");
-      setPhilosophy("");
-      setInterests([]);
-      setInterestInput("");
-      setErrors({});
+      setName("");
+      setAboutMe("");
+      setWhyDelegate("");
+      setAddressOrEns("");
       reset();
     }
   }, [open, reset]);
@@ -71,79 +57,16 @@ export function DelegateRegistrationModal({
     }
   }, [isConfirmed, onClose, onSuccess]);
 
-  const validateForm = (): boolean => {
-    const newErrors: typeof errors = {};
-
-    if (profile.length < PROFILE_MIN || profile.length > PROFILE_MAX) {
-      newErrors.profile = `Profile must be ${PROFILE_MIN}-${PROFILE_MAX} characters`;
-    }
-
-    if (philosophy.length < PHILOSOPHY_MIN || philosophy.length > PHILOSOPHY_MAX) {
-      newErrors.philosophy = `Philosophy must be ${PHILOSOPHY_MIN}-${PHILOSOPHY_MAX} characters`;
-    }
-
-    if (interests.length < INTERESTS_MIN || interests.length > INTERESTS_MAX) {
-      newErrors.interests = `Add ${INTERESTS_MIN}-${INTERESTS_MAX} interests`;
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleAddInterest = () => {
-    const trimmed = interestInput.trim();
-    if (!trimmed) return;
-
-    if (trimmed.length > INTEREST_MAX_LENGTH) {
-      setErrors((prev) => ({
-        ...prev,
-        interests: `Interest must be ${INTEREST_MAX_LENGTH} characters or less`,
-      }));
-      return;
-    }
-
-    if (interests.length >= INTERESTS_MAX) {
-      setErrors((prev) => ({
-        ...prev,
-        interests: `Maximum ${INTERESTS_MAX} interests allowed`,
-      }));
-      return;
-    }
-
-    if (interests.includes(trimmed)) {
-      setErrors((prev) => ({
-        ...prev,
-        interests: "Interest already added",
-      }));
-      return;
-    }
-
-    setInterests([...interests, trimmed]);
-    setInterestInput("");
-    setErrors((prev) => ({ ...prev, interests: undefined }));
-  };
-
-  const handleRemoveInterest = (index: number) => {
-    setInterests(interests.filter((_, i) => i !== index));
-  };
-
-  const handleInterestKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      handleAddInterest();
-    }
-  };
-
   const handleSubmit = () => {
-    if (!validateForm()) return;
-    registerDelegate(profile, philosophy, interests);
+    // Note: Form data is stored on-chain. Additional off-chain storage will be implemented later
+    registerDelegate(name, aboutMe, [whyDelegate]);
   };
 
   const getButtonText = () => {
     if (isConfirmed) return "Registration Successful!";
     if (isConfirming) return "Confirming...";
     if (isPending) return "Confirm in Wallet...";
-    return "Register as Delegate";
+    return "Become a Delegate";
   };
 
   const isDisabled = isPending || isConfirming || isConfirmed;
@@ -152,135 +75,74 @@ export function DelegateRegistrationModal({
     <Modal
       open={open}
       onClose={onClose}
-      title="Register as Delegate"
+      title="Become a Delegate"
       description="Share your profile and voting philosophy to become a delegate"
       size="md"
     >
       <ModalBody className="space-y-4">
-        {/* Profile Input */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="profile" required>
-              Profile
-            </Label>
-            <span className="text-xs text-[var(--text-tertiary)]">
-              {profile.length}/{PROFILE_MAX}
-            </span>
-          </div>
+        {/* Name Input */}
+        <div className="space-y-3">
+          <Label htmlFor="name" required>
+            Name
+          </Label>
           <Input
-            id="profile"
-            placeholder="Your identity or pseudonym"
-            value={profile}
-            onChange={(e) => {
-              setProfile(e.target.value);
-              setErrors((prev) => ({ ...prev, profile: undefined }));
-            }}
-            error={!!errors.profile}
+            id="name"
+            placeholder="Your name or pseudonym"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
             disabled={isDisabled}
           />
-          {errors.profile && <HelperText error>{errors.profile}</HelperText>}
         </div>
 
-        {/* Philosophy Input */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="philosophy" required>
-              Voting Philosophy
-            </Label>
-            <span className="text-xs text-[var(--text-tertiary)]">
-              {philosophy.length}/{PHILOSOPHY_MAX}
-            </span>
-          </div>
+        {/* About Me Input */}
+        <div className="space-y-3">
+          <Label htmlFor="aboutMe" required>
+            About me
+          </Label>
           <Textarea
-            id="philosophy"
-            placeholder="Describe your decision-making criteria and values..."
-            value={philosophy}
-            onChange={(e) => {
-              setPhilosophy(e.target.value);
-              setErrors((prev) => ({ ...prev, philosophy: undefined }));
-            }}
-            error={!!errors.philosophy}
+            id="aboutMe"
+            placeholder="Tell us about yourself..."
+            value={aboutMe}
+            onChange={(e) => setAboutMe(e.target.value)}
             disabled={isDisabled}
-            rows={4}
+            rows={3}
           />
-          {errors.philosophy && <HelperText error>{errors.philosophy}</HelperText>}
         </div>
 
-        {/* Interests Input */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="interests" required>
-              Interests
-            </Label>
-            <span className="text-xs text-[var(--text-tertiary)]">
-              {interests.length}/{INTERESTS_MAX}
-            </span>
-          </div>
-          <div className="flex gap-2">
-            <Input
-              id="interests"
-              placeholder="Add interest (press Enter)"
-              value={interestInput}
-              onChange={(e) => setInterestInput(e.target.value)}
-              onKeyDown={handleInterestKeyDown}
-              error={!!errors.interests}
-              disabled={isDisabled}
-              className="flex-1"
-            />
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={handleAddInterest}
-              disabled={isDisabled || !interestInput.trim()}
-            >
-              Add
-            </Button>
-          </div>
-          {errors.interests && <HelperText error>{errors.interests}</HelperText>}
+        {/* Why I want to be a delegate Input */}
+        <div className="space-y-3">
+          <Label htmlFor="whyDelegate" required>
+            Why I want to be a delegate
+          </Label>
+          <Textarea
+            id="whyDelegate"
+            placeholder="Describe your motivation and goals..."
+            value={whyDelegate}
+            onChange={(e) => setWhyDelegate(e.target.value)}
+            disabled={isDisabled}
+            rows={3}
+          />
+        </div>
 
-          {/* Interest Tags */}
-          {interests.length > 0 && (
-            <div className="flex flex-wrap gap-2 pt-2">
-              {interests.map((interest, index) => (
-                <Badge
-                  key={index}
-                  variant="outline"
-                  className="pr-1 flex items-center gap-1"
-                >
-                  {interest}
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveInterest(index)}
-                    disabled={isDisabled}
-                    className="ml-1 hover:text-[var(--status-error)] transition-colors"
-                    aria-label={`Remove ${interest}`}
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <line x1="18" y1="6" x2="6" y2="18" />
-                      <line x1="6" y1="6" x2="18" y2="18" />
-                    </svg>
-                  </button>
-                </Badge>
-              ))}
-            </div>
-          )}
+        {/* Address or ENS Input */}
+        <div className="space-y-3">
+          <Label htmlFor="addressOrEns" required>
+            Address or ENS
+          </Label>
+          <Input
+            id="addressOrEns"
+            placeholder="0x... or yourname.eth"
+            value={addressOrEns}
+            onChange={(e) => setAddressOrEns(e.target.value)}
+            disabled={isDisabled}
+          />
         </div>
 
         {/* Transaction Error */}
         {txError && (
-          <HelperText error>
+          <p className="text-sm text-[var(--status-error)]">
             Transaction failed: {txError.message.slice(0, 100)}...
-          </HelperText>
+          </p>
         )}
 
         {/* Success Message */}

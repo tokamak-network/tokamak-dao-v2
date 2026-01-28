@@ -57,7 +57,7 @@ export default function DelegatesPage() {
             >
               {delegateInfo && delegateInfo.registeredAt > BigInt(0) && delegateInfo.isActive
                 ? "Already Registered"
-                : "Register as Delegate"}
+                : "Become a Delegate"}
             </Button>
           </div>
         )}
