@@ -7,6 +7,8 @@ import { DelegateRegistry } from "../src/governance/DelegateRegistry.sol";
 import { DAOGovernor } from "../src/governance/DAOGovernor.sol";
 import { SecurityCouncil } from "../src/governance/SecurityCouncil.sol";
 import { Timelock } from "../src/governance/Timelock.sol";
+import { VTONFaucet } from "../src/test/VTONFaucet.sol";
+import { TONFaucet } from "../src/test/TONFaucet.sol";
 
 /// @title Deploy Script for vTON DAO Governance
 /// @notice Deploys all governance contracts
@@ -257,8 +259,17 @@ contract DeploySepoliaScript is Script {
         timelock.setGovernor(address(governor));
         timelock.setSecurityCouncil(address(securityCouncil));
 
-        // 8. Setup vTON minter
+        // 8. Deploy VTONFaucet
+        VTONFaucet faucet = new VTONFaucet(address(vton), deployer);
+        console.log("VTONFaucet deployed at:", address(faucet));
+
+        // 9. Deploy TONFaucet
+        TONFaucet tonFaucet = new TONFaucet(address(ton), deployer);
+        console.log("TONFaucet deployed at:", address(tonFaucet));
+
+        // 10. Setup vTON minters
         vton.setMinter(deployer, true);
+        vton.setMinter(address(faucet), true);
 
         vm.stopBroadcast();
 
@@ -270,5 +281,7 @@ contract DeploySepoliaScript is Script {
         console.log("Timelock:", address(timelock));
         console.log("DAOGovernor:", address(governor));
         console.log("SecurityCouncil:", address(securityCouncil));
+        console.log("VTONFaucet:", address(faucet));
+        console.log("TONFaucet:", address(tonFaucet));
     }
 }
