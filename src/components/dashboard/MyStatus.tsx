@@ -30,13 +30,14 @@ export function MyStatus() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-3 animate-pulse">
+          <div className="space-y-4 animate-pulse">
             {[...Array(5)].map((_, i) => (
               <div
                 key={i}
-                className="flex items-center justify-between py-2 border-b border-[var(--border-subtle)] last:border-0"
+                className="flex items-center py-3 border-b border-[var(--border-subtle)] last:border-0"
               >
                 <div className="h-4 w-24 bg-[var(--bg-secondary)] rounded" />
+                <span className="flex-1 border-b border-dotted border-[var(--border-subtle)] mx-3 mb-1" />
                 <div className="h-4 w-20 bg-[var(--bg-secondary)] rounded" />
               </div>
             ))}
@@ -92,9 +93,7 @@ export function MyStatus() {
     },
     {
       label: "Delegated Amount",
-      value: hasDelegated
-        ? `${formatVTON(delegatedAmount)} vTON`
-        : "-",
+      value: `${formatVTON(delegatedAmount)} vTON`,
     },
   ];
 
@@ -116,15 +115,16 @@ export function MyStatus() {
             </p>
           </div>
         )}
-        <div className="space-y-3">
+        <div className="space-y-4">
           {stats.map((stat) => (
             <div
               key={stat.label}
-              className="flex items-center justify-between py-2 border-b border-[var(--border-subtle)] last:border-0"
+              className="flex items-center py-3 border-b border-[var(--border-subtle)] last:border-0"
             >
               <span className="text-sm text-[var(--text-secondary)]">
                 {stat.label}
               </span>
+              <span className="flex-1 border-b border-dotted border-[var(--border-subtle)] mx-3 mb-1" />
               <span className="text-sm font-medium text-[var(--text-primary)]">
                 {stat.value}
               </span>
