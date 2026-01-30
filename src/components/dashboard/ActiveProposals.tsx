@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { ProposalCard } from "@/components/ui/proposal-card";
+import { ProposalListItem } from "@/components/ui/proposal-list-item";
 import { Badge } from "@/components/ui/badge";
 import { useProposals } from "@/hooks/contracts/useDAOGovernor";
 import { useMemo } from "react";
@@ -42,7 +42,7 @@ export function ActiveProposals() {
           View all
         </Link>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent>
         {!isDeployed && (
           <div className="text-center py-4 text-[var(--text-tertiary)]">
             <p className="text-sm">Contracts not deployed</p>
@@ -64,16 +64,13 @@ export function ActiveProposals() {
           const againstVotes = Number(formatUnits(proposal.againstVotes, 18));
           const abstainVotes = Number(formatUnits(proposal.abstainVotes, 18));
           return (
-            <ProposalCard
+            <ProposalListItem
               key={proposal.id}
               id={proposal.id}
               title={proposal.title}
-              status={proposal.status}
-              date={proposal.date}
               forVotes={forVotes}
               againstVotes={againstVotes}
               abstainVotes={abstainVotes}
-              totalVoters={forVotes + againstVotes + abstainVotes > 0 ? 1 : 0}
             />
           );
         })}

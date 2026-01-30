@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { DelegateCard } from "@/components/ui/delegate-card";
+import { DelegateListItem } from "@/components/ui/delegate-list-item";
 import { useAllDelegates } from "@/hooks/contracts/useDelegateRegistry";
 import { useReadContracts, useChainId } from "wagmi";
 import { getContractAddresses, areContractsDeployed, DELEGATE_REGISTRY_ABI } from "@/constants/contracts";
@@ -68,7 +68,7 @@ export function TopDelegates() {
           View all
         </Link>
       </CardHeader>
-      <CardContent className="space-y-2">
+      <CardContent>
         {!isDeployed && (
           <div className="text-center py-4 text-[var(--text-tertiary)]">
             <p className="text-sm">Contracts not deployed</p>
@@ -86,7 +86,7 @@ export function TopDelegates() {
           </div>
         )}
         {topDelegates.map((delegate, index) => (
-          <DelegateCard
+          <DelegateListItem
             key={delegate.address}
             address={delegate.address}
             votingPower={Number(delegate.votingPowerFormatted).toLocaleString(undefined, { maximumFractionDigits: 2 })}
