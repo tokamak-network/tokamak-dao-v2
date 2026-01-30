@@ -4,8 +4,7 @@ import * as React from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { EmergencyActionCard } from "./EmergencyActionCard";
 import {
-  useAction,
-  useHasApproved,
+  useEmergencyAction,
   useApproveEmergencyAction,
   useExecuteEmergencyAction,
   ActionType,
@@ -27,8 +26,7 @@ function PendingActionItem({
   currentAddress,
   isMember,
 }: PendingActionItemProps) {
-  const { data: action, isLoading } = useAction(actionId);
-  const { data: hasApproved } = useHasApproved(actionId, currentAddress);
+  const { data: action, isLoading } = useEmergencyAction(actionId);
 
   const {
     approveEmergencyAction,
@@ -48,27 +46,37 @@ function PendingActionItem({
     );
   }
 
-  const [actionType, proposer, target, , reason, approvalCount, executed] = action;
-
   // Skip executed actions
-  if (executed) {
+  if (action.executed) {
     return null;
   }
 
-  const isExecutable = Number(approvalCount) >= threshold;
+  // Derive hasApproved from the approvers array
+  const hasApproved = currentAddress
+    ? action.approvers.some(
+        (addr) => addr.toLowerCase() === currentAddress.toLowerCase()
+      )
+    : false;
+
+  // Derive approvalCount from the approvers array length
+  const approvalCount = action.approvers.length;
+  const isExecutable = approvalCount >= threshold;
+
+  // First approver is typically the proposer
+  const proposer = action.approvers.length > 0 ? action.approvers[0] : undefined;
 
   return (
     <EmergencyActionCard
       actionId={actionId}
-      actionType={actionType as ActionType}
-      proposer={proposer}
-      target={target}
-      reason={reason}
-      approvalCount={Number(approvalCount)}
+      actionType={action.actionType as ActionType}
+      target={action.target}
+      reason={action.reason}
+      approvalCount={approvalCount}
       threshold={threshold}
       hasApproved={hasApproved}
       isExecutable={isExecutable}
       isMember={isMember}
+      proposer={proposer}
       onApprove={() => approveEmergencyAction(actionId)}
       onExecute={() => executeEmergencyAction(actionId)}
       isApproving={isApproving || isApproveConfirming}

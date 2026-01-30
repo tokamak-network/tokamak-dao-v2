@@ -27,6 +27,21 @@ export interface SecurityCouncilMember {
   addedAt: bigint;
 }
 
+/**
+ * EmergencyAction struct from SecurityCouncil contract
+ */
+export interface EmergencyActionData {
+  id: bigint;
+  actionType: number;
+  target: `0x${string}`;
+  data: `0x${string}`;
+  reason: string;
+  createdAt: bigint;
+  executedAt: bigint;
+  executed: boolean;
+  approvers: readonly `0x${string}`[];
+}
+
 // Mock data for when contracts are not deployed
 const MOCK_DATA = {
   members: [] as SecurityCouncilMember[],
@@ -87,56 +102,6 @@ export function useCouncilThreshold() {
 }
 
 /**
- * Hook to get pending actions count
- */
-export function usePendingActionsCount() {
-  const chainId = useChainId();
-  const addresses = getContractAddresses(chainId);
-  const isDeployed = areContractsDeployed(chainId);
-
-  const result = useReadContract({
-    address: addresses.securityCouncil,
-    abi: SECURITY_COUNCIL_ABI,
-    functionName: "getPendingActionsCount",
-    query: {
-      enabled: isDeployed,
-    },
-  });
-
-  return {
-    data: isDeployed ? result.data : MOCK_DATA.pendingActionsCount,
-    isLoading: isDeployed ? result.isLoading : false,
-    isError: isDeployed ? result.isError : false,
-    error: isDeployed ? result.error : null,
-    isDeployed,
-  };
-}
-
-/**
- * Combined hook for all Security Council data
- */
-export function useSecurityCouncil() {
-  const membersResult = useCouncilMembers();
-  const thresholdResult = useCouncilThreshold();
-  const pendingResult = usePendingActionsCount();
-
-  return {
-    members: membersResult.data ?? [],
-    threshold: thresholdResult.data ?? BigInt(0),
-    pendingActionsCount: pendingResult.data ?? BigInt(0),
-    isLoading:
-      membersResult.isLoading ||
-      thresholdResult.isLoading ||
-      pendingResult.isLoading,
-    isError:
-      membersResult.isError ||
-      thresholdResult.isError ||
-      pendingResult.isError,
-    isDeployed: membersResult.isDeployed,
-  };
-}
-
-/**
  * Hook to check if an address is a Security Council member
  */
 export function useIsMember(address?: `0x${string}`) {
@@ -186,13 +151,55 @@ export function usePendingActions() {
     isError: isDeployed ? result.isError : false,
     error: isDeployed ? result.error : null,
     isDeployed,
+    refetch: result.refetch,
   };
 }
 
 /**
- * Hook to get action details
+ * Hook to get pending actions count
+ * Derives count from getPendingActions() since getPendingActionsCount doesn't exist in the contract
  */
-export function useAction(actionId?: bigint) {
+export function usePendingActionsCount() {
+  const { data: pendingActions, isLoading, isError, error, isDeployed } = usePendingActions();
+
+  return {
+    data: BigInt(pendingActions?.length ?? 0),
+    isLoading,
+    isError,
+    error,
+    isDeployed,
+  };
+}
+
+/**
+ * Combined hook for all Security Council data
+ */
+export function useSecurityCouncil() {
+  const membersResult = useCouncilMembers();
+  const thresholdResult = useCouncilThreshold();
+  const pendingResult = usePendingActionsCount();
+
+  return {
+    members: membersResult.data ?? [],
+    threshold: thresholdResult.data ?? BigInt(0),
+    pendingActionsCount: pendingResult.data ?? BigInt(0),
+    isLoading:
+      membersResult.isLoading ||
+      thresholdResult.isLoading ||
+      pendingResult.isLoading,
+    isError:
+      membersResult.isError ||
+      thresholdResult.isError ||
+      pendingResult.isError,
+    isDeployed: membersResult.isDeployed,
+  };
+}
+
+/**
+ * Hook to get emergency action details using getEmergencyAction
+ * Returns the full EmergencyAction struct including the approvers array
+ */
+export function useEmergencyAction(actionId?: bigint) {
   const chainId = useChainId();
   const addresses = getContractAddresses(chainId);
   const isDeployed = areContractsDeployed(chainId);
@@ -200,46 +207,35 @@ export function useAction(actionId?: bigint) {
   const result = useReadContract({
     address: addresses.securityCouncil,
     abi: SECURITY_COUNCIL_ABI,
-    functionName: "getAction",
+    functionName: "getEmergencyAction",
     args: actionId !== undefined ? [actionId] : undefined,
     query: {
       enabled: isDeployed && actionId !== undefined,
     },
   });
 
+  // Transform the raw tuple data into a typed object
+  const data: EmergencyActionData | undefined = result.data
+    ? {
+        id: result.data.id,
+        actionType: result.data.actionType,
+        target: result.data.target,
+        data: result.data.data,
+        reason: result.data.reason,
+        createdAt: result.data.createdAt,
+        executedAt: result.data.executedAt,
+        executed: result.data.executed,
+        approvers: result.data.approvers,
+      }
+    : undefined;
+
   return {
-    data: result.data,
+    data,
     isLoading: isDeployed ? result.isLoading : false,
     isError: isDeployed ? result.isError : false,
     error: isDeployed ? result.error : null,
     isDeployed,
-  };
-}
-
-/**
- * Hook to check if a member has approved an action
- */
-export function useHasApproved(actionId?: bigint, member?: `0x${string}`) {
-  const chainId = useChainId();
-  const addresses = getContractAddresses(chainId);
-  const isDeployed = areContractsDeployed(chainId);
-
-  const result = useReadContract({
-    address: addresses.securityCouncil,
-    abi: SECURITY_COUNCIL_ABI,
-    functionName: "hasApproved",
-    args: actionId !== undefined && member ? [actionId, member] : undefined,
-    query: {
-      enabled: isDeployed && actionId !== undefined && !!member,
-    },
-  });
-
-  return {
-    data: result.data ?? false,
-    isLoading: isDeployed ? result.isLoading : false,
-    isError: isDeployed ? result.isError : false,
-    error: isDeployed ? result.error : null,
-    isDeployed,
+    refetch: result.refetch,
   };
 }
 

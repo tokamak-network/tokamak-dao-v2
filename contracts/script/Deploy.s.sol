@@ -90,7 +90,11 @@ contract DeployScript is Script {
         timelock.setSecurityCouncil(address(securityCouncil));
         console.log("Timelock configured");
 
-        // 7. Transfer ownership to DAO (after setup)
+        // 7. Set SecurityCouncil as proposal guardian (required for cancel functionality)
+        governor.setProposalGuardian(address(securityCouncil));
+        console.log("SecurityCouncil set as proposalGuardian");
+
+        // 8. Transfer ownership to DAO (after setup)
         // Note: In production, you might want to keep admin control initially
         // and transfer ownership through a governance proposal later
 
@@ -153,6 +157,9 @@ contract DeployLocalScript is Script {
         // Configure
         timelock.setGovernor(address(governor));
         timelock.setSecurityCouncil(address(securityCouncil));
+
+        // Set SecurityCouncil as proposal guardian (required for cancel functionality)
+        governor.setProposalGuardian(address(securityCouncil));
 
         // Setup vTON minter
         vton.setMinter(deployer, true);
@@ -261,15 +268,19 @@ contract DeploySepoliaScript is Script {
         timelock.setGovernor(address(governor));
         timelock.setSecurityCouncil(address(securityCouncil));
 
-        // 8. Deploy VTONFaucet
+        // 8. Set SecurityCouncil as proposal guardian (required for cancel functionality)
+        governor.setProposalGuardian(address(securityCouncil));
+        console.log("SecurityCouncil set as proposalGuardian");
+
+        // 10. Deploy VTONFaucet
         VTONFaucet faucet = new VTONFaucet(address(vton), deployer);
         console.log("VTONFaucet deployed at:", address(faucet));
 
-        // 9. Deploy TONFaucet
+        // 11. Deploy TONFaucet
         TONFaucet tonFaucet = new TONFaucet(address(ton), deployer);
         console.log("TONFaucet deployed at:", address(tonFaucet));
 
-        // 10. Setup vTON minters
+        // 12. Setup vTON minters
         vton.setMinter(deployer, true);
         vton.setMinter(address(faucet), true);
 

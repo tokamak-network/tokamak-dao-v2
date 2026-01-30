@@ -11,7 +11,6 @@ import { formatAddress } from "@/lib/utils";
 export interface EmergencyActionCardProps {
   actionId: bigint;
   actionType: ActionType;
-  proposer: `0x${string}`;
   target: `0x${string}`;
   reason: string;
   approvalCount: number;
@@ -19,6 +18,8 @@ export interface EmergencyActionCardProps {
   hasApproved: boolean;
   isExecutable: boolean;
   isMember: boolean;
+  /** First approver - typically the proposer of the action */
+  proposer?: `0x${string}`;
   onApprove?: () => void;
   onExecute?: () => void;
   isApproving?: boolean;
@@ -31,7 +32,6 @@ export interface EmergencyActionCardProps {
 export function EmergencyActionCard({
   actionId,
   actionType,
-  proposer,
   target,
   reason,
   approvalCount,
@@ -39,6 +39,7 @@ export function EmergencyActionCard({
   hasApproved,
   isExecutable,
   isMember,
+  proposer,
   onApprove,
   onExecute,
   isApproving,
@@ -70,15 +71,17 @@ export function EmergencyActionCard({
               <span className="text-sm text-[var(--text-tertiary)]">Reason:</span>
               <span className="text-sm text-[var(--text-primary)]">{reason}</span>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-[var(--text-tertiary)]">Proposer:</span>
-              <div className="flex items-center gap-1.5">
-                <AddressAvatar address={proposer} size="xs" />
-                <span className="text-sm text-[var(--text-primary)]">
-                  {formatAddress(proposer)}
-                </span>
+            {proposer && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-[var(--text-tertiary)]">Proposer:</span>
+                <div className="flex items-center gap-1.5">
+                  <AddressAvatar address={proposer} size="xs" />
+                  <span className="text-sm text-[var(--text-primary)]">
+                    {formatAddress(proposer)}
+                  </span>
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           {/* Approval Progress */}

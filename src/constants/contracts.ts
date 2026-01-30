@@ -37,14 +37,14 @@ export const CONTRACT_ADDRESSES: Record<number, ContractAddresses> = {
   },
   // Sepolia Testnet
   11155111: {
-    ton: "0xfEad6D7Cd42302661Ec7a003701dB8aD76e0FD9f",
-    vton: "0x6D34A7b7cE7749A9c12dc534548dE2d53027D7c8",
-    delegateRegistry: "0x75DBAfD7AfA98BE0ede93EeFE291CA39e72da66F",
-    daoGovernor: "0xdE3CEC4ABF6b3805D05A2fEf9554845EE9F5c5d8",
-    securityCouncil: "0xEe3eCf875c3d8f6b6a769414f6f7132B0DCdb86d",
-    timelock: "0x23AdB90672ec867c596A6966Ca14A938AFa98630",
-    faucet: "0x961EcD6FD152Bf63877Df7e4c72e978b0f370eaB",
-    tonFaucet: "0xe1061186f28325FC94d023E3027bDF959e2d72E8",
+    ton: "0xFEB57656C4cFDD8c45531392bb55c2C05A0F2ad2",
+    vton: "0x33F00477a70F2e02b81eCc08F2b248a6bde6C8F5",
+    delegateRegistry: "0x46FE16b2DA2a5267abc65FA5058622B5D414A7BA",
+    daoGovernor: "0x94dA7Fa4B66063Efa210E014e5A6dF72A4460D9B",
+    securityCouncil: "0xfbc11457E4584751bA695bF2146D91E42832CF41",
+    timelock: "0x6BDE5F721E814De02BCAF076b1e30a90ed2eA56C",
+    faucet: "0x458d991EFdc58c54ce049fe6822E0fc0a762F89B",
+    tonFaucet: "0x17a6938EAA860d4D60B78B3e4C409E9981d6da68",
   },
   // Ethereum Mainnet
   1: {
@@ -561,13 +561,6 @@ export const SECURITY_COUNCIL_ABI = [
     outputs: [{ name: "", type: "uint256" }],
   },
   {
-    name: "getPendingActionsCount",
-    type: "function",
-    stateMutability: "view",
-    inputs: [],
-    outputs: [{ name: "", type: "uint256" }],
-  },
-  {
     name: "getPendingActions",
     type: "function",
     stateMutability: "view",
@@ -582,29 +575,27 @@ export const SECURITY_COUNCIL_ABI = [
     outputs: [{ name: "", type: "bool" }],
   },
   {
-    name: "getAction",
+    name: "getEmergencyAction",
     type: "function",
     stateMutability: "view",
     inputs: [{ name: "actionId", type: "uint256" }],
     outputs: [
-      { name: "actionType", type: "uint8" },
-      { name: "target", type: "address" },
-      { name: "data", type: "bytes" },
-      { name: "reason", type: "string" },
-      { name: "proposer", type: "address" },
-      { name: "approvalCount", type: "uint256" },
-      { name: "executed", type: "bool" },
+      {
+        name: "",
+        type: "tuple",
+        components: [
+          { name: "id", type: "uint256" },
+          { name: "actionType", type: "uint8" },
+          { name: "target", type: "address" },
+          { name: "data", type: "bytes" },
+          { name: "reason", type: "string" },
+          { name: "createdAt", type: "uint256" },
+          { name: "executedAt", type: "uint256" },
+          { name: "executed", type: "bool" },
+          { name: "approvers", type: "address[]" },
+        ],
+      },
     ],
-  },
-  {
-    name: "hasApproved",
-    type: "function",
-    stateMutability: "view",
-    inputs: [
-      { name: "actionId", type: "uint256" },
-      { name: "member", type: "address" },
-    ],
-    outputs: [{ name: "", type: "bool" }],
   },
   // Write functions
   {
