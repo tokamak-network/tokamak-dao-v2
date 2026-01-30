@@ -9,7 +9,7 @@ type ProposalStatus =
   | "active"
   | "pending"
   | "executed"
-  | "failed"
+  | "defeated"
   | "canceled"
   | "queued"
   | "succeeded"

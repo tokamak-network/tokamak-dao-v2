@@ -35,7 +35,7 @@ function mapProposalState(state: number): ProposalStatus {
     0: "pending",   // Pending
     1: "active",    // Active
     2: "canceled",  // Canceled
-    3: "failed",    // Defeated
+    3: "defeated",  // Defeated
     4: "succeeded", // Succeeded
     5: "queued",    // Queued
     6: "expired",   // Expired

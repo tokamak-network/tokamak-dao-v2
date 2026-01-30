@@ -66,7 +66,7 @@ type ProposalStatus =
   | "active"
   | "pending"
   | "executed"
-  | "failed"
+  | "defeated"
   | "canceled"
   | "queued"
   | "succeeded"
@@ -82,7 +82,7 @@ const statusConfig: Record<
   active: { variant: "info", label: "ACTIVE" },
   pending: { variant: "warning", label: "PENDING" },
   executed: { variant: "success", label: "EXECUTED" },
-  failed: { variant: "error", label: "FAILED" },
+  defeated: { variant: "error", label: "DEFEATED" },
   canceled: { variant: "error", label: "CANCELED" },
   queued: { variant: "warning", label: "QUEUED" },
   succeeded: { variant: "success", label: "SUCCEEDED" },

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { cn, formatDate } from "@/lib/utils";
+import { cn, formatDate, formatNumber } from "@/lib/utils";
 import { Card } from "./card";
 import { StatusBadge } from "./badge";
 import { VotingProgress } from "./progress";
@@ -10,7 +10,7 @@ type ProposalStatus =
   | "active"
   | "pending"
   | "executed"
-  | "failed"
+  | "defeated"
   | "canceled"
   | "queued"
   | "succeeded"
@@ -89,37 +89,40 @@ const ProposalCard = React.forwardRef<HTMLDivElement, ProposalCardProps>(
 
             {/* Vote counts */}
             <div className="text-right shrink-0">
-              <div className="flex items-center gap-1 text-sm">
-                <span className="text-[var(--color-vote-for)]">{forVotes}</span>
-                <span className="text-[var(--text-tertiary)]">•</span>
-                <span className="text-[var(--color-vote-against)]">{againstVotes}</span>
-                {abstainVotes > 0 && (
-                  <>
+              {totalVotes > 0 ? (
+                <>
+                  <div className="flex items-center justify-end gap-1 text-sm whitespace-nowrap">
+                    <span className="text-[var(--color-vote-for)]">{formatNumber(forVotes, { compact: true })}</span>
                     <span className="text-[var(--text-tertiary)]">•</span>
-                    <span className="text-[var(--color-vote-abstain)]">{abstainVotes}</span>
-                  </>
-                )}
-              </div>
-              <div className="text-sm text-[var(--text-secondary)] mt-0.5">
-                <span className="font-medium">{totalVotes}</span>
-                {totalVoters !== undefined && totalVoters > 0 && (
-                  <>
-                    <br />
-                    <span className="text-xs text-[var(--text-tertiary)]">
-                      {totalVoters} addresses
-                    </span>
-                  </>
-                )}
-              </div>
+                    <span className="text-[var(--color-vote-against)]">{formatNumber(againstVotes, { compact: true })}</span>
+                    <span className="text-[var(--text-tertiary)]">•</span>
+                    <span className="text-[var(--color-vote-abstain)]">{formatNumber(abstainVotes, { compact: true })}</span>
+                  </div>
+                  <div className="text-sm text-[var(--text-secondary)] mt-0.5">
+                    <span className="font-medium">{formatNumber(totalVotes, { compact: true })}</span>
+                  </div>
+                  {totalVoters !== undefined && totalVoters > 0 && (
+                    <div className="text-xs text-[var(--text-tertiary)]">
+                      {formatNumber(totalVoters, { compact: true })} addresses
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="text-sm text-[var(--text-tertiary)]">
+                  No votes yet
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Progress bar */}
-          <VotingProgress
-            forVotes={forVotes}
-            againstVotes={againstVotes}
-            abstainVotes={abstainVotes}
-          />
+          {/* Progress bar - only show when there are votes */}
+          {totalVotes > 0 && (
+            <VotingProgress
+              forVotes={forVotes}
+              againstVotes={againstVotes}
+              abstainVotes={abstainVotes}
+            />
+          )}
         </div>
       </Card>
     );

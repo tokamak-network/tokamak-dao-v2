@@ -70,7 +70,7 @@ const DEMO_PROPOSALS: ProposalListItem[] = [
   {
     id: "demo-5",
     title: "TIP-005: Reduce proposal creation cost to 50 TON",
-    status: "failed",
+    status: "defeated",
     date: new Date(Date.now() - 21 * 24 * 60 * 60 * 1000),
     forVotes: 450000,
     againstVotes: 890000,
@@ -100,7 +100,7 @@ const STATUS_FILTERS: { value: FilterStatus; label: string }[] = [
   { value: "succeeded", label: "Succeeded" },
   { value: "queued", label: "Queued" },
   { value: "executed", label: "Executed" },
-  { value: "failed", label: "Failed" },
+  { value: "defeated", label: "Defeated" },
   { value: "expired", label: "Expired" },
   { value: "canceled", label: "Canceled" },
 ];

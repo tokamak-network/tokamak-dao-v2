@@ -18,7 +18,7 @@ function mapProposalState(state: number): ProposalStatus {
     0: "pending",
     1: "active",
     2: "canceled",
-    3: "failed",
+    3: "defeated",
     4: "succeeded",
     5: "queued",
     6: "expired",
@@ -145,7 +145,7 @@ Reduce the cost of creating proposals from 100 TON to 50 TON.
 
 ## Rationale
 Lower barrier to entry for community members to participate in governance.`,
-    status: "failed" as ProposalStatus,
+    status: "defeated" as ProposalStatus,
     proposer: "0x5678901234567890123456789012345678901234" as `0x${string}`,
     forVotes: 450000,
     againstVotes: 890000,

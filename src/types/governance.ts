@@ -7,7 +7,7 @@ export type ProposalStatus =
   | "active"
   | "pending"
   | "executed"
-  | "failed"
+  | "defeated"
   | "canceled"
   | "queued"
   | "succeeded"
@@ -42,7 +42,7 @@ export function mapProposalState(state: ProposalState): ProposalStatus {
     case ProposalState.Canceled:
       return "canceled";
     case ProposalState.Defeated:
-      return "failed";
+      return "defeated";
     case ProposalState.Succeeded:
       return "succeeded";
     case ProposalState.Queued:

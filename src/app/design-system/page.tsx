@@ -185,7 +185,7 @@ export default function DesignSystemPage() {
                     <StatusBadge status="active" />
                     <StatusBadge status="pending" />
                     <StatusBadge status="executed" />
-                    <StatusBadge status="failed" />
+                    <StatusBadge status="defeated" />
                   </div>
                 </div>
               </CardContent>

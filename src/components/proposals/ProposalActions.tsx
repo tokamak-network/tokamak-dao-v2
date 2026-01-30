@@ -59,7 +59,7 @@ export function ProposalActions({
         return ProposalState.Pending;
       case "executed":
         return ProposalState.Executed;
-      case "failed":
+      case "defeated":
         return ProposalState.Defeated;
       case "canceled":
         return ProposalState.Canceled;
