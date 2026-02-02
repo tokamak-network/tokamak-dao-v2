@@ -71,6 +71,9 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
     /// @notice Timelock grace period (14 days after eta)
     uint256 public constant TIMELOCK_GRACE_PERIOD = 14 days;
 
+    /// @notice Maximum burn rate (100% = 10000 basis points)
+    uint16 public constant MAX_BURN_RATE = 10_000;
+
     /*//////////////////////////////////////////////////////////////
                                  STATE
     //////////////////////////////////////////////////////////////*/
@@ -170,12 +173,14 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
         address[] calldata targets,
         uint256[] calldata values,
         bytes[] calldata calldatas,
-        string calldata description
+        string calldata description,
+        uint16 burnRate
     ) external override nonReentrant returns (uint256 proposalId) {
         if (targets.length == 0) revert InvalidProposal();
         if (targets.length != values.length || targets.length != calldatas.length) {
             revert ArrayLengthMismatch();
         }
+        if (burnRate > MAX_BURN_RATE) revert InvalidBurnRate();
 
         // Burn TON for proposal creation
         if (proposalCreationCost > 0) {
@@ -192,28 +197,32 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
         uint256 voteStart = block.number + votingDelay;
         uint256 voteEnd = voteStart + votingPeriod;
 
-        _proposals[proposalId] = Proposal({
-            id: proposalId,
-            proposer: msg.sender,
-            targets: targets,
-            values: values,
-            calldatas: calldatas,
-            description: description,
-            snapshotBlock: snapshot,
-            voteStart: voteStart,
-            voteEnd: voteEnd,
-            forVotes: 0,
-            againstVotes: 0,
-            abstainVotes: 0,
-            canceled: false,
-            executed: false
-        });
+        Proposal storage proposal = _proposals[proposalId];
+        proposal.id = proposalId;
+        proposal.proposer = msg.sender;
+        proposal.targets = targets;
+        proposal.values = values;
+        proposal.calldatas = calldatas;
+        proposal.description = description;
+        proposal.snapshotBlock = snapshot;
+        proposal.voteStart = voteStart;
+        proposal.voteEnd = voteEnd;
+        proposal.burnRate = burnRate;
 
         _proposalIds.push(proposalId);
         _proposalCount++;
 
         emit ProposalCreated(
-            proposalId, msg.sender, targets, values, calldatas, description, snapshot, voteStart, voteEnd
+            proposalId,
+            msg.sender,
+            targets,
+            values,
+            calldatas,
+            description,
+            snapshot,
+            voteStart,
+            voteEnd,
+            burnRate
         );
     }
 
@@ -476,6 +485,15 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
         }
 
         emit VoteCast(msg.sender, proposalId, support, weight, reason);
+
+        // Burn vTON if burn rate is set
+        if (proposal.burnRate > 0 && weight > 0) {
+            uint256 burnAmount = (weight * proposal.burnRate) / BASIS_POINTS;
+            if (burnAmount > 0) {
+                delegateRegistry.burnFromDelegate(msg.sender, burnAmount);
+                emit VoteBurn(msg.sender, proposalId, burnAmount);
+            }
+        }
     }
 
     /// @notice Receive ETH for proposal execution

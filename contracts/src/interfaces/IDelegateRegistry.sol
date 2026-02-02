@@ -49,6 +49,9 @@ interface IDelegateRegistry {
     /// @notice Emitted when auto-expiry period is updated
     event AutoExpiryUpdated(uint256 oldExpiry, uint256 newExpiry);
 
+    /// @notice Emitted when vTON is burned from a delegate's total
+    event DelegateVTONBurned(address indexed delegate, uint256 amount);
+
     /// @notice Register as a delegate
     /// @param profile Identity or pseudonym
     /// @param votingPhilosophy Voting philosophy and decision criteria
@@ -130,4 +133,17 @@ interface IDelegateRegistry {
     /// @notice Set the auto-expiry period
     /// @param period New period in seconds (0 to disable)
     function setAutoExpiryPeriod(uint256 period) external;
+
+    /// @notice Burn vTON from delegate's total (called by governor during voting)
+    /// @param delegate The delegate address
+    /// @param amount Amount of vTON to burn
+    function burnFromDelegate(address delegate, uint256 amount) external;
+
+    /// @notice Set the governor address
+    /// @param governor_ The governor contract address
+    function setGovernor(address governor_) external;
+
+    /// @notice Get the governor address
+    /// @return The governor contract address
+    function governor() external view returns (address);
 }

@@ -90,7 +90,11 @@ contract DeployScript is Script {
         timelock.setSecurityCouncil(address(securityCouncil));
         console.log("Timelock configured");
 
-        // 7. Set SecurityCouncil as proposal guardian (required for cancel functionality)
+        // 7. Configure DelegateRegistry to allow governor to burn vTON
+        delegateRegistry.setGovernor(address(governor));
+        console.log("DelegateRegistry governor set");
+
+        // 8. Set SecurityCouncil as proposal guardian (required for cancel functionality)
         governor.setProposalGuardian(address(securityCouncil));
         console.log("SecurityCouncil set as proposalGuardian");
 
@@ -161,6 +165,10 @@ contract DeployLocalScript is Script {
         // Configure
         timelock.setGovernor(address(governor));
         timelock.setSecurityCouncil(address(securityCouncil));
+
+        // Configure DelegateRegistry to allow governor to burn vTON
+        delegateRegistry.setGovernor(address(governor));
+        console.log("DelegateRegistry governor set");
 
         // Set SecurityCouncil as proposal guardian (required for cancel functionality)
         governor.setProposalGuardian(address(securityCouncil));
@@ -302,7 +310,11 @@ contract DeploySepoliaScript is Script {
         timelock.setGovernor(address(governor));
         timelock.setSecurityCouncil(address(securityCouncil));
 
-        // 8. Set SecurityCouncil as proposal guardian (required for cancel functionality)
+        // 8. Configure DelegateRegistry to allow governor to burn vTON
+        delegateRegistry.setGovernor(address(governor));
+        console.log("DelegateRegistry governor set");
+
+        // 9. Set SecurityCouncil as proposal guardian (required for cancel functionality)
         governor.setProposalGuardian(address(securityCouncil));
         console.log("SecurityCouncil set as proposalGuardian");
 

@@ -61,6 +61,7 @@ event MinterUpdated(address indexed minter, bool allowed);
 | 변수 | 타입 | 기본값 | 설명 |
 |------|------|--------|------|
 | `autoExpiryPeriod` | `uint256` | `0` | 자동 만료 기간 (0 = 만료 없음) |
+| `governor` | `address` | - | DAOGovernor 주소 (burn 권한) |
 
 **주요 함수**:
 | 함수 | 파라미터 | 반환값 | 설명 |
@@ -72,12 +73,15 @@ event MinterUpdated(address indexed minter, bool allowed);
 | `getVotingPower` | `delegator: address, blockNumber: uint256, snapshotBlock: uint256` | `uint256` | 투표력 조회 |
 | `getDelegatorInfo` | `delegator: address` | `DelegatorInfo` | 위임자 정보 조회 |
 | `getAllDelegators` | - | `address[]` | 전체 위임자 목록 |
+| `setGovernor` | `governor_: address` | - | Governor 주소 설정 (owner only) |
+| `burnFromDelegate` | `delegateAddr: address, amount: uint256` | - | 위임자 vTON 소각 (governor only) |
 
 **이벤트**:
 ```solidity
 event DelegatorRegistered(address indexed delegator, string profile, string philosophy, string[] interests);
 event Delegated(address indexed owner, address indexed delegator, uint256 amount, uint256 expiresAt);
 event Undelegated(address indexed owner, address indexed delegator, uint256 amount);
+event DelegateVTONBurned(address indexed delegate, uint256 amount);
 ```
 
 ---
@@ -92,6 +96,7 @@ event Undelegated(address indexed owner, address indexed delegator, uint256 amou
 - 정족수: 총 위임된 vTON의 4%
 - 통과 조건: 단순 과반수 (찬성 > 반대)
 - 타임락: 7일
+- 투표 소각: 제안자가 설정한 비율만큼 투표 시 vTON 소각 (0-100%)
 
 **주요 상태**:
 | 변수 | 타입 | 기본값 | 설명 |
@@ -100,6 +105,7 @@ event Undelegated(address indexed owner, address indexed delegator, uint256 amou
 | `quorum` | `uint256` | `400` | 정족수 (basis points, 400 = 4%) |
 | `votingDelay` | `uint256` | `7200` | 투표 시작 지연 (블록, ~1일) |
 | `votingPeriod` | `uint256` | `50400` | 투표 기간 (블록, ~7일) |
+| `MAX_BURN_RATE` | `uint16` | `10000` | 최대 소각률 (basis points, 10000 = 100%) |
 
 **Enums**:
 ```solidity
@@ -124,8 +130,8 @@ enum VoteType {
 **주요 함수**:
 | 함수 | 파라미터 | 반환값 | 설명 |
 |------|----------|--------|------|
-| `propose` | `targets: address[], values: uint256[], calldatas: bytes[], description: string` | `uint256` | 제안 생성 |
-| `castVote` | `proposalId: uint256, support: uint8` | `uint256` | 투표 |
+| `propose` | `targets: address[], values: uint256[], calldatas: bytes[], description: string, burnRate: uint16` | `uint256` | 제안 생성 (burnRate: 0-10000 basis points) |
+| `castVote` | `proposalId: uint256, support: uint8` | `uint256` | 투표 (burnRate만큼 vTON 소각) |
 | `castVoteWithReason` | `proposalId: uint256, support: uint8, reason: string` | `uint256` | 사유 포함 투표 |
 | `queue` | `proposalId: uint256` | - | 타임락 큐에 추가 |
 | `execute` | `proposalId: uint256` | - | 제안 실행 |
@@ -145,9 +151,11 @@ event ProposalCreated(
     string description,
     uint256 snapshot,
     uint256 voteStart,
-    uint256 voteEnd
+    uint256 voteEnd,
+    uint16 burnRate
 );
 event VoteCast(address indexed voter, uint256 proposalId, uint8 support, uint256 weight, string reason);
+event VoteBurn(address indexed voter, uint256 indexed proposalId, uint256 burnAmount);
 event ProposalQueued(uint256 proposalId, uint256 eta);
 event ProposalExecuted(uint256 proposalId);
 event ProposalCanceled(uint256 proposalId);

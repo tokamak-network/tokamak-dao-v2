@@ -48,6 +48,7 @@ interface IDAOGovernor {
         uint256 abstainVotes;
         bool canceled;
         bool executed;
+        uint16 burnRate; // basis points (0-10000 = 0-100%)
     }
 
     /// @notice Emitted when a proposal is created
@@ -60,8 +61,12 @@ interface IDAOGovernor {
         string description,
         uint256 snapshotBlock,
         uint256 voteStart,
-        uint256 voteEnd
+        uint256 voteEnd,
+        uint16 burnRate
     );
+
+    /// @notice Emitted when vTON is burned during voting
+    event VoteBurn(address indexed voter, uint256 indexed proposalId, uint256 burnAmount);
 
     /// @notice Emitted when a vote is cast
     event VoteCast(
@@ -96,18 +101,23 @@ interface IDAOGovernor {
     /// @notice Error when proposal state is invalid for the operation
     error InvalidProposalState();
 
+    /// @notice Error when burn rate exceeds maximum (100%)
+    error InvalidBurnRate();
+
     /// @notice Create a new proposal
     /// @param targets Target addresses for calls
     /// @param values ETH values for calls
     /// @param calldatas Calldata for each call
     /// @param description Human-readable description
+    /// @param burnRate Burn rate in basis points (0-10000 = 0-100%)
     /// @return proposalId The unique proposal ID
     /// @dev Requires burning proposalCreationCost TON
     function propose(
         address[] calldata targets,
         uint256[] calldata values,
         bytes[] calldata calldatas,
-        string calldata description
+        string calldata description,
+        uint16 burnRate
     ) external returns (uint256 proposalId);
 
     /// @notice Cast a vote on a proposal

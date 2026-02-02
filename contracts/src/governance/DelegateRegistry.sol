@@ -31,6 +31,7 @@ contract DelegateRegistry is IDelegateRegistry, Ownable, ReentrancyGuard {
     error ZeroAddress();
     error EmptyProfile();
     error DelegationExpired();
+    error NotGovernor();
 
     /*//////////////////////////////////////////////////////////////
                                  STATE
@@ -38,6 +39,9 @@ contract DelegateRegistry is IDelegateRegistry, Ownable, ReentrancyGuard {
 
     /// @notice The vTON token contract
     IERC20 public immutable vTON;
+
+    /// @notice The governor contract address
+    address public override governor;
 
     /// @notice Auto-expiry period for delegations (0 = no expiry)
     uint256 public override autoExpiryPeriod;
@@ -291,6 +295,27 @@ contract DelegateRegistry is IDelegateRegistry, Ownable, ReentrancyGuard {
         autoExpiryPeriod = period;
 
         emit AutoExpiryUpdated(oldExpiry, period);
+    }
+
+    /// @inheritdoc IDelegateRegistry
+    function setGovernor(address governor_) external override onlyOwner {
+        if (governor_ == address(0)) revert ZeroAddress();
+        governor = governor_;
+    }
+
+    /// @inheritdoc IDelegateRegistry
+    /// @dev Burns vTON from delegate's total by sending to 0xdead
+    function burnFromDelegate(address delegateAddr, uint256 amount) external override nonReentrant {
+        if (msg.sender != governor) revert NotGovernor();
+        if (_totalDelegated[delegateAddr] < amount) revert InsufficientDelegation();
+
+        _totalDelegated[delegateAddr] -= amount;
+        _updateVotingPowerCheckpoint(delegateAddr);
+
+        // Send to 0xdead for permanent burn (address(0) would revert in ERC20)
+        vTON.safeTransfer(address(0xdead), amount);
+
+        emit DelegateVTONBurned(delegateAddr, amount);
     }
 
     /*//////////////////////////////////////////////////////////////

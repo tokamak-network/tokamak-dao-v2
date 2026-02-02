@@ -33,7 +33,7 @@ contract DAOGovernorTest is Test {
     address public user2;
 
     uint256 public constant INITIAL_BALANCE = 100_000 ether;
-    uint256 public constant PROPOSAL_COST = 100 ether;
+    uint256 public constant PROPOSAL_COST = 10 ether;
 
     function setUp() public {
         owner = makeAddr("owner");
@@ -111,7 +111,7 @@ contract DAOGovernorTest is Test {
         string memory description = "Update quorum to 5%";
 
         vm.prank(user1);
-        uint256 proposalId = governor.propose(targets, values, calldatas, description);
+        uint256 proposalId = governor.propose(targets, values, calldatas, description, 0);
 
         assertGt(proposalId, 0);
         assertEq(governor.proposalCount(), 1);
@@ -134,7 +134,7 @@ contract DAOGovernorTest is Test {
         calldatas[0] = abi.encodeWithSignature("setQuorum(uint256)", 500);
 
         vm.prank(user1);
-        governor.propose(targets, values, calldatas, "Test");
+        governor.propose(targets, values, calldatas, "Test", 0);
 
         // TON should be burned (sent to 0xdead)
         assertEq(ton.balanceOf(user1), balanceBefore - PROPOSAL_COST);
@@ -164,7 +164,7 @@ contract DAOGovernorTest is Test {
         calldatas[0] = abi.encodeWithSignature("setQuorum(uint256)", 500);
 
         vm.prank(user1);
-        uint256 proposalId = governor.propose(targets, values, calldatas, "Test");
+        uint256 proposalId = governor.propose(targets, values, calldatas, "Test", 0);
 
         // Move to voting period
         vm.roll(block.number + governor.votingDelay() + 1);
@@ -188,7 +188,7 @@ contract DAOGovernorTest is Test {
         calldatas[0] = abi.encodeWithSignature("setQuorum(uint256)", 500);
 
         vm.prank(user1);
-        uint256 proposalId = governor.propose(targets, values, calldatas, "Test");
+        uint256 proposalId = governor.propose(targets, values, calldatas, "Test", 0);
 
         // Move to voting period
         vm.roll(block.number + governor.votingDelay() + 1);
@@ -215,7 +215,7 @@ contract DAOGovernorTest is Test {
         calldatas[0] = abi.encodeWithSignature("setQuorum(uint256)", 500);
 
         vm.prank(user1);
-        uint256 proposalId = governor.propose(targets, values, calldatas, "Test");
+        uint256 proposalId = governor.propose(targets, values, calldatas, "Test", 0);
 
         vm.roll(block.number + governor.votingDelay() + 1);
 
@@ -237,7 +237,7 @@ contract DAOGovernorTest is Test {
         calldatas[0] = abi.encodeWithSignature("setQuorum(uint256)", 500);
 
         vm.prank(user1);
-        uint256 proposalId = governor.propose(targets, values, calldatas, "Test");
+        uint256 proposalId = governor.propose(targets, values, calldatas, "Test", 0);
 
         assertEq(uint256(governor.state(proposalId)), uint256(IDAOGovernor.ProposalState.Pending));
     }
@@ -250,7 +250,7 @@ contract DAOGovernorTest is Test {
         calldatas[0] = abi.encodeWithSignature("setQuorum(uint256)", 500);
 
         vm.prank(user1);
-        uint256 proposalId = governor.propose(targets, values, calldatas, "Test");
+        uint256 proposalId = governor.propose(targets, values, calldatas, "Test", 0);
 
         vm.roll(block.number + governor.votingDelay() + 1);
 
@@ -265,7 +265,7 @@ contract DAOGovernorTest is Test {
         calldatas[0] = abi.encodeWithSignature("setQuorum(uint256)", 500);
 
         vm.prank(user1);
-        uint256 proposalId = governor.propose(targets, values, calldatas, "Test");
+        uint256 proposalId = governor.propose(targets, values, calldatas, "Test", 0);
 
         vm.prank(user1);
         governor.cancel(proposalId);
@@ -281,7 +281,7 @@ contract DAOGovernorTest is Test {
         calldatas[0] = abi.encodeWithSignature("setQuorum(uint256)", 500);
 
         vm.prank(user1);
-        uint256 proposalId = governor.propose(targets, values, calldatas, "Test");
+        uint256 proposalId = governor.propose(targets, values, calldatas, "Test", 0);
 
         vm.prank(user2);
         vm.expectRevert(IDAOGovernor.NotAuthorizedToCancel.selector);
@@ -387,7 +387,7 @@ contract DAOGovernorTest is Test {
         calldatas[0] = abi.encodeWithSignature("setQuorum(uint256)", 500);
 
         vm.prank(user1);
-        uint256 proposalId = governor.propose(targets, values, calldatas, "Test");
+        uint256 proposalId = governor.propose(targets, values, calldatas, "Test", 0);
 
         assertEq(uint256(governor.state(proposalId)), uint256(IDAOGovernor.ProposalState.Pending));
 
@@ -412,7 +412,7 @@ contract DAOGovernorTest is Test {
         calldatas[0] = abi.encodeWithSignature("setQuorum(uint256)", 500);
 
         vm.prank(user1);
-        uint256 proposalId = governor.propose(targets, values, calldatas, "Test");
+        uint256 proposalId = governor.propose(targets, values, calldatas, "Test", 0);
 
         // Move to voting period (state: Active)
         vm.roll(block.number + governor.votingDelay() + 1);
@@ -452,7 +452,7 @@ contract DAOGovernorTest is Test {
         calldatas[0] = abi.encodeWithSignature("setQuorum(uint256)", 500);
 
         vm.prank(user1);
-        uint256 proposalId = governor.propose(targets, values, calldatas, "Test");
+        uint256 proposalId = governor.propose(targets, values, calldatas, "Test", 0);
 
         // Move to voting period
         vm.roll(block.number + governor.votingDelay() + 1);
@@ -498,7 +498,7 @@ contract DAOGovernorTest is Test {
         calldatas[0] = abi.encodeWithSignature("setQuorum(uint256)", 500);
 
         vm.prank(user1);
-        uint256 proposalId = governor.propose(targets, values, calldatas, "Test");
+        uint256 proposalId = governor.propose(targets, values, calldatas, "Test", 0);
 
         vm.roll(block.number + governor.votingDelay() + 1);
 
@@ -532,7 +532,7 @@ contract DAOGovernorTest is Test {
         calldatas[0] = abi.encodeWithSignature("setQuorum(uint256)", 500);
 
         vm.prank(user1);
-        uint256 proposalId = governor.propose(targets, values, calldatas, "Test");
+        uint256 proposalId = governor.propose(targets, values, calldatas, "Test", 0);
 
         // Move past voting period without any votes (state: Defeated due to no quorum)
         vm.roll(block.number + governor.votingDelay() + governor.votingPeriod() + 1);
@@ -570,7 +570,7 @@ contract DAOGovernorTest is Test {
         calldatas[0] = abi.encodeWithSignature("setQuorum(uint256)", 500);
 
         vm.prank(user1);
-        uint256 proposalId = governor.propose(targets, values, calldatas, "Test");
+        uint256 proposalId = governor.propose(targets, values, calldatas, "Test", 0);
 
         vm.roll(block.number + governor.votingDelay() + 1);
 
@@ -607,7 +607,7 @@ contract DAOGovernorTest is Test {
         calldatas[0] = abi.encodeWithSignature("setQuorum(uint256)", 500);
 
         vm.prank(user1);
-        uint256 proposalId = governor.propose(targets, values, calldatas, "Test");
+        uint256 proposalId = governor.propose(targets, values, calldatas, "Test", 0);
 
         // Non-guardian cannot cancel others' proposal
         vm.prank(nonGuardian);
@@ -629,7 +629,7 @@ contract DAOGovernorTest is Test {
         calldatas[0] = abi.encodeWithSignature("setQuorum(uint256)", 500);
 
         vm.prank(user1);
-        uint256 proposalId = governor.propose(targets, values, calldatas, "Test");
+        uint256 proposalId = governor.propose(targets, values, calldatas, "Test", 0);
 
         // Move past voting period without any votes (state: Defeated)
         vm.roll(block.number + governor.votingDelay() + governor.votingPeriod() + 1);
@@ -640,5 +640,195 @@ contract DAOGovernorTest is Test {
         governor.cancel(proposalId);
 
         assertEq(uint256(governor.state(proposalId)), uint256(IDAOGovernor.ProposalState.Canceled));
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                           BURN RATE TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_CreateProposalWithBurnRate() public {
+        address[] memory targets = new address[](1);
+        targets[0] = address(governor);
+        uint256[] memory values = new uint256[](1);
+        bytes[] memory calldatas = new bytes[](1);
+        calldatas[0] = abi.encodeWithSignature("setQuorum(uint256)", 500);
+
+        vm.prank(user1);
+        uint256 proposalId = governor.propose(targets, values, calldatas, "Test", 3000); // 30%
+
+        IDAOGovernor.Proposal memory proposal = governor.getProposal(proposalId);
+        assertEq(proposal.burnRate, 3000);
+    }
+
+    function test_CreateProposalInvalidBurnRate() public {
+        address[] memory targets = new address[](1);
+        targets[0] = address(governor);
+        uint256[] memory values = new uint256[](1);
+        bytes[] memory calldatas = new bytes[](1);
+        calldatas[0] = abi.encodeWithSignature("setQuorum(uint256)", 500);
+
+        vm.prank(user1);
+        vm.expectRevert(IDAOGovernor.InvalidBurnRate.selector);
+        governor.propose(targets, values, calldatas, "Test", 10001); // 100.01% - invalid
+    }
+
+    function test_CastVoteWithBurn() public {
+        // Setup: Register delegate and delegate vTON
+        vm.prank(delegate1);
+        registry.registerDelegate("Delegate1", "Philosophy", "Interests");
+
+        vm.prank(user1);
+        registry.delegate(delegate1, 1000 ether);
+
+        // Set governor on registry
+        vm.prank(owner);
+        registry.setGovernor(address(governor));
+
+        vm.warp(block.timestamp + 8 days);
+
+        // Create proposal with 30% burn rate
+        address[] memory targets = new address[](1);
+        targets[0] = address(governor);
+        uint256[] memory values = new uint256[](1);
+        bytes[] memory calldatas = new bytes[](1);
+        calldatas[0] = abi.encodeWithSignature("setQuorum(uint256)", 500);
+
+        vm.prank(user1);
+        uint256 proposalId = governor.propose(targets, values, calldatas, "Test", 3000); // 30%
+
+        vm.roll(block.number + governor.votingDelay() + 1);
+
+        uint256 delegateTotalBefore = registry.getTotalDelegated(delegate1);
+        uint256 deadBalanceBefore = vton.balanceOf(address(0xdead));
+
+        // Cast vote - should burn 30% of voting power
+        vm.prank(delegate1);
+        governor.castVote(proposalId, IDAOGovernor.VoteType.For);
+
+        uint256 delegateTotalAfter = registry.getTotalDelegated(delegate1);
+        uint256 deadBalanceAfter = vton.balanceOf(address(0xdead));
+
+        // Voting power was 1000 ether, burn 30% = 300 ether
+        assertEq(delegateTotalBefore - delegateTotalAfter, 300 ether);
+        assertEq(deadBalanceAfter - deadBalanceBefore, 300 ether);
+
+        // Vote should still count with full weight (1000 ether)
+        IDAOGovernor.Proposal memory proposal = governor.getProposal(proposalId);
+        assertEq(proposal.forVotes, 1000 ether);
+    }
+
+    function test_CastVoteZeroBurnRate() public {
+        // Setup: Register delegate and delegate vTON
+        vm.prank(delegate1);
+        registry.registerDelegate("Delegate1", "Philosophy", "Interests");
+
+        vm.prank(user1);
+        registry.delegate(delegate1, 1000 ether);
+
+        vm.prank(owner);
+        registry.setGovernor(address(governor));
+
+        vm.warp(block.timestamp + 8 days);
+
+        // Create proposal with 0% burn rate
+        address[] memory targets = new address[](1);
+        targets[0] = address(governor);
+        uint256[] memory values = new uint256[](1);
+        bytes[] memory calldatas = new bytes[](1);
+        calldatas[0] = abi.encodeWithSignature("setQuorum(uint256)", 500);
+
+        vm.prank(user1);
+        uint256 proposalId = governor.propose(targets, values, calldatas, "Test", 0);
+
+        vm.roll(block.number + governor.votingDelay() + 1);
+
+        uint256 delegateTotalBefore = registry.getTotalDelegated(delegate1);
+
+        vm.prank(delegate1);
+        governor.castVote(proposalId, IDAOGovernor.VoteType.For);
+
+        uint256 delegateTotalAfter = registry.getTotalDelegated(delegate1);
+
+        // No burn with 0% rate
+        assertEq(delegateTotalBefore, delegateTotalAfter);
+    }
+
+    function test_CastVoteInsufficientBalanceForBurn() public {
+        // Setup: Register delegate and delegate vTON
+        vm.prank(delegate1);
+        registry.registerDelegate("Delegate1", "Philosophy", "Interests");
+
+        // Delegate only 100 ether
+        vm.prank(user1);
+        registry.delegate(delegate1, 100 ether);
+
+        vm.prank(owner);
+        registry.setGovernor(address(governor));
+
+        vm.warp(block.timestamp + 8 days);
+
+        // Create proposal with 100% burn rate
+        address[] memory targets = new address[](1);
+        targets[0] = address(governor);
+        uint256[] memory values = new uint256[](1);
+        bytes[] memory calldatas = new bytes[](1);
+        calldatas[0] = abi.encodeWithSignature("setQuorum(uint256)", 500);
+
+        vm.prank(user1);
+        uint256 proposalId = governor.propose(targets, values, calldatas, "Test", 10000); // 100%
+
+        vm.roll(block.number + governor.votingDelay() + 1);
+
+        // Cast vote - should burn 100% (100 ether)
+        // First vote succeeds
+        vm.prank(delegate1);
+        governor.castVote(proposalId, IDAOGovernor.VoteType.For);
+
+        // After voting, delegate should have 0 total delegated
+        assertEq(registry.getTotalDelegated(delegate1), 0);
+    }
+
+    function test_BurnFromDelegateOnlyGovernor() public {
+        vm.prank(delegate1);
+        registry.registerDelegate("Delegate1", "Philosophy", "Interests");
+
+        vm.prank(user1);
+        registry.delegate(delegate1, 1000 ether);
+
+        // Try to call burnFromDelegate without being governor
+        vm.prank(user1);
+        vm.expectRevert(DelegateRegistry.NotGovernor.selector);
+        registry.burnFromDelegate(delegate1, 100 ether);
+    }
+
+    function test_VoteBurnEvent() public {
+        vm.prank(delegate1);
+        registry.registerDelegate("Delegate1", "Philosophy", "Interests");
+
+        vm.prank(user1);
+        registry.delegate(delegate1, 1000 ether);
+
+        vm.prank(owner);
+        registry.setGovernor(address(governor));
+
+        vm.warp(block.timestamp + 8 days);
+
+        address[] memory targets = new address[](1);
+        targets[0] = address(governor);
+        uint256[] memory values = new uint256[](1);
+        bytes[] memory calldatas = new bytes[](1);
+        calldatas[0] = abi.encodeWithSignature("setQuorum(uint256)", 500);
+
+        vm.prank(user1);
+        uint256 proposalId = governor.propose(targets, values, calldatas, "Test", 3000); // 30%
+
+        vm.roll(block.number + governor.votingDelay() + 1);
+
+        // Expect VoteBurn event
+        vm.expectEmit(true, true, true, true);
+        emit IDAOGovernor.VoteBurn(delegate1, proposalId, 300 ether);
+
+        vm.prank(delegate1);
+        governor.castVote(proposalId, IDAOGovernor.VoteType.For);
     }
 }
