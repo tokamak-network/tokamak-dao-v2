@@ -27,6 +27,7 @@ export function CreateProposalForm({ className }: CreateProposalFormProps) {
 
   const [title, setTitle] = React.useState("");
   const [description, setDescription] = React.useState("");
+  const [burnRateInput, setBurnRateInput] = React.useState<string>("");
   const [showAdvanced, setShowAdvanced] = React.useState(false);
   const [actions, setActions] = React.useState<BuiltAction[]>([
     { ...DEFAULT_ACTION },
@@ -89,7 +90,10 @@ export function CreateProposalForm({ className }: CreateProposalFormProps) {
       const calldatas = actions.map((a) => (a.calldata || "0x") as `0x${string}`);
 
       setSubmitStep("waitingProposal");
-      const proposalHash = await proposeAsync(targets, values, calldatas, fullDescription);
+      // Convert percentage to basis points (e.g., 30% -> 3000)
+      const burnRate = burnRateInput === "" ? 0 : Number(burnRateInput);
+      const burnRateBasisPoints = Math.round(burnRate * 100);
+      const proposalHash = await proposeAsync(targets, values, calldatas, fullDescription, burnRateBasisPoints);
       const receipt = await publicClient.waitForTransactionReceipt({ hash: proposalHash });
 
       // Parse ProposalCreated event to get the proposal ID
@@ -222,6 +226,41 @@ Potential risks and mitigations"
                 ? "Description should be at least 50 characters"
                 : "Markdown formatting is supported"}
             </HelperText>
+          </div>
+
+          {/* Vote Burn Rate */}
+          <div className="space-y-2">
+            <Label htmlFor="burnRate">
+              Vote Burn Rate (%)
+            </Label>
+            <Input
+              id="burnRate"
+              type="number"
+              min={0}
+              max={100}
+              step={0.1}
+              value={burnRateInput}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === "") {
+                  setBurnRateInput("");
+                } else {
+                  const num = Number(val);
+                  if (num >= 0 && num <= 100) {
+                    setBurnRateInput(num.toFixed(1));
+                  }
+                }
+              }}
+              placeholder="0.0"
+            />
+            <HelperText>
+              When voters cast their vote, this percentage of their voting power will be permanently burned as vTON (0-100%). Default is 0%.
+            </HelperText>
+            {burnRateInput !== "" && Number(burnRateInput) > 0 && (
+              <div className="mt-2 p-3 rounded-lg bg-[var(--status-warning-bg)] text-[var(--status-warning-text)] text-sm">
+                Voters will have {Number(burnRateInput).toFixed(1)}% of their voting power burned when they vote on this proposal.
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

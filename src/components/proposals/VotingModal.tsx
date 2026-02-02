@@ -16,6 +16,7 @@ export interface VotingModalProps {
   proposalId: bigint;
   proposalTitle: string;
   onVoteSuccess?: () => void;
+  burnRate?: number; // basis points (0-10000 = 0-100%)
 }
 
 interface VoteOption {
@@ -56,6 +57,7 @@ export function VotingModal({
   proposalId,
   proposalTitle,
   onVoteSuccess,
+  burnRate = 0,
 }: VotingModalProps) {
   const { address } = useAccount();
   const [selectedVote, setSelectedVote] = React.useState<VoteType | null>(null);
@@ -119,6 +121,22 @@ export function VotingModal({
             {formattedVotingPower} vTON
           </p>
         </div>
+
+        {/* Burn Warning */}
+        {burnRate > 0 && votingPower && (
+          <div className="p-4 rounded-lg bg-[var(--status-warning-bg)]">
+            <p className="text-sm font-medium text-[var(--status-warning-text)]">
+              Burn Warning
+            </p>
+            <p className="text-sm text-[var(--text-secondary)] mt-1">
+              Voting on this proposal will permanently burn{" "}
+              <span className="font-semibold">
+                {formatVTON((votingPower * BigInt(burnRate)) / BigInt(10000))} vTON
+              </span>{" "}
+              ({(burnRate / 100).toFixed(1)}%) of your voting power.
+            </p>
+          </div>
+        )}
 
         {/* Vote Options */}
         <div className="space-y-3">

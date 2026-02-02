@@ -8,6 +8,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/badge";
 import { VotingProgress } from "@/components/ui/progress";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { ProposalTimeline } from "./ProposalTimeline";
 import { ProposalActions } from "./ProposalActions";
 import { VotingModal } from "./VotingModal";
@@ -30,6 +36,7 @@ export interface ProposalDetailData {
   votingEndsAt: Date;
   executedAt?: Date;
   queuedAt?: Date;
+  burnRate?: number; // basis points (0-10000 = 0-100%)
 }
 
 export interface ProposalDetailProps {
@@ -255,6 +262,31 @@ export function ProposalDetail({ className, proposal, onVoteSuccess }: ProposalD
                 <span className="text-[var(--text-secondary)]">Status</span>
                 <StatusBadge status={proposal.status} size="sm" />
               </div>
+              <div className="flex justify-between text-sm">
+                <span className="flex items-center gap-[var(--space-1)] text-[var(--text-secondary)]">
+                  Vote Burn Rate
+                  <TooltipProvider delayDuration={200}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button type="button" aria-label="Vote Burn Rate info">
+                          <span
+                            className="inline-flex items-center justify-center size-[14px] rounded-full border-[1.5px] border-[var(--text-tertiary)] text-[var(--text-tertiary)] hover:border-[var(--text-secondary)] hover:text-[var(--text-secondary)] transition-colors cursor-help text-[10px] font-semibold leading-none"
+                            aria-hidden="true"
+                          >
+                            ?
+                          </span>
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        <p>The percentage of voting power consumed when casting a vote. For example, if the burn rate is 3.4% and you vote with 100 voting power, 3.4 will be permanently burned.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </span>
+                <span className="text-[var(--text-primary)]">
+                  {proposal.burnRate !== undefined ? `${(proposal.burnRate / 100).toFixed(1)}%` : "0%"}
+                </span>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -268,6 +300,7 @@ export function ProposalDetail({ className, proposal, onVoteSuccess }: ProposalD
           proposalId={proposalIdBigInt}
           proposalTitle={proposal.title}
           onVoteSuccess={onVoteSuccess}
+          burnRate={proposal.burnRate}
         />
       )}
     </div>

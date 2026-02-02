@@ -262,7 +262,7 @@ export function ActionBuilder({
             value={mode}
             onChange={(e) => handleModeChange(e.target.value as Mode)}
             size="sm"
-            className="w-36"
+            className="w-[140px]"
           >
             {supportsEtherscan && <option value="auto">Auto ABI</option>}
             <option value="predefined">Predefined</option>

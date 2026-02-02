@@ -70,6 +70,7 @@ export interface Proposal {
   startTime: bigint;
   endTime: bigint;
   eta?: bigint;
+  burnRate: number; // basis points (0-10000 = 0-100%)
 }
 
 // Delegator Info

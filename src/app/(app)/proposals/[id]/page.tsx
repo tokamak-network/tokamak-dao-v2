@@ -250,6 +250,7 @@ function RealProposalDetail({ id }: { id: string }) {
     abstainVotes: bigint;
     canceled: boolean;
     executed: boolean;
+    burnRate: number;
   };
 
   const status = mapProposalState(stateData as number);
@@ -275,6 +276,7 @@ function RealProposalDetail({ id }: { id: string }) {
     votingStartsAt: voteStartTime,
     votingEndsAt: voteEndTime,
     executedAt: proposal.executed ? new Date() : undefined,
+    burnRate: proposal.burnRate ?? 0,
   };
 
   return <ProposalDetail proposal={proposalDetail} onVoteSuccess={handleVoteSuccess} />;

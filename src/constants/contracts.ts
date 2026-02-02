@@ -32,8 +32,8 @@ export const CONTRACT_ADDRESSES: Record<number, ContractAddresses> = {
     daoGovernor: "0x0165878A594ca255338adfa4d48449f69242Eb8F",
     securityCouncil: "0xa513E6E4b8f2a923D98304ec87F64353C4D5C853",
     timelock: "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707",
-    faucet: "0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0",
-    tonFaucet: "0x0DCd1Bf9A1b36cE34237eEaFef220932846BCD82",
+    faucet: "0x0DCd1Bf9A1b36cE34237eEaFef220932846BCD82",
+    tonFaucet: "0x9A676e781A523b5d0C0e43731313A708CB607508",
   },
   // Sepolia Testnet
   11155111: {
@@ -369,6 +369,7 @@ export const DAO_GOVERNOR_ABI = [
           { name: "abstainVotes", type: "uint256" },
           { name: "canceled", type: "bool" },
           { name: "executed", type: "bool" },
+          { name: "burnRate", type: "uint16" },
         ],
       },
     ],
@@ -442,6 +443,7 @@ export const DAO_GOVERNOR_ABI = [
       { name: "values", type: "uint256[]" },
       { name: "calldatas", type: "bytes[]" },
       { name: "description", type: "string" },
+      { name: "burnRate", type: "uint16" },
     ],
     outputs: [{ name: "", type: "uint256" }],
   },
@@ -501,6 +503,16 @@ export const DAO_GOVERNOR_ABI = [
       { name: "snapshotBlock", type: "uint256", indexed: false },
       { name: "voteStart", type: "uint256", indexed: false },
       { name: "voteEnd", type: "uint256", indexed: false },
+      { name: "burnRate", type: "uint16", indexed: false },
+    ],
+  },
+  {
+    name: "VoteBurn",
+    type: "event",
+    inputs: [
+      { name: "voter", type: "address", indexed: true },
+      { name: "proposalId", type: "uint256", indexed: true },
+      { name: "burnAmount", type: "uint256", indexed: false },
     ],
   },
   {

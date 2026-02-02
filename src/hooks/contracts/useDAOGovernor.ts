@@ -71,6 +71,7 @@ export interface ProposalListItem {
   abstainVotes: bigint;
   voteStart: bigint;
   voteEnd: bigint;
+  burnRate: number;
 }
 
 /**
@@ -157,6 +158,7 @@ export function useProposals() {
           forVotes: bigint;
           againstVotes: bigint;
           abstainVotes: bigint;
+          burnRate: number;
         };
         const state = stateResult.result as number;
 
@@ -172,6 +174,7 @@ export function useProposals() {
           abstainVotes: proposal.abstainVotes,
           voteStart: proposal.voteStart,
           voteEnd: proposal.voteEnd,
+          burnRate: proposal.burnRate ?? 0,
         });
       }
     }
@@ -400,14 +403,15 @@ export function usePropose() {
     targets: `0x${string}`[],
     values: bigint[],
     calldatas: `0x${string}`[],
-    description: string
+    description: string,
+    burnRate: number = 0
   ) => {
     if (!isDeployed) return;
     writeContract({
       address: addresses.daoGovernor,
       abi: DAO_GOVERNOR_ABI,
       functionName: "propose",
-      args: [targets, values, calldatas, description],
+      args: [targets, values, calldatas, description, burnRate],
     });
   };
 
@@ -415,14 +419,15 @@ export function usePropose() {
     targets: `0x${string}`[],
     values: bigint[],
     calldatas: `0x${string}`[],
-    description: string
+    description: string,
+    burnRate: number = 0
   ) => {
     if (!isDeployed) throw new Error("Contracts not deployed");
     const result = await writeContractAsync({
       address: addresses.daoGovernor,
       abi: DAO_GOVERNOR_ABI,
       functionName: "propose",
-      args: [targets, values, calldatas, description],
+      args: [targets, values, calldatas, description, burnRate],
     });
     invalidateProposalQueries();
     return result;
