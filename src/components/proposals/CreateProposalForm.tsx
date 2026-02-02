@@ -11,12 +11,8 @@ import { usePropose, useGovernanceParams } from "@/hooks/contracts/useDAOGoverno
 import { useTONAllowance, useApproveTON, useTONBalance } from "@/hooks/contracts/useTON";
 import { getContractAddresses, DAO_GOVERNOR_ABI } from "@/constants/contracts";
 import { parseEventLogs } from "viem";
-
-interface ActionInput {
-  target: string;
-  value: string;
-  calldata: string;
-}
+import { ActionBuilderList, DEFAULT_ACTION } from "./ActionBuilderList";
+import type { BuiltAction } from "./ActionBuilder";
 
 export interface CreateProposalFormProps {
   className?: string;
@@ -32,8 +28,8 @@ export function CreateProposalForm({ className }: CreateProposalFormProps) {
   const [title, setTitle] = React.useState("");
   const [description, setDescription] = React.useState("");
   const [showAdvanced, setShowAdvanced] = React.useState(false);
-  const [actions, setActions] = React.useState<ActionInput[]>([
-    { target: "", value: "0", calldata: "0x" },
+  const [actions, setActions] = React.useState<BuiltAction[]>([
+    { ...DEFAULT_ACTION },
   ]);
 
   const { proposeAsync } = usePropose();
@@ -61,26 +57,6 @@ export function CreateProposalForm({ className }: CreateProposalFormProps) {
     description.trim().length > 0 &&
     isConnected &&
     hasEnoughTON;
-
-  const handleAddAction = () => {
-    setActions([...actions, { target: "", value: "0", calldata: "0x" }]);
-  };
-
-  const handleRemoveAction = (index: number) => {
-    if (actions.length > 1) {
-      setActions(actions.filter((_, i) => i !== index));
-    }
-  };
-
-  const handleActionChange = (
-    index: number,
-    field: keyof ActionInput,
-    value: string
-  ) => {
-    const newActions = [...actions];
-    newActions[index][field] = value;
-    setActions(newActions);
-  };
 
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [submitStep, setSubmitStep] = React.useState<"idle" | "approving" | "waitingApproval" | "proposing" | "waitingProposal">("idle");
@@ -278,89 +254,11 @@ Potential risks and mitigations"
           <CardContent className="space-y-4">
             <HelperText>
               Specify the on-chain actions to execute if this proposal passes.
-              Leave empty for signaling proposals.
+              Leave empty for signaling proposals. On supported networks (Sepolia, Mainnet),
+              enter a verified contract address to auto-load its ABI and build calldata.
             </HelperText>
 
-            {actions.map((action, index) => (
-              <div
-                key={index}
-                className="p-4 rounded-lg border border-[var(--border-default)] space-y-4"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-[var(--text-primary)]">
-                    Action {index + 1}
-                  </span>
-                  {actions.length > 1 && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleRemoveAction(index)}
-                    >
-                      Remove
-                    </Button>
-                  )}
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor={`target-${index}`}>Target Address</Label>
-                  <Input
-                    id={`target-${index}`}
-                    placeholder="0x..."
-                    value={action.target}
-                    onChange={(e) =>
-                      handleActionChange(index, "target", e.target.value)
-                    }
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor={`value-${index}`}>Value (wei)</Label>
-                  <Input
-                    id={`value-${index}`}
-                    placeholder="0"
-                    value={action.value}
-                    onChange={(e) =>
-                      handleActionChange(index, "value", e.target.value)
-                    }
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor={`calldata-${index}`}>Calldata</Label>
-                  <Input
-                    id={`calldata-${index}`}
-                    placeholder="0x"
-                    value={action.calldata}
-                    onChange={(e) =>
-                      handleActionChange(index, "calldata", e.target.value)
-                    }
-                  />
-                </div>
-              </div>
-            ))}
-
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={handleAddAction}
-              className="w-full"
-            >
-              <svg
-                className="size-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M12 4.5v15m7.5-7.5h-15"
-                />
-              </svg>
-              Add Action
-            </Button>
+            <ActionBuilderList actions={actions} onChange={setActions} />
           </CardContent>
         )}
       </Card>
