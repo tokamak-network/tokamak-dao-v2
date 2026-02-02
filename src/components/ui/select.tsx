@@ -26,7 +26,7 @@ const selectVariants = cva(
   {
     variants: {
       size: {
-        sm: "h-8 text-sm",
+        sm: "h-9 text-sm",
         md: "h-10 text-sm",
         lg: "h-12 text-base",
       },
