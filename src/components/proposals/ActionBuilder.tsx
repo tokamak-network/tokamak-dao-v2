@@ -9,11 +9,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 import { useActionBuilder } from "@tokamak-ecosystem/dao-action-builder/hooks";
-import {
-  predefinedMethodRegistry,
-  filterStateChangingFunctions,
-  type AbiFunction,
-} from "@tokamak-ecosystem/dao-action-builder";
+import { predefinedMethodRegistry } from "@tokamak-ecosystem/dao-action-builder";
 
 export interface BuiltAction {
   target: string;
@@ -30,20 +26,12 @@ export interface ActionBuilderProps {
   showRemove?: boolean;
 }
 
-type LoadingState = "idle" | "loading" | "success" | "error";
-type Mode = "auto" | "predefined" | "manual";
-
-/** Chain-specific Etherscan configuration */
-interface EtherscanConfig {
-  apiUrl: string;
-  apiKey?: string;
-}
-
-const ETHERSCAN_CONFIGS: Record<number, EtherscanConfig | null> = {
-  1: { apiUrl: "https://api.etherscan.io/api", apiKey: process.env.NEXT_PUBLIC_ETHERSCAN_API_KEY },
-  11155111: { apiUrl: "https://api-sepolia.etherscan.io/api", apiKey: process.env.NEXT_PUBLIC_ETHERSCAN_API_KEY },
-  1337: null,
-  31337: null,
+/** Network key mapping for predefined method addresses (localhost excluded) */
+const NETWORK_KEY_MAP: Record<number, 'mainnet' | 'sepolia' | null> = {
+  1: 'mainnet',
+  11155111: 'sepolia',
+  1337: null,    // localhost - no auto-fill
+  31337: null,   // localhost - no auto-fill
 };
 
 const PLACEHOLDER_MAP: Record<string, string> = {
@@ -59,49 +47,9 @@ function getPlaceholder(type: string): string {
   return "";
 }
 
-/** Fetches ABI from Etherscan with proxy detection */
-async function fetchAbiFromEtherscan(
-  address: string,
-  config: EtherscanConfig
-): Promise<AbiFunction[] | null> {
-  try {
-    // Check for proxy implementation
-    const proxyParams = new URLSearchParams({
-      module: "contract",
-      action: "getsourcecode",
-      address,
-      ...(config.apiKey && { apikey: config.apiKey }),
-    });
-    const proxyResponse = await fetch(`${config.apiUrl}?${proxyParams}`);
-    const proxyData = await proxyResponse.json();
-
-    const targetAddress = proxyData.status === "1" && proxyData.result?.[0]?.Implementation
-      ? proxyData.result[0].Implementation
-      : address;
-
-    // Fetch ABI
-    const abiParams = new URLSearchParams({
-      module: "contract",
-      action: "getabi",
-      address: targetAddress,
-      ...(config.apiKey && { apikey: config.apiKey }),
-    });
-    const abiResponse = await fetch(`${config.apiUrl}?${abiParams}`);
-    const abiData = await abiResponse.json();
-
-    if (abiData.status === "1" && abiData.result) {
-      return filterStateChangingFunctions(JSON.parse(abiData.result));
-    }
-    return null;
-  } catch (error) {
-    console.error("Failed to fetch ABI:", error);
-    return null;
-  }
-}
-
 /**
  * ActionBuilder component for building DAO proposal actions.
- * Supports three modes: Auto ABI (Etherscan), Predefined methods, and Manual calldata.
+ * Uses predefined Tokamak contract methods.
  */
 export function ActionBuilder({
   index,
@@ -111,32 +59,23 @@ export function ActionBuilder({
   showRemove = true,
 }: ActionBuilderProps) {
   const chainId = useChainId();
-  const etherscanConfig = ETHERSCAN_CONFIGS[chainId] ?? null;
-  const supportsEtherscan = etherscanConfig !== null;
 
   // State
-  const [mode, setMode] = React.useState<Mode>(supportsEtherscan ? "auto" : "predefined");
-  const [loadingState, setLoadingState] = React.useState<LoadingState>("idle");
-  const [loadedAbi, setLoadedAbi] = React.useState<AbiFunction[]>([]);
   const [selectedPredefinedMethod, setSelectedPredefinedMethod] = React.useState("");
 
-  // Group predefined methods by category
-  const { standardMethods, tokamakMethods } = React.useMemo(() => {
+  // Get Tokamak predefined methods only
+  const tokamakMethods = React.useMemo(() => {
     const all = predefinedMethodRegistry.getAll();
-    return {
-      standardMethods: all.filter((m) => !m.name.toLowerCase().includes("tokamak")),
-      tokamakMethods: all.filter((m) => m.name.toLowerCase().includes("tokamak")),
-    };
+    return all.filter((m) => m.name.toLowerCase().includes("tokamak"));
   }, []);
 
-  // Current ABI based on mode
+  // Current ABI based on selected method
   const currentAbi = React.useMemo(() => {
-    if (mode === "auto") return loadedAbi;
-    if (mode === "predefined" && selectedPredefinedMethod) {
+    if (selectedPredefinedMethod) {
       return predefinedMethodRegistry.getAbi(selectedPredefinedMethod);
     }
     return [];
-  }, [mode, loadedAbi, selectedPredefinedMethod]);
+  }, [selectedPredefinedMethod]);
 
   // Action builder hook
   const actionBuilder = useActionBuilder({
@@ -148,43 +87,8 @@ export function ActionBuilder({
   const onChangeRef = React.useRef(onChange);
   onChangeRef.current = onChange;
 
-  // Effects
-  React.useEffect(() => {
-    if (!supportsEtherscan && mode === "auto") {
-      setMode("predefined");
-    }
-  }, [supportsEtherscan, mode]);
-
-  // ABI loading (debounced)
-  React.useEffect(() => {
-    if (mode !== "auto" || !etherscanConfig) return;
-
-    const address = actionBuilder.address;
-    if (!address || !isAddress(address)) {
-      setLoadedAbi([]);
-      setLoadingState("idle");
-      return;
-    }
-
-    setLoadingState("loading");
-    const timeoutId = setTimeout(async () => {
-      const fetchedAbi = await fetchAbiFromEtherscan(address, etherscanConfig);
-      if (fetchedAbi?.length) {
-        setLoadedAbi(fetchedAbi);
-        setLoadingState("success");
-      } else {
-        setLoadedAbi([]);
-        setLoadingState("error");
-      }
-    }, 500);
-
-    return () => clearTimeout(timeoutId);
-  }, [actionBuilder.address, mode, etherscanConfig]);
-
   // Sync state with parent
   React.useEffect(() => {
-    if (mode === "manual") return;
-
     const calldata = actionBuilder.calldata || "0x";
     const isValidAction =
       isAddress(actionBuilder.address) &&
@@ -203,50 +107,28 @@ export function ActionBuilder({
     actionBuilder.calldata,
     actionBuilder.selectedFunction,
     actionBuilder.isParametersValid,
-    mode,
     value.value,
   ]);
 
   // Handlers
-  const handleAddressChange = (newAddress: string) => {
-    if (mode === "manual") {
-      onChange({
-        ...value,
-        target: newAddress,
-        isValid: isAddress(newAddress) && value.calldata.startsWith("0x"),
-      });
-    } else {
-      actionBuilder.setAddress(newAddress);
-    }
-  };
-
-  const handleValueChange = (newValue: string) => {
-    onChange({ ...value, value: newValue });
-  };
-
-  const handleManualCalldataChange = (newCalldata: string) => {
-    onChange({
-      ...value,
-      calldata: newCalldata,
-      isValid: isAddress(value.target) && newCalldata.startsWith("0x"),
-    });
-  };
-
-  const handleModeChange = (newMode: Mode) => {
-    setMode(newMode);
-    setLoadedAbi([]);
-    setLoadingState("idle");
-    setSelectedPredefinedMethod("");
-    actionBuilder.reset();
-  };
-
   const handlePredefinedMethodChange = (methodId: string) => {
     setSelectedPredefinedMethod(methodId);
+
+    // Auto-fill address for mainnet/sepolia (not localhost)
+    const networkKey = NETWORK_KEY_MAP[chainId];
+    if (networkKey && methodId) {
+      const method = predefinedMethodRegistry.get(methodId);
+      const address = method?.addresses?.[networkKey];
+      if (address) {
+        actionBuilder.setAddress(address);
+        return; // Keep address, skip reset
+      }
+    }
+
     actionBuilder.reset();
   };
 
-  const currentAddress = mode === "manual" ? value.target : actionBuilder.address;
-  const selectedMethod = [...standardMethods, ...tokamakMethods].find(
+  const selectedMethod = tokamakMethods.find(
     (m) => m.id === selectedPredefinedMethod
   );
 
@@ -257,51 +139,32 @@ export function ActionBuilder({
         <span className="text-sm font-medium text-[var(--text-primary)]">
           Action {index + 1}
         </span>
-        <div className="flex items-center gap-2">
-          <Select
-            value={mode}
-            onChange={(e) => handleModeChange(e.target.value as Mode)}
-            size="sm"
-            className="w-[140px]"
-          >
-            {supportsEtherscan && <option value="auto">Auto ABI</option>}
-            <option value="predefined">Predefined</option>
-            <option value="manual">Manual</option>
-          </Select>
-          {showRemove && onRemove && (
-            <Button type="button" variant="ghost" size="sm" onClick={onRemove}>
-              Remove
-            </Button>
-          )}
-        </div>
+        {showRemove && onRemove && (
+          <Button type="button" variant="ghost" size="sm" onClick={onRemove}>
+            Remove
+          </Button>
+        )}
       </div>
 
-      {/* Contract Type (predefined mode) */}
-      {mode === "predefined" && (
-        <div className="space-y-2">
-          <Label htmlFor={`predefined-${index}`}>Contract Type</Label>
-          <Select
-            id={`predefined-${index}`}
-            value={selectedPredefinedMethod}
-            onChange={(e) => handlePredefinedMethodChange(e.target.value)}
-            placeholder="Select contract type"
-          >
-            <optgroup label="Standard Contracts">
-              {standardMethods.map((m) => (
-                <option key={m.id} value={m.id}>{m.name}</option>
-              ))}
-            </optgroup>
-            <optgroup label="Tokamak Network">
-              {tokamakMethods.map((m) => (
-                <option key={m.id} value={m.id}>{m.name}</option>
-              ))}
-            </optgroup>
-          </Select>
-          {selectedMethod?.description && (
-            <HelperText>{selectedMethod.description}</HelperText>
-          )}
-        </div>
-      )}
+      {/* Contract Type */}
+      <div className="space-y-2">
+        <Label htmlFor={`predefined-${index}`}>Contract Type</Label>
+        <Select
+          id={`predefined-${index}`}
+          value={selectedPredefinedMethod}
+          onChange={(e) => handlePredefinedMethodChange(e.target.value)}
+          placeholder="Select contract type"
+        >
+          {tokamakMethods.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.name.replace(/^Tokamak\s+/i, "")}
+            </option>
+          ))}
+        </Select>
+        {selectedMethod?.description && (
+          <HelperText>{selectedMethod.description}</HelperText>
+        )}
+      </div>
 
       {/* Target Address */}
       <div className="space-y-2">
@@ -309,28 +172,14 @@ export function ActionBuilder({
         <Input
           id={`target-${index}`}
           placeholder="0x..."
-          value={currentAddress}
-          onChange={(e) => handleAddressChange(e.target.value)}
-          error={currentAddress.length > 0 && !isAddress(currentAddress)}
+          value={actionBuilder.address}
+          onChange={(e) => actionBuilder.setAddress(e.target.value)}
+          error={actionBuilder.address.length > 0 && !isAddress(actionBuilder.address)}
         />
-        {mode === "auto" && loadingState === "loading" && (
-          <HelperText>Loading contract ABI...</HelperText>
-        )}
-        {mode === "auto" && loadingState === "error" && (
-          <HelperText error>
-            Could not load ABI. Contract may not be verified.{" "}
-            <button type="button" className="underline" onClick={() => handleModeChange("predefined")}>
-              Try predefined methods
-            </button>
-          </HelperText>
-        )}
-        {mode === "auto" && loadingState === "success" && (
-          <HelperText>ABI loaded successfully</HelperText>
-        )}
       </div>
 
       {/* Function Selection */}
-      {mode !== "manual" && currentAbi.length > 0 && (
+      {currentAbi.length > 0 && (
         <div className="space-y-2">
           <Label htmlFor={`function-${index}`}>Function</Label>
           <Select
@@ -352,7 +201,7 @@ export function ActionBuilder({
       )}
 
       {/* Parameters */}
-      {mode !== "manual" && actionBuilder.selectedFunction && actionBuilder.selectedFunction.inputs.length > 0 && (
+      {actionBuilder.selectedFunction && actionBuilder.selectedFunction.inputs.length > 0 && (
         <div className="space-y-3 pl-4 border-l-2 border-[var(--border-subtle)]">
           <Label className="text-xs text-[var(--text-tertiary)]">Parameters</Label>
           {actionBuilder.selectedFunction.inputs.map((input) => {
@@ -383,33 +232,8 @@ export function ActionBuilder({
         </div>
       )}
 
-      {/* Value (wei) */}
-      <div className="space-y-2">
-        <Label htmlFor={`value-${index}`}>Value (wei)</Label>
-        <Input
-          id={`value-${index}`}
-          placeholder="0"
-          value={value.value}
-          onChange={(e) => handleValueChange(e.target.value)}
-        />
-      </div>
-
-      {/* Manual Calldata */}
-      {mode === "manual" && (
-        <div className="space-y-2">
-          <Label htmlFor={`calldata-${index}`}>Calldata</Label>
-          <Input
-            id={`calldata-${index}`}
-            placeholder="0x"
-            value={value.calldata}
-            onChange={(e) => handleManualCalldataChange(e.target.value)}
-            error={value.calldata.length > 0 && !value.calldata.startsWith("0x")}
-          />
-        </div>
-      )}
-
       {/* Calldata Preview */}
-      {mode !== "manual" && actionBuilder.calldata && actionBuilder.calldata !== "0x" && (
+      {actionBuilder.calldata && actionBuilder.calldata !== "0x" && (
         <div className="space-y-2">
           <Label className="text-xs text-[var(--text-tertiary)]">Encoded Calldata</Label>
           <div className={cn(
