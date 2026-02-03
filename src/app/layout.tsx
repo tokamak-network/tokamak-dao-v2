@@ -19,6 +19,17 @@ export const metadata: Metadata = {
   description: "Tokamak DAO Governance Platform",
 };
 
+const themeInitScript = `
+(function() {
+  const storageKey = 'tokamak-dao-theme';
+  const theme = localStorage.getItem(storageKey);
+  const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const isDark = theme === 'dark' || (theme !== 'light' && systemDark);
+  document.documentElement.classList.add(isDark ? 'dark' : 'light');
+  document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+})();
+`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -26,6 +37,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{ __html: themeInitScript }}
+        />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

@@ -25,18 +25,21 @@ export function ThemeProvider({
   defaultTheme = "system",
   storageKey = THEME_STORAGE_KEY,
 }: ThemeProviderProps) {
-  const [theme, setThemeState] = React.useState<Theme>(defaultTheme);
-  const [resolvedTheme, setResolvedTheme] = React.useState<"light" | "dark">("light");
+  const [theme, setThemeState] = React.useState<Theme>(() => {
+    if (typeof window === "undefined") return defaultTheme;
+    const stored = localStorage.getItem(storageKey) as Theme | null;
+    return stored && ["light", "dark", "system"].includes(stored) ? stored : defaultTheme;
+  });
+  const [resolvedTheme, setResolvedTheme] = React.useState<"light" | "dark">(() => {
+    if (typeof window === "undefined") return "light";
+    return document.documentElement.classList.contains("dark") ? "dark" : "light";
+  });
   const [mounted, setMounted] = React.useState(false);
 
-  // Initialize theme from storage on mount
+  // Initialize on mount
   React.useEffect(() => {
-    const stored = localStorage.getItem(storageKey) as Theme | null;
-    if (stored && ["light", "dark", "system"].includes(stored)) {
-      setThemeState(stored);
-    }
     setMounted(true);
-  }, [storageKey]);
+  }, []);
 
   // Apply theme to document
   React.useEffect(() => {
