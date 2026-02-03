@@ -46,6 +46,7 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
     error NotDelegate();
     error InsufficientTON();
     error InsufficientVTON();
+    error InvalidPassRate();
 
     /*//////////////////////////////////////////////////////////////
                                 CONSTANTS
@@ -69,11 +70,14 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
     /// @notice Default voting period (7 days in blocks, ~50400 blocks)
     uint256 public constant DEFAULT_VOTING_PERIOD = 50_400;
 
-    /// @notice Timelock delay (7 days)
-    uint256 public constant TIMELOCK_DELAY = 7 days;
+    /// @notice Default timelock delay (7 days)
+    uint256 public constant DEFAULT_TIMELOCK_DELAY = 7 days;
 
-    /// @notice Timelock grace period (14 days after eta)
-    uint256 public constant TIMELOCK_GRACE_PERIOD = 14 days;
+    /// @notice Default grace period (14 days after eta)
+    uint256 public constant DEFAULT_GRACE_PERIOD = 14 days;
+
+    /// @notice Default pass rate (50% = 5000 basis points, majority means > 50%)
+    uint256 public constant DEFAULT_PASS_RATE = 5000;
 
     /// @notice Maximum burn rate (100% = 10000 basis points)
     uint16 public constant MAX_BURN_RATE = 10_000;
@@ -111,6 +115,15 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
 
     /// @notice Proposal threshold in basis points (25 = 0.25%)
     uint256 public override proposalThreshold;
+
+    /// @notice Timelock delay in seconds
+    uint256 public timelockDelay;
+
+    /// @notice Grace period in seconds
+    uint256 public gracePeriod;
+
+    /// @notice Pass rate in basis points (5000 = 50%, requires > passRate to pass)
+    uint256 public passRate;
 
     /// @notice Proposal counter
     uint256 private _proposalCount;
@@ -170,6 +183,9 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
         votingDelay = DEFAULT_VOTING_DELAY;
         votingPeriod = DEFAULT_VOTING_PERIOD;
         proposalThreshold = DEFAULT_PROPOSAL_THRESHOLD;
+        timelockDelay = DEFAULT_TIMELOCK_DELAY;
+        gracePeriod = DEFAULT_GRACE_PERIOD;
+        passRate = DEFAULT_PASS_RATE;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -261,7 +277,7 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
     function queue(uint256 proposalId) external override {
         if (state(proposalId) != ProposalState.Succeeded) revert ProposalNotSucceeded();
 
-        uint256 eta = block.timestamp + TIMELOCK_DELAY;
+        uint256 eta = block.timestamp + timelockDelay;
         _proposalEta[proposalId] = eta;
 
         emit ProposalQueued(proposalId, eta);
@@ -274,7 +290,7 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
 
         uint256 eta = _proposalEta[proposalId];
         if (block.timestamp < eta) revert TimelockNotReady();
-        if (block.timestamp > eta + TIMELOCK_GRACE_PERIOD) revert TimelockExpired();
+        if (block.timestamp > eta + gracePeriod) revert TimelockExpired();
 
         Proposal storage proposal = _proposals[proposalId];
         proposal.executed = true;
@@ -354,8 +370,15 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
             return ProposalState.Defeated;
         }
 
-        // Check pass rate (simple majority of for vs against)
-        if (proposal.forVotes <= proposal.againstVotes) {
+        // Check pass rate (forVotes must be greater than passRate percentage of total non-abstain votes)
+        uint256 totalNonAbstain = proposal.forVotes + proposal.againstVotes;
+        if (totalNonAbstain > 0) {
+            uint256 forPercentage = (proposal.forVotes * BASIS_POINTS) / totalNonAbstain;
+            if (forPercentage <= passRate) {
+                return ProposalState.Defeated;
+            }
+        } else {
+            // No for or against votes, only abstain - defeated
             return ProposalState.Defeated;
         }
 
@@ -365,7 +388,7 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
             return ProposalState.Succeeded;
         }
 
-        if (block.timestamp > eta + TIMELOCK_GRACE_PERIOD) {
+        if (block.timestamp > eta + gracePeriod) {
             return ProposalState.Expired;
         }
 
@@ -469,6 +492,31 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
         uint256 oldThreshold = proposalThreshold;
         proposalThreshold = newThreshold;
         emit ProposalThresholdUpdated(oldThreshold, newThreshold);
+    }
+
+    /// @notice Set timelock delay
+    /// @param newDelay New delay in seconds
+    function setTimelockDelay(uint256 newDelay) external onlyOwner {
+        uint256 oldDelay = timelockDelay;
+        timelockDelay = newDelay;
+        emit TimelockDelayUpdated(oldDelay, newDelay);
+    }
+
+    /// @notice Set grace period
+    /// @param newPeriod New period in seconds
+    function setGracePeriod(uint256 newPeriod) external onlyOwner {
+        uint256 oldPeriod = gracePeriod;
+        gracePeriod = newPeriod;
+        emit GracePeriodUpdated(oldPeriod, newPeriod);
+    }
+
+    /// @notice Set pass rate
+    /// @param newRate New rate in basis points (5000 = 50%)
+    function setPassRate(uint256 newRate) external onlyOwner {
+        if (newRate > BASIS_POINTS) revert InvalidPassRate();
+        uint256 oldRate = passRate;
+        passRate = newRate;
+        emit PassRateUpdated(oldRate, newRate);
     }
 
     /*//////////////////////////////////////////////////////////////

@@ -91,7 +91,7 @@ event DelegateVTONBurned(address indexed delegate, uint256 amount);
 **역할**: 제안 생성, 투표, 실행
 
 **핵심 규칙**:
-- 제안 생성 비용: 100 TON (소각)
+- 제안 생성 비용: 10 TON (소각)
 - 제안 생성 조건: vTON 총 공급량의 0.25% 이상 보유 필요 (스팸 방지)
 - 투표 기간: 7일 (~50,400 블록)
 - 정족수: 총 위임된 vTON의 4%
@@ -102,11 +102,14 @@ event DelegateVTONBurned(address indexed delegate, uint256 amount);
 **주요 상태**:
 | 변수 | 타입 | 기본값 | 설명 |
 |------|------|--------|------|
-| `proposalCreationCost` | `uint256` | `100 TON` | 제안 생성 비용 |
+| `proposalCreationCost` | `uint256` | `10 TON` | 제안 생성 비용 |
 | `proposalThreshold` | `uint256` | `25` | 제안 생성 최소 vTON 보유량 (basis points, 25 = 0.25%) |
 | `quorum` | `uint256` | `400` | 정족수 (basis points, 400 = 4%) |
-| `votingDelay` | `uint256` | `7200` | 투표 시작 지연 (블록, ~1일) |
+| `votingDelay` | `uint256` | `86400` | 투표 시작 지연 (초, 1일) |
 | `votingPeriod` | `uint256` | `50400` | 투표 기간 (블록, ~7일) |
+| `timelockDelay` | `uint256` | `7 days` | 타임락 지연 (초) |
+| `gracePeriod` | `uint256` | `14 days` | 유예 기간 (초) |
+| `passRate` | `uint256` | `5000` | 통과율 (basis points, 5000 = 50%, >50% 필요) |
 | `MAX_BURN_RATE` | `uint16` | `10000` | 최대 소각률 (basis points, 10000 = 100%) |
 
 **Enums**:
@@ -143,6 +146,9 @@ enum VoteType {
 | `hasVoted` | `proposalId: uint256, account: address` | `bool` | 투표 여부 확인 |
 | `proposalThreshold` | - | `uint256` | 제안 생성 최소 vTON 보유량 (basis points) 조회 |
 | `setProposalThreshold` | `newThreshold: uint256` | - | 제안 생성 최소 보유량 설정 (owner only) |
+| `setTimelockDelay` | `newDelay: uint256` | - | 타임락 지연 설정 (owner only) |
+| `setGracePeriod` | `newPeriod: uint256` | - | 유예 기간 설정 (owner only) |
+| `setPassRate` | `newRate: uint256` | - | 통과율 설정 (owner only, basis points) |
 
 **이벤트**:
 ```solidity

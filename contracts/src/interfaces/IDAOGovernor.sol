@@ -98,6 +98,15 @@ interface IDAOGovernor {
     /// @notice Emitted when proposal threshold is updated
     event ProposalThresholdUpdated(uint256 oldThreshold, uint256 newThreshold);
 
+    /// @notice Emitted when timelock delay is updated
+    event TimelockDelayUpdated(uint256 oldDelay, uint256 newDelay);
+
+    /// @notice Emitted when grace period is updated
+    event GracePeriodUpdated(uint256 oldPeriod, uint256 newPeriod);
+
+    /// @notice Emitted when pass rate is updated
+    event PassRateUpdated(uint256 oldRate, uint256 newRate);
+
     /// @notice Error when caller is not authorized to cancel proposal
     error NotAuthorizedToCancel();
 
