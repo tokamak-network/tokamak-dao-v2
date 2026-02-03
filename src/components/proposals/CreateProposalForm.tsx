@@ -9,6 +9,7 @@ import { Input, Textarea, Label, HelperText } from "@/components/ui/input";
 import { cn, formatVTON } from "@/lib/utils";
 import { usePropose, useGovernanceParams } from "@/hooks/contracts/useDAOGovernor";
 import { useTONAllowance, useApproveTON, useTONBalance } from "@/hooks/contracts/useTON";
+import { useVTONBalance, useTotalSupply } from "@/hooks/contracts/useVTON";
 import { getContractAddresses, DAO_GOVERNOR_ABI } from "@/constants/contracts";
 import { parseEventLogs } from "viem";
 import { ActionBuilderList, DEFAULT_ACTION } from "./ActionBuilderList";
@@ -34,7 +35,11 @@ export function CreateProposalForm({ className }: CreateProposalFormProps) {
   ]);
 
   const { proposeAsync } = usePropose();
-  const { proposalCreationCost } = useGovernanceParams();
+  const { proposalCreationCost, proposalThreshold } = useGovernanceParams();
+
+  // vTON balance and threshold state
+  const { data: vtonBalance } = useVTONBalance(address);
+  const { data: vtonTotalSupply } = useTotalSupply();
 
   // TON approval state
   const { data: tonBalance } = useTONBalance(address);
@@ -52,12 +57,19 @@ export function CreateProposalForm({ className }: CreateProposalFormProps) {
   const hasEnoughTON = tonBalance >= requiredAmount;
   const hasEnoughAllowance = tonAllowance >= requiredAmount;
 
+  // Calculate required vTON based on threshold (0.25% = 25 basis points)
+  const requiredVTON = vtonTotalSupply && proposalThreshold
+    ? (vtonTotalSupply * proposalThreshold) / BigInt(10000)
+    : BigInt(0);
+  const hasEnoughVTON = (vtonBalance ?? BigInt(0)) >= requiredVTON;
+
   // Form validation
   const isFormValid =
     title.trim().length > 0 &&
     description.trim().length > 0 &&
     isConnected &&
-    hasEnoughTON;
+    hasEnoughTON &&
+    hasEnoughVTON;
 
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [submitStep, setSubmitStep] = React.useState<"idle" | "approving" | "waitingApproval" | "proposing" | "waitingProposal">("idle");
@@ -152,6 +164,33 @@ export function CreateProposalForm({ className }: CreateProposalFormProps) {
                 {hasEnoughAllowance ? "Approved" : hasEnoughTON ? "Approval needed" : ""}
               </p>
             </div>
+
+            <div className="p-4 rounded-lg bg-[var(--bg-tertiary)]">
+              <p className="text-sm text-[var(--text-secondary)]">
+                Minimum vTON Required
+              </p>
+              <p className="text-lg font-semibold text-[var(--text-primary)]">
+                {formatVTON(requiredVTON)} vTON
+              </p>
+              <p className="text-xs text-[var(--text-tertiary)] mt-1">
+                {proposalThreshold ? `${Number(proposalThreshold) / 100}%` : "0.25%"} of total supply
+              </p>
+            </div>
+
+            <div className="p-4 rounded-lg bg-[var(--bg-tertiary)]">
+              <p className="text-sm text-[var(--text-secondary)]">
+                Your vTON Balance
+              </p>
+              <p className={cn(
+                "text-lg font-semibold",
+                hasEnoughVTON ? "text-[var(--text-primary)]" : "text-[var(--status-error-text)]"
+              )}>
+                {formatVTON(vtonBalance ?? BigInt(0))} vTON
+              </p>
+              <p className="text-xs text-[var(--text-tertiary)] mt-1">
+                {hasEnoughVTON ? "Requirement met" : "Insufficient balance"}
+              </p>
+            </div>
           </div>
 
           {!isConnected && (
@@ -165,6 +204,15 @@ export function CreateProposalForm({ className }: CreateProposalFormProps) {
               Insufficient TON balance. You need {formattedCost} TON to create a proposal.{" "}
               <a href="/faucet" className="underline font-medium">
                 Get TON from faucet
+              </a>
+            </div>
+          )}
+
+          {isConnected && hasEnoughTON && !hasEnoughVTON && (
+            <div className="mt-4 p-3 rounded-lg bg-[var(--status-error-bg)] text-[var(--status-error-text)] text-sm">
+              Insufficient vTON balance. You need at least {formatVTON(requiredVTON)} vTON ({proposalThreshold ? `${Number(proposalThreshold) / 100}%` : "0.25%"} of total supply) to create a proposal.{" "}
+              <a href="/faucet" className="underline font-medium">
+                Get vTON from faucet
               </a>
             </div>
           )}

@@ -45,6 +45,7 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
     error ArrayLengthMismatch();
     error NotDelegate();
     error InsufficientTON();
+    error InsufficientVTON();
 
     /*//////////////////////////////////////////////////////////////
                                 CONSTANTS
@@ -55,6 +56,9 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
 
     /// @notice Default quorum (4% = 400 basis points)
     uint256 public constant DEFAULT_QUORUM = 400;
+
+    /// @notice Default proposal threshold (0.25% = 25 basis points)
+    uint256 public constant DEFAULT_PROPOSAL_THRESHOLD = 25;
 
     /// @notice Basis points denominator
     uint256 public constant BASIS_POINTS = 10_000;
@@ -104,6 +108,9 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
 
     /// @notice Voting period in blocks
     uint256 public override votingPeriod;
+
+    /// @notice Proposal threshold in basis points (25 = 0.25%)
+    uint256 public override proposalThreshold;
 
     /// @notice Proposal counter
     uint256 private _proposalCount;
@@ -162,6 +169,7 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
         quorum = DEFAULT_QUORUM;
         votingDelay = DEFAULT_VOTING_DELAY;
         votingPeriod = DEFAULT_VOTING_PERIOD;
+        proposalThreshold = DEFAULT_PROPOSAL_THRESHOLD;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -181,6 +189,15 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
             revert ArrayLengthMismatch();
         }
         if (burnRate > MAX_BURN_RATE) revert InvalidBurnRate();
+
+        // Check vTON balance threshold
+        if (proposalThreshold > 0) {
+            uint256 totalSupply = vTON.totalSupply();
+            uint256 requiredBalance = (totalSupply * proposalThreshold) / BASIS_POINTS;
+            if (vTON.balanceOf(msg.sender) < requiredBalance) {
+                revert InsufficientVTON();
+            }
+        }
 
         // Burn TON for proposal creation
         if (proposalCreationCost > 0) {
@@ -445,6 +462,13 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
         address oldGuardian = proposalGuardian;
         proposalGuardian = newGuardian;
         emit ProposalGuardianSet(oldGuardian, newGuardian);
+    }
+
+    /// @inheritdoc IDAOGovernor
+    function setProposalThreshold(uint256 newThreshold) external override onlyOwner {
+        uint256 oldThreshold = proposalThreshold;
+        proposalThreshold = newThreshold;
+        emit ProposalThresholdUpdated(oldThreshold, newThreshold);
     }
 
     /*//////////////////////////////////////////////////////////////

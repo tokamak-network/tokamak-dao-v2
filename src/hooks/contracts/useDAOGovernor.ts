@@ -27,6 +27,7 @@ const MOCK_DATA = {
   votingPeriod: BigInt(604800), // 7 days in seconds
   votingDelay: BigInt(86400), // 1 day in seconds
   proposalCreationCost: BigInt("100000000000000000000"), // 100 TON
+  proposalThreshold: BigInt(25), // 0.25%
 };
 
 // Map contract state (uint8) to ProposalStatus
@@ -322,17 +323,28 @@ export function useGovernanceParams() {
     },
   });
 
+  const thresholdResult = useReadContract({
+    address: addresses.daoGovernor,
+    abi: DAO_GOVERNOR_ABI,
+    functionName: "proposalThreshold",
+    query: {
+      enabled: isDeployed,
+    },
+  });
+
   const isLoading =
     quorumResult.isLoading ||
     votingPeriodResult.isLoading ||
     votingDelayResult.isLoading ||
-    costResult.isLoading;
+    costResult.isLoading ||
+    thresholdResult.isLoading;
 
   const isError =
     quorumResult.isError ||
     votingPeriodResult.isError ||
     votingDelayResult.isError ||
-    costResult.isError;
+    costResult.isError ||
+    thresholdResult.isError;
 
   return {
     quorum: isDeployed ? quorumResult.data : MOCK_DATA.quorum,
@@ -341,6 +353,9 @@ export function useGovernanceParams() {
     proposalCreationCost: isDeployed
       ? costResult.data
       : MOCK_DATA.proposalCreationCost,
+    proposalThreshold: isDeployed
+      ? thresholdResult.data
+      : MOCK_DATA.proposalThreshold,
     isLoading: isDeployed ? isLoading : false,
     isError: isDeployed ? isError : false,
     isDeployed,

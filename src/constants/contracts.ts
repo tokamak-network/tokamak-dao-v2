@@ -410,6 +410,13 @@ export const DAO_GOVERNOR_ABI = [
     outputs: [{ name: "", type: "uint256" }],
   },
   {
+    name: "proposalThreshold",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
     name: "hasVoted",
     type: "function",
     stateMutability: "view",

@@ -8,12 +8,12 @@ import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-import { useActionBuilder } from "@shinthom/dao-action-builder/hooks";
+import { useActionBuilder } from "@tokamak-ecosystem/dao-action-builder/hooks";
 import {
   predefinedMethodRegistry,
   filterStateChangingFunctions,
   type AbiFunction,
-} from "@shinthom/dao-action-builder";
+} from "@tokamak-ecosystem/dao-action-builder";
 
 export interface BuiltAction {
   target: string;

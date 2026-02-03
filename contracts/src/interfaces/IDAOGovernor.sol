@@ -95,6 +95,9 @@ interface IDAOGovernor {
     /// @notice Emitted when proposal guardian is updated
     event ProposalGuardianSet(address oldGuardian, address newGuardian);
 
+    /// @notice Emitted when proposal threshold is updated
+    event ProposalThresholdUpdated(uint256 oldThreshold, uint256 newThreshold);
+
     /// @notice Error when caller is not authorized to cancel proposal
     error NotAuthorizedToCancel();
 
@@ -209,6 +212,14 @@ interface IDAOGovernor {
     /// @notice Set the proposal guardian
     /// @param newGuardian The new guardian address (or address(0) to disable)
     function setProposalGuardian(address newGuardian) external;
+
+    /// @notice Get the proposal threshold in basis points
+    /// @return Threshold in basis points (25 = 0.25% of total vTON supply)
+    function proposalThreshold() external view returns (uint256);
+
+    /// @notice Set the proposal threshold
+    /// @param newThreshold New threshold in basis points
+    function setProposalThreshold(uint256 newThreshold) external;
 
     /// @notice Hash a proposal for ID generation
     /// @param targets Target addresses
