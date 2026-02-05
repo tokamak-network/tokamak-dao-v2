@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useAccount } from "wagmi";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/badge";
@@ -151,7 +152,7 @@ export function ProposalDetail({ className, proposal, onVoteSuccess }: ProposalD
           <Card>
             <CardContent className="py-4">
               <div className="proposal-prose max-w-none">
-                <ReactMarkdown>{descriptionWithoutTitle}</ReactMarkdown>
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{descriptionWithoutTitle}</ReactMarkdown>
               </div>
             </CardContent>
           </Card>

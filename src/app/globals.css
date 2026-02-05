@@ -408,17 +408,17 @@ a:not([class]):hover {
 }
 
 .proposal-prose h2 {
-  font-size: var(--font-size-lg);
+  font-size: var(--font-size-2xl);
   padding-bottom: var(--space-3);
   border-bottom: 1px solid var(--border-secondary);
 }
 
 .proposal-prose h3 {
-  font-size: var(--font-size-base);
+  font-size: var(--font-size-xl);
 }
 
 .proposal-prose h4 {
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-lg);
 }
 
 /* Paragraphs */
