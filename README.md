@@ -12,6 +12,7 @@ npm install
 npm run anvil
 
 # Terminal 2: Deploy contracts & start webapp
+npm run faucet -- <address>
 npm run contracts:deploy:local
 npm run dev
 ```

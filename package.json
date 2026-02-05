@@ -12,7 +12,8 @@
     "contracts:test": "cd contracts && forge test",
     "contracts:deploy:local": "./contracts/scripts/deploy-local.sh",
     "contracts:deploy:sepolia": "./contracts/scripts/deploy-sepolia.sh",
-    "time-travel": "./contracts/scripts/time-travel.sh"
+    "time-travel": "./contracts/scripts/time-travel.sh",
+    "faucet": "./contracts/scripts/faucet-local.sh"
   },
   "dependencies": {
     "@metamask/sdk": "^0.34.0",
