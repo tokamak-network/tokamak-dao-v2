@@ -85,8 +85,8 @@ echo -e "${GREEN}  vTON minted${NC}"
 echo ""
 echo -e "${GREEN}=== Balances ===${NC}"
 ETH_BAL=$(cast balance "$ADDRESS" --rpc-url "$LOCAL_RPC_URL" --ether)
-TON_BAL=$(cast call "$TON" "balanceOf(address)(uint256)" "$ADDRESS" --rpc-url "$LOCAL_RPC_URL" | head -1)
-VTON_BAL=$(cast call "$VTON" "balanceOf(address)(uint256)" "$ADDRESS" --rpc-url "$LOCAL_RPC_URL" | head -1)
+TON_BAL=$(cast call "$TON" "balanceOf(address)(uint256)" "$ADDRESS" --rpc-url "$LOCAL_RPC_URL" | awk '{print $1}')
+VTON_BAL=$(cast call "$VTON" "balanceOf(address)(uint256)" "$ADDRESS" --rpc-url "$LOCAL_RPC_URL" | awk '{print $1}')
 
 echo -e "ETH:  ${CYAN}$ETH_BAL${NC}"
 echo -e "TON:  ${CYAN}$(cast from-wei "$TON_BAL")${NC}"
