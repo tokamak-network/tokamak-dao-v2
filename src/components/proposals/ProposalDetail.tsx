@@ -37,6 +37,7 @@ export interface ProposalDetailData {
   votingEndsAt: Date;
   executedAt?: Date;
   queuedAt?: Date;
+  eta?: Date; // timelock expiry - when queued proposal becomes executable
   burnRate?: number; // basis points (0-10000 = 0-100%)
 }
 
@@ -243,6 +244,7 @@ export function ProposalDetail({ className, proposal, onVoteSuccess }: ProposalD
                 votingEndsAt={proposal.votingEndsAt}
                 executedAt={proposal.executedAt}
                 queuedAt={proposal.queuedAt}
+                eta={proposal.eta}
               />
             </CardContent>
           </Card>

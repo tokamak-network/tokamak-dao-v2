@@ -7,7 +7,7 @@ import Link from "next/link";
 import { useBlock } from "wagmi";
 import { formatUnits } from "viem";
 import { ProposalDetail, type ProposalDetailData } from "@/components/proposals/ProposalDetail";
-import { useProposal, useProposalState, useVoterCount } from "@/hooks/contracts/useDAOGovernor";
+import { useProposal, useProposalState, useProposalEta, useProposalTimestamps, useVoterCount } from "@/hooks/contracts/useDAOGovernor";
 import type { ProposalStatus } from "@/types/governance";
 
 // Average block time in seconds (Sepolia/Ethereum ~12s)
@@ -137,6 +137,7 @@ Allocate 500,000 TON from the treasury for ecosystem development grants.
     votingStartsAt: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000),
     votingEndsAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
     queuedAt: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000),
+    eta: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000), // executable in 1 day
   },
   "demo-5": {
     id: "demo-5",
@@ -192,6 +193,8 @@ function RealProposalDetail({ id }: { id: string }) {
   const proposalId = BigInt(id);
   const { data: proposalData, isLoading: proposalLoading, isError: proposalError, refetch: refetchProposal } = useProposal(proposalId);
   const { data: stateData, isLoading: stateLoading } = useProposalState(proposalId);
+  const { data: etaData } = useProposalEta(proposalId);
+  const { queuedAt, executedAt } = useProposalTimestamps(proposalId);
   const { data: block, isLoading: blockLoading } = useBlock();
   const { data: voterCount, refetch: refetchVoterCount } = useVoterCount(proposalId);
 
@@ -278,7 +281,9 @@ function RealProposalDetail({ id }: { id: string }) {
     createdAt: createdTime,
     votingStartsAt: voteStartTime,
     votingEndsAt: voteEndTime,
-    executedAt: proposal.executed ? new Date() : undefined,
+    queuedAt,
+    executedAt: executedAt ?? (proposal.executed ? new Date() : undefined),
+    eta: etaData && etaData > 0n ? new Date(Number(etaData) * 1000) : undefined,
     burnRate: proposal.burnRate ?? 0,
   };
 

@@ -463,6 +463,129 @@ export function useVoterCount(proposalId: bigint) {
 }
 
 /**
+ * Hook to get proposal lifecycle timestamps from events (queued, executed)
+ */
+export function useProposalTimestamps(proposalId: bigint) {
+  const chainId = useChainId();
+  const addresses = getContractAddresses(chainId);
+  const isDeployed = areContractsDeployed(chainId);
+  const publicClient = usePublicClient();
+
+  const [timestamps, setTimestamps] = React.useState<{
+    queuedAt?: Date;
+    executedAt?: Date;
+  }>({});
+  const [isLoading, setIsLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    if (!isDeployed || !publicClient) {
+      setIsLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function fetchTimestamps() {
+      try {
+        const [queuedLogs, executedLogs] = await Promise.all([
+          publicClient!.getLogs({
+            address: addresses.daoGovernor as `0x${string}`,
+            event: {
+              name: "ProposalQueued",
+              type: "event",
+              inputs: [
+                { name: "proposalId", type: "uint256", indexed: true },
+                { name: "eta", type: "uint256", indexed: false },
+              ],
+            },
+            args: { proposalId },
+            fromBlock: 0n,
+            toBlock: "latest",
+          }),
+          publicClient!.getLogs({
+            address: addresses.daoGovernor as `0x${string}`,
+            event: {
+              name: "ProposalExecuted",
+              type: "event",
+              inputs: [
+                { name: "proposalId", type: "uint256", indexed: true },
+              ],
+            },
+            args: { proposalId },
+            fromBlock: 0n,
+            toBlock: "latest",
+          }),
+        ]);
+
+        if (cancelled) return;
+
+        const result: { queuedAt?: Date; executedAt?: Date } = {};
+
+        if (queuedLogs.length > 0) {
+          const block = await publicClient!.getBlock({
+            blockNumber: queuedLogs[0].blockNumber,
+          });
+          result.queuedAt = new Date(Number(block.timestamp) * 1000);
+        }
+
+        if (executedLogs.length > 0) {
+          const block = await publicClient!.getBlock({
+            blockNumber: executedLogs[0].blockNumber,
+          });
+          result.executedAt = new Date(Number(block.timestamp) * 1000);
+        }
+
+        if (!cancelled) {
+          setTimestamps(result);
+        }
+      } catch (error) {
+        console.error("Failed to fetch proposal timestamps:", error);
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    fetchTimestamps();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isDeployed, publicClient, proposalId, addresses.daoGovernor]);
+
+  return { ...timestamps, isLoading };
+}
+
+/**
+ * Hook to get proposal ETA (when queued proposal becomes executable)
+ */
+export function useProposalEta(proposalId: bigint) {
+  const chainId = useChainId();
+  const addresses = getContractAddresses(chainId);
+  const isDeployed = areContractsDeployed(chainId);
+
+  const result = useReadContract({
+    address: addresses.daoGovernor,
+    abi: DAO_GOVERNOR_ABI,
+    functionName: "proposalEta",
+    args: [proposalId],
+    query: {
+      enabled: isDeployed,
+    },
+  });
+
+  return {
+    data: result.data as bigint | undefined,
+    isLoading: isDeployed ? result.isLoading : false,
+    isError: isDeployed ? result.isError : false,
+    error: isDeployed ? result.error : null,
+    refetch: result.refetch,
+    isDeployed,
+  };
+}
+
+/**
  * Hook to create a new proposal
  */
 export function usePropose() {

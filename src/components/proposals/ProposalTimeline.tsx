@@ -18,6 +18,7 @@ export interface ProposalTimelineProps {
   votingEndsAt: Date;
   executedAt?: Date;
   queuedAt?: Date;
+  eta?: Date; // timelock expiry - when queued proposal becomes executable
 }
 
 /** Check icon for completed steps */
@@ -53,6 +54,7 @@ export function ProposalTimeline({
   votingEndsAt,
   executedAt,
   queuedAt,
+  eta,
 }: ProposalTimelineProps) {
   const events: TimelineEvent[] = React.useMemo(() => {
     const statusOrder: ProposalStatus[] = [
@@ -77,37 +79,27 @@ export function ProposalTimeline({
       {
         label: "Pending",
         date: votingStartsAt,
-        status: isFailed
-          ? isPastStatus("pending")
-            ? "completed"
-            : "failed"
-          : isPastStatus("pending")
-            ? "completed"
-            : isCurrentStatus("pending")
-              ? "current"
-              : "upcoming",
+        status: isFailed || isPastStatus("pending")
+          ? "completed"
+          : isCurrentStatus("pending")
+            ? "current"
+            : "upcoming",
       },
       {
         label: "Voting Starts",
         date: votingStartsAt,
-        status: isFailed
-          ? isPastStatus("active")
-            ? "completed"
-            : "failed"
-          : isPastStatus("active") || isCurrentStatus("active")
-            ? "completed"
-            : "upcoming",
+        status: isFailed || isPastStatus("active") || isCurrentStatus("active")
+          ? "completed"
+          : "upcoming",
       },
       {
         label: "Voting Ends",
         date: votingEndsAt,
-        status: isFailed
-          ? "failed"
-          : isPastStatus("active")
-            ? "completed"
-            : isCurrentStatus("active")
-              ? "current"
-              : "upcoming",
+        status: isFailed || isPastStatus("active")
+          ? "completed"
+          : isCurrentStatus("active")
+            ? "current"
+            : "upcoming",
       },
     ];
 
@@ -120,30 +112,28 @@ export function ProposalTimeline({
       baseEvents.push({
         label: "Queued",
         date: queuedAt || null,
-        status: isFailed
-          ? "failed"
-          : proposalStatus === "executed" || queuedAt
-            ? "completed"
-            : proposalStatus === "queued"
-              ? "current"
-              : "upcoming",
+        status: queuedAt || proposalStatus === "executed"
+          ? "completed"
+          : proposalStatus === "queued" || proposalStatus === "succeeded"
+            ? "current"
+            : "upcoming",
       });
     }
 
-    if (executedAt || proposalStatus === "executed" || proposalStatus === "queued") {
+    if (executedAt || proposalStatus === "queued" || proposalStatus === "executed") {
       baseEvents.push({
         label: "Executed",
         date: executedAt || null,
-        status: isFailed
-          ? "failed"
-          : executedAt || proposalStatus === "executed"
-            ? "completed"
+        status: executedAt
+          ? "completed"
+          : proposalStatus === "queued"
+            ? "current"
             : "upcoming",
       });
     }
 
     return baseEvents;
-  }, [proposalStatus, createdAt, votingStartsAt, votingEndsAt, executedAt, queuedAt]);
+  }, [proposalStatus, createdAt, votingStartsAt, votingEndsAt, executedAt, queuedAt, eta]);
 
   return (
     <div className={cn("space-y-3.5", className)}>
@@ -169,7 +159,6 @@ export function ProposalTimeline({
               key={`${event.label}-${index}`}
               className={cn(
                 "relative flex gap-3 transition-opacity duration-300",
-                event.status === "upcoming" && "opacity-50",
                 event.status === "failed" && "opacity-40"
               )}
             >
@@ -217,7 +206,7 @@ export function ProposalTimeline({
                       "transition-colors duration-300",
                       event.status === "completed" && "text-[var(--text-primary)]",
                       event.status === "current" && "text-[var(--color-primary-600)]",
-                      event.status === "upcoming" && "text-[var(--text-tertiary)]",
+                      event.status === "upcoming" && "text-[var(--text-secondary)]",
                       event.status === "failed" && "text-[var(--color-error-500)]"
                     )}
                   >

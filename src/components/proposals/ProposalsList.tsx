@@ -22,46 +22,14 @@ interface ProposalListItem {
   isDemo?: boolean;
 }
 
-// Demo data for showcase (ordered by most recent first)
+// Demo data for showcase (lifecycle order: oldest/completed → newest/active)
+// NOTE: Must stay in sync with DEMO_PROPOSALS in src/app/(app)/proposals/[id]/page.tsx
 const DEMO_PROPOSALS: ProposalListItem[] = [
-  {
-    id: "demo-6",
-    title: "TIP-006: Emergency security patch implementation",
-    status: "canceled",
-    date: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
-    forVotes: 50000,
-    againstVotes: 10000,
-    abstainVotes: 5000,
-    totalVoters: 23,
-    isDemo: true,
-  },
-  {
-    id: "demo-5",
-    title: "TIP-005: Reduce proposal creation cost to 50 TON",
-    status: "defeated",
-    date: new Date(Date.now() - 21 * 24 * 60 * 60 * 1000),
-    forVotes: 450000,
-    againstVotes: 890000,
-    abstainVotes: 120000,
-    totalVoters: 145,
-    isDemo: true,
-  },
-  {
-    id: "demo-4",
-    title: "TIP-004: Treasury allocation for ecosystem grants",
-    status: "queued",
-    date: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000),
-    forVotes: 1800000,
-    againstVotes: 420000,
-    abstainVotes: 60000,
-    totalVoters: 189,
-    isDemo: true,
-  },
   {
     id: "demo-3",
     title: "TIP-003: Update governance parameters",
     status: "executed",
-    date: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000),
+    date: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
     forVotes: 2100000,
     againstVotes: 150000,
     abstainVotes: 80000,
@@ -69,25 +37,58 @@ const DEMO_PROPOSALS: ProposalListItem[] = [
     isDemo: true,
   },
   {
-    id: "demo-2",
-    title: "TIP-002: Add new liquidity pool for TON/ETH",
-    status: "pending",
-    date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
-    forVotes: 890000,
-    againstVotes: 210000,
-    abstainVotes: 30000,
-    totalVoters: 98,
+    id: "demo-5",
+    title: "TIP-005: Reduce proposal creation cost to 50 TON",
+    status: "defeated",
+    date: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000),
+    forVotes: 450000,
+    againstVotes: 890000,
+    abstainVotes: 120000,
+    totalVoters: 145,
+    isDemo: true,
+  },
+  {
+    id: "demo-6",
+    title: "TIP-006: Emergency security patch implementation",
+    status: "canceled",
+    date: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000),
+    forVotes: 50000,
+    againstVotes: 10000,
+    abstainVotes: 5000,
+    totalVoters: 23,
+    isDemo: true,
+  },
+  {
+    id: "demo-4",
+    title: "TIP-004: Treasury allocation for ecosystem grants",
+    status: "queued",
+    date: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),
+    forVotes: 1800000,
+    againstVotes: 420000,
+    abstainVotes: 60000,
+    totalVoters: 189,
     isDemo: true,
   },
   {
     id: "demo-1",
     title: "TIP-001: Increase staking rewards by 5%",
     status: "active",
-    date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+    date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
     forVotes: 1250000,
     againstVotes: 320000,
     abstainVotes: 45000,
     totalVoters: 156,
+    isDemo: true,
+  },
+  {
+    id: "demo-2",
+    title: "TIP-002: Add new liquidity pool for TON/ETH",
+    status: "pending",
+    date: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+    forVotes: 890000,
+    againstVotes: 210000,
+    abstainVotes: 30000,
+    totalVoters: 98,
     isDemo: true,
   },
 ];
@@ -130,8 +131,10 @@ export function ProposalsList({ className }: ProposalsListProps) {
       abstainVotes: Number(formatUnits(p.abstainVotes, 18)),
       isDemo: false,
     }));
-    // Real proposals first, then demo proposals
-    return [...contractProposals, ...DEMO_PROPOSALS];
+    // Sort all proposals by date descending (newest first)
+    return [...contractProposals, ...DEMO_PROPOSALS].sort(
+      (a, b) => b.date.getTime() - a.date.getTime()
+    );
   }, [realProposals]);
 
   // Filter proposals based on search and status
