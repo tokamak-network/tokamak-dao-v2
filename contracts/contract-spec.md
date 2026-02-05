@@ -105,7 +105,7 @@ event DelegateVTONBurned(address indexed delegate, uint256 amount);
 | `proposalCreationCost` | `uint256` | `10 TON` | 제안 생성 비용 |
 | `proposalThreshold` | `uint256` | `25` | 제안 생성 최소 투표력 (보유 + 위임받은 vTON, basis points, 25 = 0.25%) |
 | `quorum` | `uint256` | `400` | 정족수 (basis points, 400 = 4%) |
-| `votingDelay` | `uint256` | `86400` | 투표 시작 지연 (초, 1일) |
+| `votingDelay` | `uint256` | `7200` | 투표 시작 지연 (블록, ~1일, ~12s/block) |
 | `votingPeriod` | `uint256` | `50400` | 투표 기간 (블록, ~7일) |
 | `timelockDelay` | `uint256` | `7 days` | 타임락 지연 (초) |
 | `gracePeriod` | `uint256` | `14 days` | 유예 기간 (초) |

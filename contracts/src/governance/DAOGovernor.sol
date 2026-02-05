@@ -64,8 +64,8 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
     /// @notice Basis points denominator
     uint256 public constant BASIS_POINTS = 10_000;
 
-    /// @notice Default voting delay (1 day in seconds)
-    uint256 public constant DEFAULT_VOTING_DELAY = 86_400;
+    /// @notice Default voting delay (1 day in blocks, ~12s/block)
+    uint256 public constant DEFAULT_VOTING_DELAY = 7_200;
 
     /// @notice Default voting period (7 days in blocks, ~50400 blocks)
     uint256 public constant DEFAULT_VOTING_PERIOD = 50_400;
@@ -206,11 +206,12 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
         }
         if (burnRate > MAX_BURN_RATE) revert InvalidBurnRate();
 
-        // Check vTON balance threshold
+        // Check vTON balance + delegated threshold
         if (proposalThreshold > 0) {
             uint256 totalSupply = vTON.totalSupply();
             uint256 requiredBalance = (totalSupply * proposalThreshold) / BASIS_POINTS;
-            if (vTON.balanceOf(msg.sender) < requiredBalance) {
+            uint256 userPower = vTON.balanceOf(msg.sender) + delegateRegistry.getTotalDelegated(msg.sender);
+            if (userPower < requiredBalance) {
                 revert InsufficientVTON();
             }
         }

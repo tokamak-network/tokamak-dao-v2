@@ -184,22 +184,27 @@ time_travel() {
     local before_formatted=$(format_timestamp "$before_ts")
     local duration_str=$(format_duration "$seconds")
 
+    # Calculate blocks to mine (governance contract uses block numbers)
+    local blocks=$((seconds / BLOCK_TIME_SECONDS))
+    if [ "$blocks" -lt 1 ]; then
+        blocks=1
+    fi
+
     echo -e "${YELLOW}=== Time Travel ===${NC}"
-    echo -e "Skipping: ${CYAN}$duration_str${NC} ($seconds seconds)"
+    echo -e "Skipping: ${CYAN}$duration_str${NC} ($seconds seconds, $blocks blocks)"
     echo ""
     echo -e "Before: ${GREEN}$before_formatted${NC} (timestamp: $before_ts)"
 
-    # Increase time
-    cast rpc anvil_increaseTime "$seconds" --rpc-url "$LOCAL_RPC_URL" > /dev/null
-
-    # Mine a block to apply the time change
-    cast rpc anvil_mine 1 --rpc-url "$LOCAL_RPC_URL" > /dev/null
+    # Mine blocks with correct time interval
+    # This advances both block number AND timestamp consistently
+    cast rpc anvil_mine "$blocks" "$BLOCK_TIME_SECONDS" --rpc-url "$LOCAL_RPC_URL" > /dev/null
 
     local after_ts=$(get_timestamp)
     local after_formatted=$(format_timestamp "$after_ts")
     local actual_diff=$((after_ts - before_ts))
 
     echo -e "After:  ${GREEN}$after_formatted${NC} (timestamp: $after_ts)"
+    echo -e "Blocks: ${CYAN}+$blocks${NC}"
     echo ""
     echo -e "${GREEN}Time travel complete!${NC}"
 }
