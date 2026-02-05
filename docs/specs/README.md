@@ -17,12 +17,6 @@ The vTON DAO Governance Model specification documents are available in the `docs
 **Changed:**
 - Proposal threshold: Now includes delegated vTON (balance + delegated >= 0.25% of total supply)
 
-**Removed:**
-- Delegation cap (20% limit)
-- Delegation auto-expiration parameter
-- Delegation activation waiting period (7 days)
-- Security Council term limit parameter
-
 ### 0.1.0 (2026-01-30)
 
 **Added:**
