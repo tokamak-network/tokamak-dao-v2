@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useReadContract, useReadContracts, useWriteContract, useChainId, useBlock } from "wagmi";
+import { useReadContract, useReadContracts, useWriteContract, useChainId, useBlock, usePublicClient } from "wagmi";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   getContractAddresses,
@@ -389,6 +389,77 @@ export function useHasVoted(proposalId: bigint, account: `0x${string}` | undefin
     refetch: result.refetch,
     isDeployed,
   };
+}
+
+/**
+ * Hook to count unique voters for a proposal using VoteCast events
+ */
+export function useVoterCount(proposalId: bigint) {
+  const chainId = useChainId();
+  const addresses = getContractAddresses(chainId);
+  const isDeployed = areContractsDeployed(chainId);
+  const publicClient = usePublicClient();
+
+  const [voterCount, setVoterCount] = React.useState(0);
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [fetchKey, setFetchKey] = React.useState(0);
+
+  React.useEffect(() => {
+    if (!isDeployed || !publicClient) {
+      setIsLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function fetchVoterCount() {
+      try {
+        const logs = await publicClient!.getLogs({
+          address: addresses.daoGovernor as `0x${string}`,
+          event: {
+            name: "VoteCast",
+            type: "event",
+            inputs: [
+              { name: "voter", type: "address", indexed: true },
+              { name: "proposalId", type: "uint256", indexed: true },
+              { name: "support", type: "uint8", indexed: false },
+              { name: "weight", type: "uint256", indexed: false },
+              { name: "reason", type: "string", indexed: false },
+            ],
+          },
+          args: {
+            proposalId: proposalId,
+          },
+          fromBlock: 0n,
+          toBlock: "latest",
+        });
+
+        if (!cancelled) {
+          const uniqueVoters = new Set(logs.map((log) => log.args.voter));
+          setVoterCount(uniqueVoters.size);
+        }
+      } catch (error) {
+        console.error("Failed to fetch voter count:", error);
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    fetchVoterCount();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isDeployed, publicClient, proposalId, addresses.daoGovernor, fetchKey]);
+
+  const refetch = React.useCallback(() => {
+    setIsLoading(true);
+    setFetchKey((k) => k + 1);
+  }, []);
+
+  return { data: voterCount, isLoading, refetch };
 }
 
 /**

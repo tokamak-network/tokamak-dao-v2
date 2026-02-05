@@ -7,7 +7,7 @@ import Link from "next/link";
 import { useBlock } from "wagmi";
 import { formatUnits } from "viem";
 import { ProposalDetail, type ProposalDetailData } from "@/components/proposals/ProposalDetail";
-import { useProposal, useProposalState } from "@/hooks/contracts/useDAOGovernor";
+import { useProposal, useProposalState, useVoterCount } from "@/hooks/contracts/useDAOGovernor";
 import type { ProposalStatus } from "@/types/governance";
 
 // Average block time in seconds (Sepolia/Ethereum ~12s)
@@ -193,11 +193,13 @@ function RealProposalDetail({ id }: { id: string }) {
   const { data: proposalData, isLoading: proposalLoading, isError: proposalError, refetch: refetchProposal } = useProposal(proposalId);
   const { data: stateData, isLoading: stateLoading } = useProposalState(proposalId);
   const { data: block, isLoading: blockLoading } = useBlock();
+  const { data: voterCount, refetch: refetchVoterCount } = useVoterCount(proposalId);
 
-  // Handle vote success - refetch proposal data
+  // Handle vote success - refetch proposal data and voter count
   const handleVoteSuccess = React.useCallback(() => {
     refetchProposal();
-  }, [refetchProposal]);
+    refetchVoterCount();
+  }, [refetchProposal, refetchVoterCount]);
 
   const isLoading = proposalLoading || stateLoading || blockLoading;
 
@@ -272,7 +274,7 @@ function RealProposalDetail({ id }: { id: string }) {
     forVotes: Number(formatUnits(proposal.forVotes, 18)),
     againstVotes: Number(formatUnits(proposal.againstVotes, 18)),
     abstainVotes: Number(formatUnits(proposal.abstainVotes, 18)),
-    totalVoters: 0, // Contract doesn't track unique voters
+    totalVoters: voterCount,
     createdAt: createdTime,
     votingStartsAt: voteStartTime,
     votingEndsAt: voteEndTime,
