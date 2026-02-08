@@ -56,8 +56,23 @@ export const CONTRACT_ADDRESSES: Record<number, ContractAddresses> = {
   },
 };
 
+// Sandbox address override
+let sandboxAddressOverride: ContractAddresses | null = null;
+
+export function setSandboxAddresses(addresses: ContractAddresses | null): void {
+  sandboxAddressOverride = addresses;
+}
+
+export function getSandboxAddresses(): ContractAddresses | null {
+  return sandboxAddressOverride;
+}
+
 // Get contract addresses for a specific chain
 export function getContractAddresses(chainId: number): ContractAddresses {
+  // Sandbox override takes priority for sandbox chain (13371)
+  if (chainId === 13371 && sandboxAddressOverride) {
+    return sandboxAddressOverride;
+  }
   return CONTRACT_ADDRESSES[chainId] ?? CONTRACT_ADDRESSES[1337];
 }
 
