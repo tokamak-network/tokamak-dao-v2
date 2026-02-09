@@ -63,8 +63,6 @@ export function SandboxProvider({ children }: { children: ReactNode }) {
         }
 
         // Machine is alive — restore session
-        // Set cookie so the stable RPC proxy can route to the correct machine
-        document.cookie = `sandbox-machine-id=${parsed.machineId}; path=/; SameSite=Strict`;
         const stableRpcUrl = `${window.location.origin}/api/sandbox/rpc`;
         setSandboxRpcUrl(stableRpcUrl);
         setSandboxAddresses(parsed.addresses);
@@ -73,13 +71,10 @@ export function SandboxProvider({ children }: { children: ReactNode }) {
 
         // Switch wallet to sandbox chain only if not already on it.
         // wallet_addEthereumChain always shows a popup, so skip if unnecessary.
-        // Use direct Fly.io URL for MetaMask — it's reachable from the extension's
-        // service worker on all environments (no cookie/CORS issues).
         try {
           const ethereum = (window as unknown as { ethereum?: { request: (args: { method: string; params: unknown[] }) => Promise<unknown>; autoRefreshOnNetworkChange?: boolean } }).ethereum;
           if (ethereum) {
             ethereum.autoRefreshOnNetworkChange = false;
-            const walletRpcUrl = process.env.NEXT_PUBLIC_SANDBOX_RPC_URL || stableRpcUrl;
             const currentChainId = await ethereum.request({ method: "eth_chainId", params: [] }) as string;
             if (parseInt(currentChainId, 16) !== SANDBOX_CHAIN_ID) {
               await ethereum.request({
@@ -87,7 +82,7 @@ export function SandboxProvider({ children }: { children: ReactNode }) {
                 params: [{
                   chainId: `0x${SANDBOX_CHAIN_ID.toString(16)}`,
                   chainName: "Tokamak Sandbox",
-                  rpcUrls: [walletRpcUrl],
+                  rpcUrls: [stableRpcUrl],
                   nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
                 }],
               });
@@ -125,7 +120,6 @@ export function SandboxProvider({ children }: { children: ReactNode }) {
         const res = await fetch(`/api/sandbox/session/${session.machineId}`);
         const data = await res.json();
         if (!data.alive) {
-          document.cookie = "sandbox-machine-id=; path=/; max-age=0";
           setSandboxRpcUrl(null);
           setSandboxAddresses(null);
           setSession(null);
@@ -184,8 +178,6 @@ export function SandboxProvider({ children }: { children: ReactNode }) {
           setProgress({ step: data.step, message: data.message, progress: data.progress });
 
           if (data.step === "done") {
-            // Set cookie so the stable RPC proxy can route to the correct machine
-            document.cookie = `sandbox-machine-id=${data.machineId}; path=/; SameSite=Strict`;
             const stableRpcUrl = `${window.location.origin}/api/sandbox/rpc`;
             const newSession: SandboxSession = {
               machineId: data.machineId,
@@ -201,21 +193,18 @@ export function SandboxProvider({ children }: { children: ReactNode }) {
             setStatus("ready");
 
             // Switch wallet to sandbox chain
-            // Use direct Fly.io URL for MetaMask — it's reachable from the extension's
-            // service worker on all environments (no cookie/CORS issues).
+            // Use same proxy URL for MetaMask — single machine means Fly.io auto-routes
             try {
               const ethereum = (window as unknown as { ethereum?: { request: (args: { method: string; params: unknown[] }) => Promise<void>; autoRefreshOnNetworkChange?: boolean } }).ethereum;
               if (ethereum) {
                 // Disable legacy MetaMask auto-reload on chain change
                 ethereum.autoRefreshOnNetworkChange = false;
-                const walletRpcUrl = data.flyRpcUrl || process.env.NEXT_PUBLIC_SANDBOX_RPC_URL || stableRpcUrl;
-                // Register chain in wallet with direct Fly.io URL (reachable by MetaMask)
                 await ethereum.request({
                   method: "wallet_addEthereumChain",
                   params: [{
                     chainId: `0x${SANDBOX_CHAIN_ID.toString(16)}`,
                     chainName: "Tokamak Sandbox",
-                    rpcUrls: [walletRpcUrl],
+                    rpcUrls: [stableRpcUrl],
                     nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
                   }],
                 });
@@ -241,8 +230,7 @@ export function SandboxProvider({ children }: { children: ReactNode }) {
       // ignore cleanup errors
     }
 
-    // Clear cookie and overrides
-    document.cookie = "sandbox-machine-id=; path=/; max-age=0";
+    // Clear overrides
     setSandboxRpcUrl(null);
     setSandboxAddresses(null);
 

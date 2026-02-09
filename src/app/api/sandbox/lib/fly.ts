@@ -29,8 +29,18 @@ const FLY_API_TOKEN = process.env.FLY_API_TOKEN!;
 const FLY_APP_NAME = process.env.FLY_APP_NAME!;
 const DEPLOYER_ADDRESS = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
 
+let rpcBaseUrl: string | null = null;
+
+export function setRpcBaseUrl(url: string | null): void {
+  rpcBaseUrl = url;
+}
+
+export function getRpcBaseUrl(): string {
+  return rpcBaseUrl ?? `https://${FLY_APP_NAME}.fly.dev`;
+}
+
 function getMachineRpcUrl(): string {
-  return `https://${FLY_APP_NAME}.fly.dev`;
+  return getRpcBaseUrl();
 }
 
 function flyHeaders(): Record<string, string> {
@@ -79,7 +89,7 @@ export async function createMachine(): Promise<string> {
           image: "ghcr.io/foundry-rs/foundry:latest",
           guest: { cpu_kind: "shared", cpus: 1, memory_mb: 256 },
           init: {
-            cmd: ["timeout 7200 anvil --host 0.0.0.0 --chain-id 13373"],
+            cmd: ["timeout 7200 anvil --host 0.0.0.0 --chain-id 13374"],
           },
           auto_destroy: true,
           restart: { policy: "no" },

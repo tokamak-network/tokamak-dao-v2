@@ -1,14 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { proxyRpc } from "../../../lib/fly";
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ machineId: string }> }
-) {
-  const { machineId: pathMachineId } = await params;
-  // Prefer cookie machine ID (always current) over URL param (may be stale
-  // due to MetaMask caching old RPC URLs for already-registered chains)
-  const machineId = request.cookies.get("sandbox-machine-id")?.value ?? pathMachineId ?? null;
+export async function POST(request: NextRequest) {
+  // Only one machine exists at a time — Fly.io auto-routes to it.
 
   let body: unknown;
   try {
@@ -25,7 +19,7 @@ export async function POST(
   }
 
   try {
-    const response = await proxyRpc(machineId, body);
+    const response = await proxyRpc(null, body);
     const data = await response.json();
     return NextResponse.json(data);
   } catch (error) {

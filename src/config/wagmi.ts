@@ -6,7 +6,8 @@ import { http, custom, defineChain } from 'viem';
 
 // Sandbox uses a distinct chain ID so MetaMask gets a fresh RPC entry
 // (wallet_addEthereumChain can't update RPC for existing chains like 1337)
-export const SANDBOX_CHAIN_ID = 13372;
+// Final bump: URL is now stable at /api/sandbox/rpc (no more direct Fly.io URL)
+export const SANDBOX_CHAIN_ID = 13374;
 
 // Sandbox RPC URL (set when sandbox session starts)
 let sandboxRpcUrl: string | null = null;
@@ -68,7 +69,7 @@ function createSandboxTransport() {
 }
 
 export const projectId = 'ed9db8435ea432ec164cf02c06c0b969';
-export const networks: [AppKitNetwork, ...AppKitNetwork[]] = [localhost, sandboxChain as AppKitNetwork, mainnet, sepolia];
+export const networks: [AppKitNetwork, ...AppKitNetwork[]] = [sepolia, mainnet, localhost, sandboxChain as AppKitNetwork];
 
 const alchemyApiKey = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY;
 

@@ -2,11 +2,6 @@ import { NextResponse, type NextRequest } from "next/server";
 import { proxyRpc } from "../lib/fly";
 
 export async function POST(request: NextRequest) {
-  // Cookie may be absent when MetaMask's service worker sends the request
-  // (extensions can't access page cookies). Pass null to let Fly.io route
-  // to the running machine automatically.
-  const machineId = request.cookies.get("sandbox-machine-id")?.value ?? null;
-
   let body: unknown;
   try {
     body = await request.json();
@@ -22,7 +17,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const response = await proxyRpc(machineId, body);
+    const response = await proxyRpc(null, body);
     const data = await response.json();
     return NextResponse.json(data);
   } catch (error) {
