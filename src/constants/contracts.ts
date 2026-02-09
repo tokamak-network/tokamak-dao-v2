@@ -6,6 +6,7 @@
  */
 
 import type { ContractAddresses } from "@/types/governance";
+import { SANDBOX_CHAIN_ID } from "@/config/wagmi";
 
 // Placeholder zero address
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as const;
@@ -69,8 +70,8 @@ export function getSandboxAddresses(): ContractAddresses | null {
 
 // Get contract addresses for a specific chain
 export function getContractAddresses(chainId: number): ContractAddresses {
-  // Sandbox override takes priority for sandbox chain (13371)
-  if (chainId === 13371 && sandboxAddressOverride) {
+  // Sandbox override takes priority for sandbox chain
+  if (chainId === SANDBOX_CHAIN_ID && sandboxAddressOverride) {
     return sandboxAddressOverride;
   }
   return CONTRACT_ADDRESSES[chainId] ?? CONTRACT_ADDRESSES[1337];

@@ -14,13 +14,14 @@ import {
   useTONBalance,
   useMintTON,
 } from "@/hooks/contracts";
+import { SANDBOX_CHAIN_ID } from "@/config/wagmi";
 
 
 const NETWORK_NAMES: Record<number, string> = {
   1: "Ethereum Mainnet",
   11155111: "Ethereum Sepolia",
   1337: "Localhost (Anvil)",
-  13371: "Sandbox (Anvil)",
+  [SANDBOX_CHAIN_ID]: "Sandbox (Anvil)",
 };
 
 const BLOCK_EXPLORER_TX_URL: Record<number, string> = {

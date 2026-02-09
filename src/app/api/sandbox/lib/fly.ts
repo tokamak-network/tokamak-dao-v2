@@ -57,7 +57,7 @@ export async function createMachine(): Promise<string> {
           image: "ghcr.io/foundry-rs/foundry:latest",
           guest: { cpu_kind: "shared", cpus: 1, memory_mb: 256 },
           init: {
-            cmd: ["timeout 7200 anvil --host 0.0.0.0 --chain-id 13371"],
+            cmd: ["timeout 7200 anvil --host 0.0.0.0 --chain-id 13372"],
           },
           auto_destroy: true,
           restart: { policy: "no" },

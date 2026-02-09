@@ -4,6 +4,7 @@ import { useChainId } from "wagmi";
 import { Badge } from "@/components/ui/badge";
 import { formatAddress } from "@/lib/utils";
 import { getContractAddresses, areContractsDeployed } from "@/constants/contracts";
+import { SANDBOX_CHAIN_ID } from "@/config/wagmi";
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 /**
@@ -23,7 +24,7 @@ export function Footer() {
     { name: "Timelock", address: addresses.timelock },
   ];
 
-  const networkName = chainId === 13371
+  const networkName = chainId === SANDBOX_CHAIN_ID
     ? "Sandbox"
     : chainId === 1
       ? "Mainnet"

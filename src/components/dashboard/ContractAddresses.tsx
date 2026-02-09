@@ -5,6 +5,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatAddress } from "@/lib/utils";
 import { getContractAddresses, areContractsDeployed } from "@/constants/contracts";
+import { SANDBOX_CHAIN_ID } from "@/config/wagmi";
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
@@ -32,7 +33,7 @@ export function ContractAddresses() {
         ? "Sepolia"
         : chainId === 1337
           ? "Localhost"
-          : chainId === 13371
+          : chainId === SANDBOX_CHAIN_ID
             ? "Sandbox"
             : `Chain ${chainId}`;
 

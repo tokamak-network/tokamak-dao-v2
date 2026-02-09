@@ -47,10 +47,12 @@ export async function POST(request: Request) {
         });
         await fundWallet(machineId, address);
 
+        const flyAppName = process.env.FLY_APP_NAME;
         send({
           step: "done",
           machineId,
           rpcUrl: "/api/sandbox/rpc",
+          flyRpcUrl: flyAppName ? `https://${flyAppName}.fly.dev` : undefined,
           addresses,
         });
       } catch (error) {

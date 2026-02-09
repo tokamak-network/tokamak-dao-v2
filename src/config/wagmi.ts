@@ -6,7 +6,7 @@ import { http, custom, defineChain } from 'viem';
 
 // Sandbox uses a distinct chain ID so MetaMask gets a fresh RPC entry
 // (wallet_addEthereumChain can't update RPC for existing chains like 1337)
-export const SANDBOX_CHAIN_ID = 13371;
+export const SANDBOX_CHAIN_ID = 13372;
 
 // Sandbox RPC URL (set when sandbox session starts)
 let sandboxRpcUrl: string | null = null;
