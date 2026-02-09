@@ -2,18 +2,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { proxyRpc } from "../lib/fly";
 
 export async function POST(request: NextRequest) {
-  const machineId = request.cookies.get("sandbox-machine-id")?.value;
-
-  if (!machineId) {
-    return NextResponse.json(
-      {
-        jsonrpc: "2.0",
-        id: null,
-        error: { code: -32600, message: "No active sandbox session" },
-      },
-      { status: 400 }
-    );
-  }
+  // Cookie may be absent when MetaMask's service worker sends the request
+  // (extensions can't access page cookies). Pass null to let Fly.io route
+  // to the running machine automatically.
+  const machineId = request.cookies.get("sandbox-machine-id")?.value ?? null;
 
   let body: unknown;
   try {

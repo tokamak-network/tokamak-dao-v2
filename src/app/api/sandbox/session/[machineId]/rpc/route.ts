@@ -8,7 +8,7 @@ export async function POST(
   const { machineId: pathMachineId } = await params;
   // Prefer cookie machine ID (always current) over URL param (may be stale
   // due to MetaMask caching old RPC URLs for already-registered chains)
-  const machineId = request.cookies.get("sandbox-machine-id")?.value ?? pathMachineId;
+  const machineId = request.cookies.get("sandbox-machine-id")?.value ?? pathMachineId ?? null;
 
   let body: unknown;
   try {

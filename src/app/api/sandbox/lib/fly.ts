@@ -34,8 +34,13 @@ function getMachineRpcUrl(): string {
 }
 
 function flyHeaders(): Record<string, string> {
+  // FlyV1 macaroon tokens already include the auth scheme ("FlyV1 fm2_..."),
+  // while legacy tokens ("fo1_...") need the "Bearer" prefix.
+  const authorization = FLY_API_TOKEN.startsWith("FlyV1")
+    ? FLY_API_TOKEN
+    : `Bearer ${FLY_API_TOKEN}`;
   return {
-    Authorization: `Bearer ${FLY_API_TOKEN}`,
+    Authorization: authorization,
     "Content-Type": "application/json",
   };
 }
@@ -139,15 +144,18 @@ export async function getMachine(
 }
 
 export async function proxyRpc(
-  machineId: string,
+  machineId: string | null,
   body: unknown
 ): Promise<Response> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (machineId) {
+    headers["fly-force-instance-id"] = machineId;
+  }
   return fetch(getMachineRpcUrl(), {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "fly-force-instance-id": machineId,
-    },
+    headers,
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(30_000),
   });
