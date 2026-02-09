@@ -98,7 +98,7 @@ export function CreateProposalForm({ className }: CreateProposalFormProps) {
       // Step 1: Approve if needed
       if (!hasEnoughAllowance) {
         setSubmitStep("approving");
-        const approveHash = await approveAsync(addresses.daoGovernor);
+        const approveHash = await approveAsync(addresses.daoGovernor, requiredAmount);
         // Wait for the approval transaction to be confirmed
         setSubmitStep("waitingApproval");
         await publicClient.waitForTransactionReceipt({ hash: approveHash });
