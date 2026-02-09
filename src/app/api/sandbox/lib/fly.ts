@@ -45,7 +45,29 @@ function flyHeaders(): Record<string, string> {
   };
 }
 
+export async function listMachines(): Promise<{ id: string; state: string }[]> {
+  const response = await fetch(
+    `${FLY_API_URL}/apps/${FLY_APP_NAME}/machines`,
+    { method: "GET", headers: flyHeaders() }
+  );
+  if (!response.ok) return [];
+  return response.json();
+}
+
+async function destroyAllMachines(): Promise<void> {
+  const machines = await listMachines();
+  await Promise.all(
+    machines
+      .filter((m) => m.state !== "destroyed")
+      .map((m) => destroyMachine(m.id).catch(() => {}))
+  );
+}
+
 export async function createMachine(): Promise<string> {
+  // Destroy all existing machines so Fly auto-routing always hits the new one.
+  // MetaMask can't set fly-force-instance-id, so only one machine can be alive.
+  await destroyAllMachines();
+
   const response = await fetch(
     `${FLY_API_URL}/apps/${FLY_APP_NAME}/machines`,
     {
@@ -57,7 +79,7 @@ export async function createMachine(): Promise<string> {
           image: "ghcr.io/foundry-rs/foundry:latest",
           guest: { cpu_kind: "shared", cpus: 1, memory_mb: 256 },
           init: {
-            cmd: ["timeout 7200 anvil --host 0.0.0.0 --chain-id 13372"],
+            cmd: ["timeout 7200 anvil --host 0.0.0.0 --chain-id 13373"],
           },
           auto_destroy: true,
           restart: { policy: "no" },
@@ -186,6 +208,20 @@ export async function anvilRpc(
   return data.result;
 }
 
+async function waitForReceipt(
+  machineId: string,
+  txHash: string
+): Promise<void> {
+  for (let i = 0; i < 50; i++) {
+    const receipt = await anvilRpc(machineId, "eth_getTransactionReceipt", [
+      txHash,
+    ]);
+    if (receipt) return;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  throw new Error(`Transaction receipt not found for ${txHash}`);
+}
+
 export async function deployContracts(
   machineId: string
 ): Promise<DeployData["addresses"]> {
@@ -199,19 +235,7 @@ export async function deployContracts(
       },
     ])) as string;
 
-    // Wait for receipt
-    let receipt = null;
-    for (let i = 0; i < 50; i++) {
-      receipt = await anvilRpc(machineId, "eth_getTransactionReceipt", [
-        txHash,
-      ]);
-      if (receipt) break;
-      await new Promise((r) => setTimeout(r, 100));
-    }
-
-    if (!receipt) {
-      throw new Error(`Transaction receipt not found for ${txHash}`);
-    }
+    await waitForReceipt(machineId, txHash);
   }
 
   return deployData.addresses;
@@ -234,41 +258,44 @@ export async function fundWallet(
   machineId: string,
   address: string
 ): Promise<void> {
-  // 1. Set ETH balance (100 ETH)
+  // 1. Set ETH balance (100 ETH) and mine a block so MetaMask picks it up
   await anvilRpc(machineId, "anvil_setBalance", [
     address,
     "0x56BC75E2D63100000",
   ]);
+  await anvilRpc(machineId, "anvil_mine", [1]);
 
   const mintAmount = BigInt("10000000000000000000000"); // 10000e18
 
-  // 2. Mint MockTON
+  // 2. Mint MockTON and wait for receipt
   const tonMintData = encodeFunctionData({
     abi: mintAbi,
     functionName: "mint",
     args: [address as `0x${string}`, mintAmount],
   });
 
-  await anvilRpc(machineId, "eth_sendTransaction", [
+  const tonTxHash = (await anvilRpc(machineId, "eth_sendTransaction", [
     {
       from: DEPLOYER_ADDRESS,
       to: deployData.addresses.ton,
       data: tonMintData,
     },
-  ]);
+  ])) as string;
+  await waitForReceipt(machineId, tonTxHash);
 
-  // 3. Mint vTON
+  // 3. Mint vTON and wait for receipt
   const vtonMintData = encodeFunctionData({
     abi: mintAbi,
     functionName: "mint",
     args: [address as `0x${string}`, mintAmount],
   });
 
-  await anvilRpc(machineId, "eth_sendTransaction", [
+  const vtonTxHash = (await anvilRpc(machineId, "eth_sendTransaction", [
     {
       from: DEPLOYER_ADDRESS,
       to: deployData.addresses.vton,
       data: vtonMintData,
     },
-  ]);
+  ])) as string;
+  await waitForReceipt(machineId, vtonTxHash);
 }
