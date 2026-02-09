@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Modal, ModalBody, ModalFooter } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
@@ -28,8 +29,12 @@ export function SandboxModal({ open, onClose }: SandboxModalProps) {
     await startSandbox();
   };
 
+  const [isStopping, setIsStopping] = React.useState(false);
+
   const handleStop = async () => {
+    setIsStopping(true);
     await stopSandbox();
+    setIsStopping(false);
     onClose();
   };
 
@@ -132,8 +137,8 @@ export function SandboxModal({ open, onClose }: SandboxModalProps) {
         )}
         {isActive && (
           <>
-            <Button variant="destructive" size="sm" onClick={handleStop}>
-              Stop Sandbox
+            <Button variant="destructive" size="sm" onClick={handleStop} loading={isStopping} disabled={isStopping}>
+              {isStopping ? "Stopping..." : "Stop Sandbox"}
             </Button>
             <Button
               onClick={() => {

@@ -6,6 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useAllDelegates, useTotalDelegated } from "@/hooks/contracts/useDelegateRegistry";
+import { useVTONBalance } from "@/hooks/contracts/useVTON";
 import { DelegateDetailCard } from "./DelegateDetailCard";
 import { DelegationModal } from "./DelegationModal";
 
@@ -35,11 +36,13 @@ function DelegateItem({
   address,
   rank,
   isCurrentDelegate,
+  delegateDisabled,
   onDelegate,
 }: {
   address: `0x${string}`;
   rank: number;
   isCurrentDelegate: boolean;
+  delegateDisabled?: boolean;
   onDelegate: (address: `0x${string}`) => void;
 }) {
   const { data: votingPower, isDeployed } = useTotalDelegated(address);
@@ -55,6 +58,7 @@ function DelegateItem({
       votingPower={displayPower}
       rank={rank}
       isCurrentDelegate={isCurrentDelegate}
+      delegateDisabled={delegateDisabled}
       onDelegate={() => onDelegate(address)}
     />
   );
@@ -71,6 +75,8 @@ export function DelegatesList() {
   const queryClient = useQueryClient();
 
   const { data: delegates, isLoading, isDeployed, refetch: refetchDelegates } = useAllDelegates();
+  const { data: vtonBalance } = useVTONBalance(userAddress);
+  const hasNoVTON = !vtonBalance || vtonBalance === BigInt(0);
 
   // Filter delegates by search query
   const filteredDelegates = React.useMemo(() => {
@@ -143,6 +149,7 @@ export function DelegatesList() {
                   address={address}
                   rank={index + 1}
                   isCurrentDelegate={false}
+                  delegateDisabled={hasNoVTON}
                   onDelegate={handleDelegate}
                 />
               ))}

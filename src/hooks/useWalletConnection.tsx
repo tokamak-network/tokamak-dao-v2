@@ -2,6 +2,9 @@
 
 import * as React from "react";
 import { useAppKitAccount } from "@reown/appkit/react";
+import { useAccount, useSwitchChain } from "wagmi";
+import { sepolia } from "@reown/appkit/networks";
+import { SANDBOX_CHAIN_ID } from "@/config/wagmi";
 
 /**
  * Wallet connection context for consistent state across all components
@@ -24,6 +27,8 @@ const WalletConnectionContext = React.createContext<WalletConnectionContextValue
 export function WalletConnectionProvider({ children }: { children: React.ReactNode }) {
   const { address, isConnected, status } = useAppKitAccount();
   const [isReady, setIsReady] = React.useState(false);
+  const { chainId: walletChainId } = useAccount();
+  const { switchChain } = useSwitchChain();
 
   // Mark as ready when AppKit reaches a stable state
   // status: 'connecting' | 'reconnecting' | 'connected' | 'disconnected'
@@ -36,6 +41,15 @@ export function WalletConnectionProvider({ children }: { children: React.ReactNo
       setIsReady(true);
     }
   }, [status, isReady]);
+
+  // Auto-switch to Sepolia when wallet is on an unsupported network (non-sandbox).
+  // Uses useAccount().chainId (actual wallet chain) instead of useChainId()
+  // (wagmi internal state) to reliably detect MetaMask chain changes.
+  React.useEffect(() => {
+    if (!isReady || !isConnected || !walletChainId) return;
+    if (walletChainId === sepolia.id || walletChainId === SANDBOX_CHAIN_ID) return;
+    switchChain({ chainId: sepolia.id });
+  }, [walletChainId, isReady, isConnected, switchChain]);
 
   const value = React.useMemo(
     () => ({

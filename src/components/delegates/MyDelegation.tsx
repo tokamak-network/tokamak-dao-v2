@@ -96,10 +96,16 @@ export function MyDelegation() {
 
           {/* Instructions */}
           <div className="p-3 bg-[var(--bg-tertiary)] rounded-lg text-sm text-[var(--text-secondary)]">
-            <p>
-              vTON holders cannot vote directly. Select a delegate from the list below
-              to delegate your vTON and participate in governance.
-            </p>
+            {(!vtonBalance || vtonBalance === BigInt(0)) ? (
+              <p className="text-[var(--text-tertiary)]">
+                You have no vTON. Acquire vTON to delegate and participate in governance.
+              </p>
+            ) : (
+              <p>
+                vTON holders cannot vote directly. Select a delegate from the list below
+                to delegate your vTON and participate in governance.
+              </p>
+            )}
           </div>
         </div>
       </CardContent>

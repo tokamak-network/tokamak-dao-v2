@@ -5,6 +5,7 @@ import { createAppKit } from '@reown/appkit/react';
 import { WagmiProvider } from 'wagmi';
 import { reconnect } from '@wagmi/core';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { sepolia } from '@reown/appkit/networks';
 import { wagmiAdapter, projectId, networks, metadata, config } from '@/config/wagmi';
 import { WalletConnectionProvider } from '@/hooks/useWalletConnection';
 
@@ -13,6 +14,7 @@ createAppKit({
   adapters: [wagmiAdapter],
   projectId,
   networks,
+  defaultNetwork: sepolia,
   metadata,
   features: {
     analytics: true,

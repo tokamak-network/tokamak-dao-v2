@@ -16,6 +16,7 @@ export interface DelegateDetailCardProps
   rank?: number;
   onDelegate?: () => void;
   isCurrentDelegate?: boolean;
+  delegateDisabled?: boolean;
 }
 
 /**
@@ -36,6 +37,7 @@ const DelegateDetailCard = React.forwardRef<
       rank,
       onDelegate,
       isCurrentDelegate,
+      delegateDisabled,
       ...props
     },
     ref
@@ -79,6 +81,8 @@ const DelegateDetailCard = React.forwardRef<
               <Button
                 variant="secondary"
                 size="sm"
+                disabled={delegateDisabled}
+                title={delegateDisabled ? "You need vTON to delegate" : undefined}
                 onClick={(e) => {
                   e.stopPropagation();
                   onDelegate?.();
