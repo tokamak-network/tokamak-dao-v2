@@ -84,7 +84,7 @@ export function MintSimulator({
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto_auto] gap-4 items-end">
             <div className="space-y-1.5">
-              <Label htmlFor="rawAmount">Raw TON Amount</Label>
+              <Label htmlFor="rawAmount">TON Amount</Label>
               <Input
                 id="rawAmount"
                 type="number"
@@ -140,10 +140,10 @@ export function MintSimulator({
                       #
                     </th>
                     <th className="text-right py-2 px-3 text-[var(--text-secondary)] font-medium">
-                      Raw Amount
+                      TON Minted
                     </th>
                     <th className="text-right py-2 px-3 text-[var(--text-secondary)] font-medium">
-                      Actual Minted
+                      vTON Minted
                     </th>
                     <th className="text-right py-2 px-3 text-[var(--text-secondary)] font-medium">
                       Epoch
