@@ -23,9 +23,19 @@
 **역할**: 거버넌스 투표 토큰
 
 **특징**:
-- 무한 발행 가능
+- 최대 공급량 100M (반감기 메커니즘)
 - 거래 가능
 - 투표 시 소각 안됨
+- 에폭당 25% 감소하는 반감기 적용
+
+**반감기 상수**:
+| 상수 | 값 | 설명 |
+|------|-----|------|
+| `MAX_SUPPLY` | `100,000,000e18` | 최대 총 공급량 (100M vTON) |
+| `EPOCH_SIZE` | `5,000,000e18` | 에폭 크기 (5M vTON) |
+| `DECAY_RATE` | `75e16` | 에폭당 감소율 (0.75, 25% 감소) |
+| `INITIAL_HALVING_RATE` | `1e18` | 초기 반감기 비율 (1.0) |
+| `MAX_EPOCHS` | `20` | 최대 에폭 수 (100M / 5M) |
 
 **주요 상태**:
 | 변수 | 타입 | 설명 |
@@ -36,16 +46,19 @@
 **주요 함수**:
 | 함수 | 파라미터 | 반환값 | 설명 |
 |------|----------|--------|------|
-| `mint` | `to: address, amount: uint256` | - | vTON 발행 |
+| `mint` | `to: address, amount: uint256` | - | vTON 발행 (이중 적용: halvingRatio × emissionRatio) |
 | `setEmissionRatio` | `ratio: uint256` | - | 발행 비율 설정 (owner only) |
 | `getVotes` | `account: address` | `uint256` | 투표권 조회 |
 | `getPastVotes` | `account: address, blockNumber: uint256` | `uint256` | 과거 투표권 조회 |
+| `getCurrentEpoch` | - | `uint256` | 현재 에폭 번호 (totalSupply / EPOCH_SIZE) |
+| `getHalvingRatio` | - | `uint256` | 현재 반감기 비율 (scaled 1e18) |
 
 **이벤트**:
 ```solidity
 event Minted(address indexed to, uint256 amount);
 event EmissionRatioUpdated(uint256 oldRatio, uint256 newRatio);
 event MinterUpdated(address indexed minter, bool allowed);
+event EpochTransitioned(uint256 oldEpoch, uint256 newEpoch, uint256 newHalvingRatio);
 ```
 
 ---

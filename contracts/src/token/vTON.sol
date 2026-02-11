@@ -13,11 +13,12 @@ import { IvTON } from "../interfaces/IvTON.sol";
 /// @title vTON - Tokamak Network Governance Token
 /// @notice The governance token for Tokamak Network DAO
 /// @dev Key properties:
-///      - Infinite supply (minted based on seigniorage)
+///      - Capped at 100M with halving mechanism
 ///      - Tradeable (can be transferred)
 ///      - Not burned on voting (voting is based on balance, not consumption)
 ///      - Distributed to L2 Operators and Validators (NOT DAO Treasury)
 ///      - Emission ratio adjustable by DAO (0-100%)
+///      - Halving: every 5M vTON minted, the minting ratio decays by 25%
 contract vTON is ERC20, ERC20Permit, ERC20Votes, Ownable, IvTON {
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
@@ -31,6 +32,28 @@ contract vTON is ERC20, ERC20Permit, ERC20Votes, Ownable, IvTON {
 
     /// @notice Thrown when setting zero address as minter
     error ZeroAddress();
+
+    /// @notice Thrown when totalSupply has reached MAX_SUPPLY
+    error MaxSupplyReached();
+
+    /*//////////////////////////////////////////////////////////////
+                            HALVING CONSTANTS
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice Maximum total supply of vTON (100M)
+    uint256 public constant override MAX_SUPPLY = 100_000_000e18;
+
+    /// @notice Size of each epoch in vTON (5M)
+    uint256 public constant override EPOCH_SIZE = 5_000_000e18;
+
+    /// @notice Decay rate per epoch (0.75 scaled 1e18 = 25% reduction)
+    uint256 public constant override DECAY_RATE = 75e16;
+
+    /// @notice Initial halving rate (1.0 scaled 1e18)
+    uint256 public constant INITIAL_HALVING_RATE = 1e18;
+
+    /// @notice Maximum number of epochs (MAX_SUPPLY / EPOCH_SIZE)
+    uint256 public constant MAX_EPOCHS = 20;
 
     /*//////////////////////////////////////////////////////////////
                                  STATE
@@ -70,12 +93,31 @@ contract vTON is ERC20, ERC20Permit, ERC20Votes, Ownable, IvTON {
         if (!_minters[msg.sender]) revert NotMinter();
         if (to == address(0)) revert ZeroAddress();
 
-        // Apply emission ratio
-        uint256 adjustedAmount = (amount * emissionRatio) / MAX_EMISSION_RATIO;
+        uint256 currentSupply = totalSupply();
+        if (currentSupply >= MAX_SUPPLY) revert MaxSupplyReached();
+
+        // Calculate epoch and halving ratio based on current totalSupply
+        uint256 epoch = currentSupply / EPOCH_SIZE;
+        uint256 halvingRatio = _calculateHalvingRatio(epoch);
+
+        // Apply halving ratio × emission ratio (dual application)
+        uint256 adjustedAmount = (amount * halvingRatio / 1e18) * emissionRatio / 1e18;
         if (adjustedAmount == 0) return;
 
+        // Cap at MAX_SUPPLY
+        if (currentSupply + adjustedAmount > MAX_SUPPLY) {
+            adjustedAmount = MAX_SUPPLY - currentSupply;
+        }
+
+        uint256 oldEpoch = epoch;
         _mint(to, adjustedAmount);
         emit Minted(to, adjustedAmount);
+
+        // Check if epoch transitioned
+        uint256 newEpoch = totalSupply() / EPOCH_SIZE;
+        if (newEpoch > oldEpoch) {
+            emit EpochTransitioned(oldEpoch, newEpoch, _calculateHalvingRatio(newEpoch));
+        }
     }
 
     /// @inheritdoc IvTON
@@ -98,6 +140,32 @@ contract vTON is ERC20, ERC20Permit, ERC20Votes, Ownable, IvTON {
 
         _minters[minter] = allowed;
         emit MinterUpdated(minter, allowed);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                           HALVING VIEWS
+    //////////////////////////////////////////////////////////////*/
+
+    /// @inheritdoc IvTON
+    function getCurrentEpoch() public view override returns (uint256) {
+        return totalSupply() / EPOCH_SIZE;
+    }
+
+    /// @inheritdoc IvTON
+    function getHalvingRatio() public view override returns (uint256) {
+        return _calculateHalvingRatio(getCurrentEpoch());
+    }
+
+    /// @dev Calculate the halving ratio for a given epoch
+    /// @param epoch The epoch number
+    /// @return The halving ratio (scaled 1e18)
+    function _calculateHalvingRatio(uint256 epoch) internal pure returns (uint256) {
+        if (epoch >= MAX_EPOCHS) return 0;
+        uint256 ratio = INITIAL_HALVING_RATE;
+        for (uint256 i = 0; i < epoch; i++) {
+            ratio = (ratio * DECAY_RATE) / 1e18;
+        }
+        return ratio;
     }
 
     /*//////////////////////////////////////////////////////////////

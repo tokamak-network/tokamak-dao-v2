@@ -6,6 +6,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 /// @title IvTON Interface
 /// @notice Interface for the vTON governance token
 /// @dev vTON is the governance token for Tokamak Network DAO
+///      - Capped at 100M with halving mechanism
 ///      - Tradeable: Can be transferred between addresses
 ///      - Not-burnable: Tokens are not burned when voting
 ///      - Distributed to L2 Operators and Validators based on seigniorage
@@ -24,6 +25,21 @@ interface IvTON is IERC20 {
     /// @param minter The minter address
     /// @param allowed Whether the minter is allowed
     event MinterUpdated(address indexed minter, bool allowed);
+
+    /// @notice Emitted when a new epoch is entered due to totalSupply crossing an EPOCH_SIZE boundary
+    /// @param oldEpoch The previous epoch number
+    /// @param newEpoch The new epoch number
+    /// @param newHalvingRatio The halving ratio for the new epoch (scaled 1e18)
+    event EpochTransitioned(uint256 oldEpoch, uint256 newEpoch, uint256 newHalvingRatio);
+
+    /// @notice Maximum total supply of vTON (100M)
+    function MAX_SUPPLY() external view returns (uint256);
+
+    /// @notice Size of each epoch in vTON (5M)
+    function EPOCH_SIZE() external view returns (uint256);
+
+    /// @notice Decay rate per epoch (0.75 scaled 1e18)
+    function DECAY_RATE() external view returns (uint256);
 
     /// @notice Mint vTON tokens to a recipient
     /// @param to The recipient address
@@ -61,4 +77,12 @@ interface IvTON is IERC20 {
     /// @param account The account to check
     /// @return The current voting power
     function getVotes(address account) external view returns (uint256);
+
+    /// @notice Get the current epoch number based on totalSupply
+    /// @return The epoch number (totalSupply / EPOCH_SIZE)
+    function getCurrentEpoch() external view returns (uint256);
+
+    /// @notice Get the current halving ratio based on the current epoch
+    /// @return The halving ratio (scaled 1e18)
+    function getHalvingRatio() external view returns (uint256);
 }
