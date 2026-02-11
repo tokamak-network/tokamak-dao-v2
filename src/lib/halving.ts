@@ -101,6 +101,61 @@ export function generateEpochTable(): EpochRow[] {
   return rows;
 }
 
+export interface EpochTimeEstimate {
+  epoch: number;
+  rawTonNeeded: number;
+  cumulativeRawTon: number;
+  days: number;
+  cumulativeDays: number;
+  formattedTime: string;
+}
+
+export function generateEpochTimeEstimates(
+  seignioragePerBlock: number,
+  blockTimeSec: number
+): EpochTimeEstimate[] {
+  if (seignioragePerBlock <= 0 || blockTimeSec <= 0) return [];
+
+  const tonPerDay = seignioragePerBlock * (86400 / blockTimeSec);
+  const estimates: EpochTimeEstimate[] = [];
+  let cumulativeRaw = 0;
+  let cumulativeDays = 0;
+
+  for (let epoch = 0; epoch < MAX_EPOCHS; epoch++) {
+    const ratio = getHalvingRatio(epoch);
+    const rawNeeded = ratio > 0 ? EPOCH_SIZE / ratio : Infinity;
+    const days = rawNeeded / tonPerDay;
+    cumulativeRaw += rawNeeded;
+    cumulativeDays += days;
+
+    estimates.push({
+      epoch,
+      rawTonNeeded: rawNeeded,
+      cumulativeRawTon: cumulativeRaw,
+      days,
+      cumulativeDays,
+      formattedTime: formatDuration(cumulativeDays),
+    });
+  }
+
+  return estimates;
+}
+
+export function formatDuration(totalDays: number): string {
+  if (!isFinite(totalDays) || totalDays < 0) return "-";
+
+  const years = Math.floor(totalDays / 365);
+  const months = Math.floor((totalDays % 365) / 30);
+  const days = Math.floor(totalDays % 30);
+
+  if (years > 0 && months > 0) return `${years}y ${months}mo`;
+  if (years > 0) return `${years}y`;
+  if (months > 0 && days > 0) return `${months}mo ${days}d`;
+  if (months > 0) return `${months}mo`;
+  if (days > 0) return `${days}d`;
+  return "<1d";
+}
+
 export interface SupplyCurvePoint {
   rawMinted: number;
   totalSupply: number;
