@@ -33,3 +33,4 @@ Analyze differences between spec versions in docs/specs/ directory and generate 
 - Versions follow semantic versioning
 - Date format: YYYY-MM-DD
 - Write changelog entries in English
+- Do NOT add Diff view links in the version table — the user will add them manually
