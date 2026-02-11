@@ -170,6 +170,41 @@ export const VTON_ABI = [
     ],
     outputs: [{ name: "", type: "bool" }],
   },
+  {
+    name: "getCurrentEpoch",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    name: "getHalvingRatio",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    name: "MAX_SUPPLY",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    name: "EPOCH_SIZE",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    name: "DECAY_RATE",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+  },
   // Events
   {
     name: "Minted",
@@ -185,6 +220,15 @@ export const VTON_ABI = [
     inputs: [
       { name: "oldRatio", type: "uint256", indexed: false },
       { name: "newRatio", type: "uint256", indexed: false },
+    ],
+  },
+  {
+    name: "EpochTransitioned",
+    type: "event",
+    inputs: [
+      { name: "oldEpoch", type: "uint256", indexed: false },
+      { name: "newEpoch", type: "uint256", indexed: false },
+      { name: "newHalvingRatio", type: "uint256", indexed: false },
     ],
   },
 ] as const;

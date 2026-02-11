@@ -65,6 +65,84 @@ export function useEmissionRatio() {
 }
 
 /**
+ * Hook to get current halving epoch
+ */
+export function useCurrentEpoch() {
+  const chainId = useChainId();
+  const addresses = getContractAddresses(chainId);
+  const isDeployed = areContractsDeployed(chainId);
+
+  const result = useReadContract({
+    address: addresses.vton,
+    abi: VTON_ABI,
+    functionName: "getCurrentEpoch",
+    query: {
+      enabled: isDeployed,
+    },
+  });
+
+  return {
+    data: isDeployed ? result.data : BigInt(0),
+    isLoading: isDeployed ? result.isLoading : false,
+    isError: isDeployed ? result.isError : false,
+    error: isDeployed ? result.error : null,
+    isDeployed,
+  };
+}
+
+/**
+ * Hook to get current halving ratio
+ */
+export function useHalvingRatio() {
+  const chainId = useChainId();
+  const addresses = getContractAddresses(chainId);
+  const isDeployed = areContractsDeployed(chainId);
+
+  const result = useReadContract({
+    address: addresses.vton,
+    abi: VTON_ABI,
+    functionName: "getHalvingRatio",
+    query: {
+      enabled: isDeployed,
+    },
+  });
+
+  return {
+    data: isDeployed ? result.data : BigInt(0),
+    isLoading: isDeployed ? result.isLoading : false,
+    isError: isDeployed ? result.isError : false,
+    error: isDeployed ? result.error : null,
+    isDeployed,
+  };
+}
+
+/**
+ * Hook to get vTON max supply
+ */
+export function useMaxSupply() {
+  const chainId = useChainId();
+  const addresses = getContractAddresses(chainId);
+  const isDeployed = areContractsDeployed(chainId);
+
+  const result = useReadContract({
+    address: addresses.vton,
+    abi: VTON_ABI,
+    functionName: "MAX_SUPPLY",
+    query: {
+      enabled: isDeployed,
+    },
+  });
+
+  return {
+    data: isDeployed ? result.data : BigInt(0),
+    isLoading: isDeployed ? result.isLoading : false,
+    isError: isDeployed ? result.isError : false,
+    error: isDeployed ? result.error : null,
+    isDeployed,
+  };
+}
+
+/**
  * Hook to get vTON balance for an address
  */
 export function useVTONBalance(address?: `0x${string}`) {

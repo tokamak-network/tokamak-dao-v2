@@ -97,6 +97,9 @@ export interface DelegationParameters {
 export interface VTONInfo {
   totalSupply: bigint;
   emissionRatio: bigint; // in basis points
+  halvingRatio: bigint; // scaled 1e18
+  currentEpoch: bigint;
+  maxSupply: bigint;
 }
 
 // Security Council Info

@@ -2,7 +2,7 @@
 
 import { StatCard } from "@/components/ui/stat-card";
 import { formatVTON, formatNumber, formatPercentage18 } from "@/lib/utils";
-import { useTotalSupply, useEmissionRatio } from "@/hooks/contracts/useVTON";
+import { useTotalSupply, useEmissionRatio, useCurrentEpoch, useHalvingRatio, useMaxSupply } from "@/hooks/contracts/useVTON";
 import { useAllDelegates } from "@/hooks/contracts/useDelegateRegistry";
 import { useProposalCount, useProposals } from "@/hooks/contracts/useDAOGovernor";
 import { useReadContracts, useChainId } from "wagmi";
@@ -20,6 +20,9 @@ export function DashboardMetrics() {
 
   const { data: totalSupply } = useTotalSupply();
   const { data: emissionRatio } = useEmissionRatio();
+  const { data: currentEpoch } = useCurrentEpoch();
+  const { data: halvingRatio } = useHalvingRatio();
+  const { data: maxSupply } = useMaxSupply();
   const { data: delegates } = useAllDelegates();
   const { data: proposalCount } = useProposalCount();
   const { data: proposals } = useProposals();
@@ -84,11 +87,11 @@ export function DashboardMetrics() {
   }, [proposals, totalDelegated]);
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
       <StatCard
-        label="Total vTON Supply"
-        value={formatVTON(totalSupply ?? BigInt(0), { compact: true })}
-        tooltip="Total vTON in circulation. vTON is minted as seigniorage rewards and must be delegated to participate in governance."
+        label="vTON Supply"
+        value={`${formatVTON(totalSupply ?? BigInt(0), { compact: true })} / ${formatVTON(maxSupply ?? BigInt(0), { compact: true })}`}
+        tooltip="Current vTON supply vs max supply (100M). vTON is minted as seigniorage rewards with a halving mechanism."
       />
       <StatCard
         label="Total Delegated"
@@ -109,6 +112,16 @@ export function DashboardMetrics() {
         label="Emission Ratio"
         value={formatPercentage18(emissionRatio ?? BigInt(0))}
         tooltip="Percentage of vTON actually minted when issuing new tokens. At 80%, minting 100 vTON results in 80 vTON issued. Adjustable through DAO governance."
+      />
+      <StatCard
+        label="Halving Ratio"
+        value={formatPercentage18(halvingRatio ?? BigInt(0))}
+        tooltip="Current halving ratio for vTON minting. Decays by 25% every 5M vTON minted. Applied on top of the emission ratio."
+      />
+      <StatCard
+        label="Current Epoch"
+        value={`${Number(currentEpoch ?? 0)} / 20`}
+        tooltip="Current halving epoch. Each epoch is 5M vTON. The minting ratio decays by 25% per epoch."
       />
       <StatCard
         label="Participation"
