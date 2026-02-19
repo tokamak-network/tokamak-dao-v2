@@ -98,6 +98,7 @@ const navItemVariants = cva(
 export interface NavItemChild {
   href: string;
   label: string;
+  external?: boolean;
 }
 
 export interface NavItemProps
@@ -222,22 +223,37 @@ function NavigationDropdownItem({
           )}
           role="menu"
         >
-          {children.map((child) => (
-            <Link
-              key={child.href}
-              href={child.href}
-              role="menuitem"
-              onClick={() => setOpen(false)}
-              className={cn(
-                "flex items-center px-3 py-2 text-sm",
-                "text-[var(--text-secondary)]",
-                "hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]",
-                "transition-colors duration-[var(--duration-fast)]"
-              )}
-            >
-              {child.label}
-            </Link>
-          ))}
+          {children.map((child) => {
+            const linkClass = cn(
+              "flex items-center px-3 py-2 text-sm",
+              "text-[var(--text-secondary)]",
+              "hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]",
+              "transition-colors duration-[var(--duration-fast)]"
+            );
+            return child.external ? (
+              <a
+                key={child.href}
+                href={child.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                role="menuitem"
+                onClick={() => setOpen(false)}
+                className={linkClass}
+              >
+                {child.label}
+              </a>
+            ) : (
+              <Link
+                key={child.href}
+                href={child.href}
+                role="menuitem"
+                onClick={() => setOpen(false)}
+                className={linkClass}
+              >
+                {child.label}
+              </Link>
+            );
+          })}
         </div>
       )}
     </div>

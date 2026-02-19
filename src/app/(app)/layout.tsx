@@ -79,7 +79,7 @@ const navItems = [
 
 const simulatorChildren = [
   { href: "/vton-issuance-simulator", label: "vTON Issuance" },
-  { href: "/airdrop-simulator", label: "vTON Airdrop" },
+  { href: "https://vton-airdrop-simulator.vercel.app/", label: "vTON Airdrop", external: true },
   { href: "/sc-action-simulator", label: "SC Action Paths" },
 ];
 
@@ -134,7 +134,8 @@ export default function AppLayout({
             label="Simulator"
             active={simulatorChildren.some(
               (c) =>
-                pathname === c.href || pathname.startsWith(c.href + "/")
+                !c.external &&
+                (pathname === c.href || pathname.startsWith(c.href + "/"))
             )}
           >
             {simulatorChildren}

@@ -27,6 +27,7 @@ const mobileNavDrawerVariants = cva([
 export interface NavItemChild {
   href: string;
   label: string;
+  external?: boolean;
 }
 
 export interface NavItem {
@@ -108,27 +109,40 @@ function MobileNavGroup({
         <div className="flex flex-col gap-0.5 ml-7 mt-0.5">
           {item.children?.map((child) => {
             const isActive =
-              currentPath === child.href ||
-              currentPath?.startsWith(child.href + "/");
-            return (
+              !child.external &&
+              (currentPath === child.href ||
+                currentPath?.startsWith(child.href + "/"));
+            const linkClass = cn(
+              "inline-flex items-center",
+              "px-4 py-2",
+              "text-sm",
+              "rounded-[var(--radius-lg)]",
+              "transition-colors duration-[var(--duration-fast)]",
+              isActive
+                ? "text-[var(--nav-item-text-active)] font-medium"
+                : [
+                    "text-[var(--nav-item-text)]",
+                    "hover:bg-[var(--nav-item-bg-hover)]",
+                    "hover:text-[var(--nav-item-text-hover)]",
+                  ]
+            );
+            return child.external ? (
+              <a
+                key={child.href}
+                href={child.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={onNavigate}
+                className={linkClass}
+              >
+                {child.label}
+              </a>
+            ) : (
               <Link
                 key={child.href}
                 href={child.href}
                 onClick={onNavigate}
-                className={cn(
-                  "inline-flex items-center",
-                  "px-4 py-2",
-                  "text-sm",
-                  "rounded-[var(--radius-lg)]",
-                  "transition-colors duration-[var(--duration-fast)]",
-                  isActive
-                    ? "text-[var(--nav-item-text-active)] font-medium"
-                    : [
-                        "text-[var(--nav-item-text)]",
-                        "hover:bg-[var(--nav-item-bg-hover)]",
-                        "hover:text-[var(--nav-item-text-hover)]",
-                      ]
-                )}
+                className={linkClass}
               >
                 {child.label}
               </Link>
