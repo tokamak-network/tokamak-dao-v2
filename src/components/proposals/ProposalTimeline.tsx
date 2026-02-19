@@ -54,7 +54,6 @@ export function ProposalTimeline({
   votingEndsAt,
   executedAt,
   queuedAt,
-  eta,
 }: ProposalTimelineProps) {
   const events: TimelineEvent[] = React.useMemo(() => {
     const statusOrder: ProposalStatus[] = [
@@ -133,7 +132,7 @@ export function ProposalTimeline({
     }
 
     return baseEvents;
-  }, [proposalStatus, createdAt, votingStartsAt, votingEndsAt, executedAt, queuedAt, eta]);
+  }, [proposalStatus, createdAt, votingStartsAt, votingEndsAt, executedAt, queuedAt]);
 
   return (
     <div className={cn("space-y-3.5", className)}>

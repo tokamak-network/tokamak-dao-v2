@@ -817,9 +817,8 @@ export function useExecuteProposal() {
 export function useCancelableProposals() {
   const { data: proposals, isLoading, refetch, isDeployed } = useProposals();
 
-  const cancelableStatuses: ProposalStatus[] = ["pending", "active", "succeeded", "queued"];
-
   const cancelableProposals = React.useMemo(() => {
+    const cancelableStatuses: ProposalStatus[] = ["pending", "active", "succeeded", "queued"];
     if (!proposals) return [];
     return proposals.filter((p) => cancelableStatuses.includes(p.status));
   }, [proposals]);

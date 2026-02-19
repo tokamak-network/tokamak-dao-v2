@@ -3,12 +3,9 @@
 import * as React from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { AddressAvatar } from "@/components/ui/avatar";
-import { formatAddress, formatVTON } from "@/lib/utils";
+import { formatVTON } from "@/lib/utils";
 import { useVTONBalance } from "@/hooks/contracts/useVTON";
 import { useWalletConnection } from "@/hooks/useWalletConnection";
-import { DelegationModal } from "./DelegationModal";
 
 /**
  * My Delegation Section
@@ -17,14 +14,8 @@ import { DelegationModal } from "./DelegationModal";
  */
 export function MyDelegation() {
   const { address, isConnected, isReady } = useWalletConnection();
-  const [modalOpen, setModalOpen] = React.useState(false);
-  const [modalMode, setModalMode] = React.useState<"delegate" | "undelegate">("delegate");
 
-  const { data: vtonBalance, isDeployed, refetch: refetchVTONBalance } = useVTONBalance(address);
-
-  const handleDelegationSuccess = React.useCallback(() => {
-    refetchVTONBalance();
-  }, [refetchVTONBalance]);
+  const { data: vtonBalance, isDeployed } = useVTONBalance(address);
 
   // Loading state (waiting for hydration and connection restore)
   if (!isReady) {

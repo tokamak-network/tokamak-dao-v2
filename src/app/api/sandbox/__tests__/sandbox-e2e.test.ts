@@ -12,8 +12,6 @@ const ANVIL_PORT = 8546;
 const ANVIL_URL = `http://127.0.0.1:${ANVIL_PORT}`;
 const MACHINE_ID = "test-machine";
 
-// Anvil default account #0
-const TEST_ADDRESS = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
 // Anvil default account #1 (used as a regular user for faucet/transfer tests)
 const USER_ADDRESS = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
 

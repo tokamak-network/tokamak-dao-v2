@@ -6,7 +6,6 @@ import {
   getContractAddresses,
   areContractsDeployed,
   DELEGATE_REGISTRY_ABI,
-  getDeploymentBlock,
 } from "@/constants/contracts";
 
 // Mock data for when contracts are not deployed

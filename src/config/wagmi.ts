@@ -45,7 +45,7 @@ function createSandboxTransport() {
           body: JSON.stringify({ jsonrpc: '2.0', id: Date.now(), method, params }),
           signal: AbortSignal.timeout(30_000),
         });
-      } catch (err) {
+      } catch {
         // Timeout or network error — machine is likely dead
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('sandbox-rpc-error'));

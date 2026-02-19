@@ -33,7 +33,6 @@ const ProposalListItem = React.forwardRef<HTMLDivElement, ProposalListItemProps>
   (
     {
       className,
-      id,
       title,
       status,
       showStatus = false,

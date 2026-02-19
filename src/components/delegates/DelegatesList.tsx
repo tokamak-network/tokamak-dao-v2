@@ -10,7 +10,6 @@ import { useVTONBalance } from "@/hooks/contracts/useVTON";
 import { DelegateDetailCard } from "./DelegateDetailCard";
 import { DelegationModal } from "./DelegationModal";
 
-const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 // Mock data for when contracts are not deployed
 const MOCK_DELEGATES: `0x${string}`[] = [

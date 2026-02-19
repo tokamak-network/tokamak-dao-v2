@@ -32,7 +32,6 @@ const ProposalCard = React.forwardRef<HTMLDivElement, ProposalCardProps>(
   (
     {
       className,
-      id,
       title,
       status,
       date,

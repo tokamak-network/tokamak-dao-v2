@@ -12,7 +12,7 @@ export function useScClassification() {
   const [classifications, setClassifications] = useState<ClassifiedFunction[]>(
     []
   );
-  const [overrides, setOverrides] = useState<SupabaseOverride[]>([]);
+  const [, setOverrides] = useState<SupabaseOverride[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Fetch merged classifications from API (server-side computation)

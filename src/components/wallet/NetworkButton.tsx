@@ -48,6 +48,7 @@ export const NetworkButton = React.forwardRef<
       {...props}
     >
       {hasIcon && chainIcon && (
+        /* eslint-disable-next-line @next/next/no-img-element */
         <img
           src={chainIcon}
           alt={chainName}
