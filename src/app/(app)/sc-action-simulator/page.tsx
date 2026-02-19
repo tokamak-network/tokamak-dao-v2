@@ -4,14 +4,27 @@ import { useState, useMemo, useRef, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { PathComparisonCard, PathBadge } from "@/components/sc-simulator";
+import { ClassificationCriteria, PathComparisonCard, PathBadge } from "@/components/sc-simulator";
 import { useScClassification } from "@/hooks/useScClassification";
 import type {
   ClassifiedFunction,
+  CriteriaTag,
   GovernancePath,
 } from "@/lib/sc-action-classification";
 
 type PathFilter = "all" | GovernancePath;
+
+const CRITERIA_COLORS: Record<CriteriaTag, string> = {
+  "Emergency Safety":        "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300",
+  "Token Operations":        "bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300",
+  "Governance Participation": "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
+  "Ownership / Admin":       "bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-300",
+  "Proxy Upgrades":          "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300",
+  "Protocol Parameters":     "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
+  "Treasury Operations":     "bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300",
+  "Registry / Address":      "bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-300",
+  "Governance Control":      "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300",
+};
 
 export default function ScActionSimulatorPage() {
   const {
@@ -73,6 +86,9 @@ export default function ScActionSimulatorPage() {
 
       {/* Path Comparison Overview */}
       <PathComparisonCard classifications={classifications} />
+
+      {/* Classification Criteria */}
+      <ClassificationCriteria />
 
       {/* Search + Filter */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -167,7 +183,10 @@ export default function ScActionSimulatorPage() {
                 {/* Spacer */}
                 <span className="flex-1" />
 
-                {/* Path select dropdown */}
+                {/* Criteria tag + Path select dropdown */}
+                <span className={`hidden sm:inline text-[11px] font-medium px-1.5 py-0.5 rounded shrink-0 ${CRITERIA_COLORS[fn.criteria]}`}>
+                  {fn.criteria}
+                </span>
                 <div className="relative shrink-0" ref={openDropdownKey === key ? dropdownRef : undefined}>
                   <button
                     onClick={() =>
@@ -218,6 +237,7 @@ export default function ScActionSimulatorPage() {
                       ))}
                     </div>
                   )}
+                </div>
               </div>
             );
           })}
