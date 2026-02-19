@@ -1,108 +1,72 @@
 "use client";
 
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardContent,
-} from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import type { ClassifiedFunction } from "@/lib/sc-action-classification";
 
 interface PathComparisonCardProps {
   classifications: ClassifiedFunction[];
 }
 
-export function PathComparisonCard({
-  classifications,
-}: PathComparisonCardProps) {
-  const vetoCount = classifications.filter(
-    (f) => f.path === "veto-only"
-  ).length;
-  const directCount = classifications.filter(
-    (f) => f.path === "direct-execution"
-  ).length;
+interface PathData {
+  title: string;
+  color: string;
+  stats: { label: string; value: string }[];
+}
 
-  const vetoContracts = new Set(
-    classifications
-      .filter((f) => f.path === "veto-only")
-      .map((f) => f.contractId)
-  ).size;
+function PathColumn({ data }: { data: PathData }) {
+  return (
+    <div className="flex-1 py-4 px-5">
+      <h3 className="text-base font-semibold text-[var(--text-primary)] flex items-center gap-2 mb-4 -ml-4">
+        <span className={`inline-flex h-1.5 w-1.5 rounded-full ${data.color}`} />
+        {data.title}
+      </h3>
+      <dl className="space-y-2.5">
+        {data.stats.map((stat) => (
+          <div key={stat.label} className="flex items-baseline justify-between gap-4 text-sm">
+            <dt className="text-[var(--text-tertiary)] shrink-0">{stat.label}</dt>
+            <dd className="font-medium text-[var(--text-primary)] text-right">{stat.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
+
+export function PathComparisonCard({ classifications }: PathComparisonCardProps) {
+  const vetoFns = classifications.filter((f) => f.path === "veto-only");
+  const directFns = classifications.filter((f) => f.path === "direct-execution");
+
+  const vetoContracts = new Set(vetoFns.map((f) => f.contractId)).size;
+  const directContracts = new Set(directFns.map((f) => f.contractId)).size;
+
+  const veto: PathData = {
+    title: "Veto-Only Path",
+    color: "bg-[var(--fg-info)]",
+    stats: [
+      { label: "Steps", value: "5 steps" },
+      { label: "Duration", value: "~14 days" },
+      { label: "SC Role", value: "Cancel only (during timelock)" },
+      { label: "Contracts", value: `${vetoContracts} contracts, ${vetoFns.length} functions` },
+    ],
+  };
+
+  const direct: PathData = {
+    title: "Direct Execution Path",
+    color: "bg-[var(--fg-warning)]",
+    stats: [
+      { label: "Steps", value: "3 steps" },
+      { label: "Duration", value: "Immediate" },
+      { label: "SC Role", value: "Propose, approve & execute" },
+      { label: "Contracts", value: `${directContracts} contracts, ${directFns.length} functions` },
+    ],
+  };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      {/* Veto-Only Path */}
-      <Card variant="outlined">
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <span className="inline-flex h-2.5 w-2.5 rounded-full bg-[var(--fg-info)]" />
-            Veto-Only Path
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <dl className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <dt className="text-[var(--text-secondary)]">Steps</dt>
-              <dd className="font-medium text-[var(--text-primary)]">
-                5 steps
-              </dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-[var(--text-secondary)]">Duration</dt>
-              <dd className="font-medium text-[var(--text-primary)]">~14 days</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-[var(--text-secondary)]">SC Role</dt>
-              <dd className="font-medium text-[var(--text-primary)]">
-                Cancel only (during timelock)
-              </dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-[var(--text-secondary)]">Contracts</dt>
-              <dd className="font-medium text-[var(--text-primary)]">
-                {vetoContracts} contracts, {vetoCount} functions
-              </dd>
-            </div>
-          </dl>
-        </CardContent>
-      </Card>
-
-      {/* Direct Execution Path */}
-      <Card variant="outlined">
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <span className="inline-flex h-2.5 w-2.5 rounded-full bg-[var(--fg-warning)]" />
-            Direct Execution Path
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <dl className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <dt className="text-[var(--text-secondary)]">Steps</dt>
-              <dd className="font-medium text-[var(--text-primary)]">
-                3 steps
-              </dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-[var(--text-secondary)]">Duration</dt>
-              <dd className="font-medium text-[var(--text-primary)]">
-                Immediate
-              </dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-[var(--text-secondary)]">SC Role</dt>
-              <dd className="font-medium text-[var(--text-primary)]">
-                Propose, approve &amp; execute
-              </dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-[var(--text-secondary)]">Actions</dt>
-              <dd className="font-medium text-[var(--text-primary)]">
-                {directCount} action types
-              </dd>
-            </div>
-          </dl>
-        </CardContent>
-      </Card>
-    </div>
+    <Card variant="outlined" padding="none">
+      <div className="flex flex-col sm:flex-row sm:divide-x sm:divide-[var(--border-primary)]">
+        <PathColumn data={veto} />
+        <PathColumn data={direct} />
+      </div>
+    </Card>
   );
 }
