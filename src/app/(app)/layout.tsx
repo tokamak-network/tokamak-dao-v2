@@ -10,6 +10,7 @@ import {
   NavigationBrand,
   NavigationItems,
   NavigationItem,
+  NavigationDropdownItem,
   NavigationActions,
   NavigationMenuButton,
 } from "@/components/ui/navigation";
@@ -74,7 +75,12 @@ const navItems = [
   { href: "/proposals", label: "Proposals", icon: <ProposalsIcon /> },
   { href: "/delegates", label: "Delegates", icon: <DelegatesIcon /> },
   { href: "/faucet", label: "Faucet", icon: <FaucetIcon /> },
-  { href: "/vton-issuance-simulator", label: "Simulator", icon: <SimulatorIcon /> },
+];
+
+const simulatorChildren = [
+  { href: "/vton-issuance-simulator", label: "vTON Issuance" },
+  { href: "/airdrop-simulator", label: "vTON Airdrop" },
+  { href: "/sc-action-simulator", label: "SC Action Paths" },
 ];
 
 export default function AppLayout({
@@ -115,11 +121,24 @@ export default function AppLayout({
               key={item.href}
               href={item.href}
               icon={item.icon}
-              active={pathname === item.href || pathname.startsWith(item.href + "/")}
+              active={
+                pathname === item.href ||
+                pathname.startsWith(item.href + "/")
+              }
             >
               {item.label}
             </NavigationItem>
           ))}
+          <NavigationDropdownItem
+            icon={<SimulatorIcon />}
+            label="Simulator"
+            active={simulatorChildren.some(
+              (c) =>
+                pathname === c.href || pathname.startsWith(c.href + "/")
+            )}
+          >
+            {simulatorChildren}
+          </NavigationDropdownItem>
         </NavigationItems>
 
         <NavigationActions>
@@ -135,7 +154,15 @@ export default function AppLayout({
       <MobileNav
         open={mobileNavOpen}
         onClose={() => setMobileNavOpen(false)}
-        items={navItems}
+        items={[
+          ...navItems,
+          {
+            href: "/vton-issuance-simulator",
+            label: "Simulator",
+            icon: <SimulatorIcon />,
+            children: simulatorChildren,
+          },
+        ]}
         currentPath={pathname}
         logo={
           <div className="flex items-center gap-2">

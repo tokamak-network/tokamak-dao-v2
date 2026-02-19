@@ -24,10 +24,16 @@ const mobileNavDrawerVariants = cva([
   "data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left",
 ]);
 
+export interface NavItemChild {
+  href: string;
+  label: string;
+}
+
 export interface NavItem {
   href: string;
   label: string;
   icon?: React.ReactNode;
+  children?: NavItemChild[];
 }
 
 export interface MobileNavProps {
@@ -37,6 +43,101 @@ export interface MobileNavProps {
   currentPath?: string;
   logo?: React.ReactNode;
   className?: string;
+}
+
+/**
+ * Collapsible group for mobile nav items with children
+ */
+function MobileNavGroup({
+  item,
+  currentPath,
+  onNavigate,
+}: {
+  item: NavItem;
+  currentPath?: string;
+  onNavigate: () => void;
+}) {
+  const isChildActive = item.children?.some(
+    (c) => currentPath === c.href || currentPath?.startsWith(c.href + "/")
+  );
+  const [expanded, setExpanded] = React.useState(!!isChildActive);
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className={cn(
+          "inline-flex items-center gap-3 w-full",
+          "px-4 py-3",
+          "text-sm font-medium",
+          "rounded-[var(--radius-lg)]",
+          "transition-colors duration-[var(--duration-fast)]",
+          isChildActive
+            ? [
+                "bg-[var(--nav-item-bg-active)]",
+                "text-[var(--nav-item-text-active)]",
+              ]
+            : [
+                "text-[var(--nav-item-text)]",
+                "hover:bg-[var(--nav-item-bg-hover)]",
+                "hover:text-[var(--nav-item-text-hover)]",
+              ]
+        )}
+      >
+        {item.icon && <span className="size-5">{item.icon}</span>}
+        <span className="flex-1 text-left">{item.label}</span>
+        <svg
+          className={cn(
+            "size-4 transition-transform duration-150",
+            expanded && "rotate-180"
+          )}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M19 9l-7 7-7-7"
+          />
+        </svg>
+      </button>
+      {expanded && (
+        <div className="flex flex-col gap-0.5 ml-7 mt-0.5">
+          {item.children?.map((child) => {
+            const isActive =
+              currentPath === child.href ||
+              currentPath?.startsWith(child.href + "/");
+            return (
+              <Link
+                key={child.href}
+                href={child.href}
+                onClick={onNavigate}
+                className={cn(
+                  "inline-flex items-center",
+                  "px-4 py-2",
+                  "text-sm",
+                  "rounded-[var(--radius-lg)]",
+                  "transition-colors duration-[var(--duration-fast)]",
+                  isActive
+                    ? "text-[var(--nav-item-text-active)] font-medium"
+                    : [
+                        "text-[var(--nav-item-text)]",
+                        "hover:bg-[var(--nav-item-bg-hover)]",
+                        "hover:text-[var(--nav-item-text-hover)]",
+                      ]
+                )}
+              >
+                {child.label}
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 }
 
 /**
@@ -131,7 +232,20 @@ const MobileNav = React.forwardRef<HTMLDivElement, MobileNavProps>(
           {/* Navigation Items */}
           <nav className="flex flex-col gap-1 p-4">
             {items.map((item) => {
-              const isActive = currentPath === item.href;
+              if (item.children) {
+                return (
+                  <MobileNavGroup
+                    key={item.href}
+                    item={item}
+                    currentPath={currentPath}
+                    onNavigate={handleItemClick}
+                  />
+                );
+              }
+
+              const isActive =
+                currentPath === item.href ||
+                currentPath?.startsWith(item.href + "/");
               return (
                 <Link
                   key={item.href}

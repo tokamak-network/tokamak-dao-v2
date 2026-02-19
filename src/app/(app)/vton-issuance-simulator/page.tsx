@@ -71,8 +71,7 @@ export default function VTONIssuanceSimulatorPage() {
           vTON Issuance Simulator
         </h1>
         <p className="text-[var(--text-secondary)] mt-1">
-          Explore the vTON halving mechanism interactively. Each epoch reduces
-          the minting ratio by 25% (decay rate = 0.75).
+          Explore vTON issuance mechanics with the halving schedule.
         </p>
       </div>
 

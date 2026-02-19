@@ -95,6 +95,11 @@ const navItemVariants = cva(
   }
 );
 
+export interface NavItemChild {
+  href: string;
+  label: string;
+}
+
 export interface NavItemProps
   extends React.AnchorHTMLAttributes<HTMLAnchorElement>,
     VariantProps<typeof navItemVariants> {
@@ -121,6 +126,123 @@ const NavigationItem = React.forwardRef<HTMLAnchorElement, NavItemProps>(
   )
 );
 NavigationItem.displayName = "NavigationItem";
+
+/**
+ * Navigation dropdown item — shows a dropdown panel on click
+ */
+export interface NavigationDropdownItemProps
+  extends VariantProps<typeof navItemVariants> {
+  icon?: React.ReactNode;
+  label: string;
+  children: NavItemChild[];
+  active?: boolean;
+  className?: string;
+}
+
+function NavigationDropdownItem({
+  icon,
+  label,
+  children,
+  active,
+  className,
+}: NavigationDropdownItemProps) {
+  const [open, setOpen] = React.useState(false);
+  const containerRef = React.useRef<HTMLDivElement>(null);
+
+  // Close on outside click
+  React.useEffect(() => {
+    if (!open) return;
+    const handleClick = (e: MouseEvent) => {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(e.target as Node)
+      ) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [open]);
+
+  // Close on Escape
+  React.useEffect(() => {
+    if (!open) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [open]);
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        className={cn(navItemVariants({ active: active ?? false, className }))}
+        role="menuitem"
+        aria-haspopup="true"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+      >
+        {icon && (
+          <span className="size-4" aria-hidden="true">
+            {icon}
+          </span>
+        )}
+        {label}
+        <svg
+          className={cn(
+            "size-3.5 transition-transform duration-150",
+            open && "rotate-180"
+          )}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+          aria-hidden="true"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M19 9l-7 7-7-7"
+          />
+        </svg>
+      </button>
+
+      {open && (
+        <div
+          className={cn(
+            "absolute left-1/2 -translate-x-1/2 top-full mt-1",
+            "min-w-[180px] py-1",
+            "rounded-[var(--radius-lg)]",
+            "border border-[var(--border-primary)]",
+            "bg-[var(--surface-primary)]",
+            "shadow-[var(--shadow-md)]",
+            "z-50"
+          )}
+          role="menu"
+        >
+          {children.map((child) => (
+            <Link
+              key={child.href}
+              href={child.href}
+              role="menuitem"
+              onClick={() => setOpen(false)}
+              className={cn(
+                "flex items-center px-3 py-2 text-sm",
+                "text-[var(--text-secondary)]",
+                "hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]",
+                "transition-colors duration-[var(--duration-fast)]"
+              )}
+            >
+              {child.label}
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 /**
  * Navigation actions container (right side)
@@ -259,6 +381,7 @@ export {
   NavigationBrand,
   NavigationItems,
   NavigationItem,
+  NavigationDropdownItem,
   NavigationActions,
   NavigationMenuButton,
   DaoSelector,
