@@ -21,6 +21,7 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@reown/appkit": "^1.8.17",
     "@reown/appkit-adapter-wagmi": "^1.8.17",
+    "@supabase/supabase-js": "^2.97.0",
     "@tanstack/react-query": "^5.90.20",
     "@tokamak-ecosystem/dao-action-builder": "^0.1.8",
     "class-variance-authority": "^0.7.1",
