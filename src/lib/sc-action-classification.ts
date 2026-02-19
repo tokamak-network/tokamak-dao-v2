@@ -10,6 +10,17 @@ import {
 
 export type GovernancePath = "veto-only" | "direct-execution";
 
+export type CriteriaTag =
+  | "Emergency Safety"
+  | "Token Operations"
+  | "Governance Participation"
+  | "Ownership / Admin"
+  | "Proxy Upgrades"
+  | "Protocol Parameters"
+  | "Treasury Operations"
+  | "Registry / Address"
+  | "Governance Control";
+
 export interface ClassifiedFunction {
   contractId: string;
   contractName: string;
@@ -17,6 +28,7 @@ export interface ClassifiedFunction {
   signature: string;
   parameters: Array<{ name: string; type: string }>;
   path: GovernancePath;
+  criteria: CriteriaTag;
   isOverridden?: boolean;
 }
 
@@ -62,6 +74,55 @@ const CONTRACT_NAMES: Record<string, string> = {
 };
 
 // ---------------------------------------------------------------------------
+// AI-based default classification rules
+// Functions explicitly listed here get "direct-execution" path.
+// Everything else defaults to "veto-only" (safe default).
+// ---------------------------------------------------------------------------
+
+type DirectRule = { functions: Set<string>; criteria: CriteriaTag };
+
+const DIRECT_EXECUTION_RULES: Record<string, DirectRule> = {
+  // Category 1: Emergency Safety — exploit response needs immediate action
+  "pausable": { criteria: "Emergency Safety", functions: new Set(["pause", "unpause"]) },
+
+  // Category 2: Token Operations — no protocol parameter changes
+  "tokamak-ton": { criteria: "Token Operations", functions: new Set(["approve", "approveAndCall", "transfer", "transferFrom"]) },
+  "tokamak-wton": { criteria: "Token Operations", functions: new Set([
+    "swapToTON", "swapFromTON", "swapToTONAndTransfer", "swapFromTONAndTransfer",
+    "approve", "approveAndCall", "transfer", "transferFrom",
+    "increaseAllowance", "decreaseAllowance",
+  ]) },
+  "erc20": { criteria: "Token Operations", functions: new Set(["approve", "transfer", "transferFrom", "increaseAllowance", "decreaseAllowance"]) },
+  "erc721": { criteria: "Token Operations", functions: new Set(["approve", "setApprovalForAll", "transferFrom", "safeTransferFrom"]) },
+  "erc1155": { criteria: "Token Operations", functions: new Set(["setApprovalForAll", "safeTransferFrom", "safeBatchTransferFrom"]) },
+
+  // Category 3: Governance Participation — SC *participates* in governance (not controls it)
+  "governor": { criteria: "Governance Participation", functions: new Set(["propose", "castVote", "castVoteWithReason", "castVoteBySig", "queue", "execute", "cancel"]) },
+};
+
+// Veto-only criteria: function-level overrides (contractId::functionName → tag)
+const VETO_CRITERIA_OVERRIDES: Record<string, CriteriaTag> = {
+  "tokamak-dao-vault::setTON": "Registry / Address",
+  "tokamak-dao-vault::setWTON": "Registry / Address",
+};
+
+// Veto-only criteria: mapped by contract ID
+const VETO_CRITERIA_BY_CONTRACT: Record<string, CriteriaTag> = {
+  "ownable": "Ownership / Admin",
+  "access-control": "Ownership / Admin",
+  "uups": "Proxy Upgrades",
+  "tokamak-dao-vault": "Treasury Operations",
+  "tokamak-seig-manager": "Protocol Parameters",
+  "tokamak-dao-agenda-manager": "Protocol Parameters",
+  "tokamak-deposit-manager": "Protocol Parameters",
+  "tokamak-layer2-manager": "Protocol Parameters",
+  "tokamak-l1-bridge-registry": "Registry / Address",
+  "tokamak-layer2-registry": "Registry / Address",
+  "tokamak-candidate-factory": "Registry / Address",
+  "tokamak-dao-committee": "Governance Control",
+};
+
+// ---------------------------------------------------------------------------
 // Build classifications from dao-action-builder registry only
 // ---------------------------------------------------------------------------
 
@@ -82,7 +143,14 @@ function getRegistryFunctions(): ClassifiedFunction[] {
           name: p.name || "unnamed",
           type: p.type,
         })),
-        path: "veto-only",
+        path: DIRECT_EXECUTION_RULES[method.id]?.functions.has(fn.name)
+          ? "direct-execution"
+          : "veto-only",
+        criteria: DIRECT_EXECUTION_RULES[method.id]?.functions.has(fn.name)
+          ? DIRECT_EXECUTION_RULES[method.id].criteria
+          : (VETO_CRITERIA_OVERRIDES[`${method.id}::${fn.name}`]
+            ?? VETO_CRITERIA_BY_CONTRACT[method.id]
+            ?? "Protocol Parameters"),
       });
     }
   }
