@@ -171,7 +171,7 @@ export function DelegateProfile({ address }: { address: `0x${string}` }) {
                 {interests.length > 0 && (
                   <div className="flex flex-wrap gap-1.5 justify-center">
                     {interests.map((interest: string) => (
-                      <Badge key={interest} variant="secondary" size="sm">
+                      <Badge key={interest} variant="default" size="sm">
                         {interest}
                       </Badge>
                     ))}

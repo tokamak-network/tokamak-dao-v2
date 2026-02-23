@@ -74,8 +74,8 @@ export function useDelegateVotingHistory(voter?: `0x${string}`) {
               support: Number(args.support!),
               weight: args.weight!,
               reason: args.reason ?? "",
-              blockNumber: log.blockNumber,
-              transactionHash: log.transactionHash,
+              blockNumber: log.blockNumber!,
+              transactionHash: log.transactionHash!,
             };
           });
 

@@ -528,14 +528,14 @@ export function useProposalTimestamps(proposalId: bigint) {
 
         const result: { queuedAt?: Date; executedAt?: Date } = {};
 
-        if (queuedLogs.length > 0) {
+        if (queuedLogs.length > 0 && queuedLogs[0].blockNumber != null) {
           const block = await publicClient!.getBlock({
             blockNumber: queuedLogs[0].blockNumber,
           });
           result.queuedAt = new Date(Number(block.timestamp) * 1000);
         }
 
-        if (executedLogs.length > 0) {
+        if (executedLogs.length > 0 && executedLogs[0].blockNumber != null) {
           const block = await publicClient!.getBlock({
             blockNumber: executedLogs[0].blockNumber,
           });

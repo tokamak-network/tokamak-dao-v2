@@ -68,7 +68,14 @@ export function ProposalDetail({ className, proposal, onVoteSuccess }: ProposalD
   const againstPercentage = totalVotes > 0 ? (proposal.againstVotes / totalVotes) * 100 : 0;
   const abstainPercentage = totalVotes > 0 ? (proposal.abstainVotes / totalVotes) * 100 : 0;
 
-  const canVote = isConnected && proposal.status === "active" && !hasVoted && !isDemo;
+  const showVoteButton = !isDemo && proposal.status === "active";
+  const voteDisabledReason = !isConnected
+    ? "Connect your wallet to vote"
+    : hasVoted
+      ? "You have already voted on this proposal"
+      : !hasVotingPower
+        ? "You need vTON to vote on proposals"
+        : null;
 
   // Remove title from description if it appears at the beginning
   const descriptionWithoutTitle = React.useMemo(() => {
@@ -160,41 +167,6 @@ export function ProposalDetail({ className, proposal, onVoteSuccess }: ProposalD
 
         {/* Sidebar */}
         <div className="space-y-6">
-          {/* Vote CTA */}
-          {(canVote || (hasVoted && proposal.status === "active")) && (
-            <Card>
-              <CardContent className="py-4 space-y-3">
-                {canVote && (
-                  <>
-                    <div className="text-center">
-                      <p className="text-xs text-[var(--text-secondary)]">Your Voting Power</p>
-                      <p className="text-lg font-bold text-[var(--text-primary)]">
-                        {votingPower !== undefined ? formatVTON(votingPower, { compact: true }) : "0"} vTON
-                      </p>
-                    </div>
-                    <Button
-                      className="w-full"
-                      onClick={() => setIsVotingModalOpen(true)}
-                      disabled={!hasVotingPower}
-                    >
-                      Cast Vote
-                    </Button>
-                    {!hasVotingPower && (
-                      <p className="text-xs text-[var(--text-tertiary)] text-center">
-                        You need vTON to vote on proposals
-                      </p>
-                    )}
-                  </>
-                )}
-                {hasVoted && proposal.status === "active" && (
-                  <div className="px-4 py-2 rounded-lg bg-[var(--bg-tertiary)] text-sm text-[var(--text-secondary)] text-center">
-                    You have voted
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
           {/* Voting Results */}
           <Card>
             <CardHeader>
@@ -261,6 +233,40 @@ export function ProposalDetail({ className, proposal, onVoteSuccess }: ProposalD
                   addresses
                 </p>
               </div>
+
+              {/* Vote CTA */}
+              {showVoteButton && (
+                <div className="pt-3 border-t border-[var(--border-default)] space-y-2">
+                  {voteDisabledReason ? (
+                    <TooltipProvider delayDuration={0}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="w-full inline-block cursor-not-allowed">
+                            <Button className="w-full pointer-events-none" disabled>
+                              Cast Vote
+                            </Button>
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">
+                          <p>{voteDisabledReason}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  ) : (
+                    <>
+                      <Button
+                        className="w-full"
+                        onClick={() => setIsVotingModalOpen(true)}
+                      >
+                        Cast Vote
+                      </Button>
+                      <p className="text-xs text-[var(--text-tertiary)] text-center">
+                        {votingPower !== undefined ? formatVTON(votingPower, { compact: true }) : "0"} vTON
+                      </p>
+                    </>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
 

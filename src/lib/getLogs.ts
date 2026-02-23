@@ -1,8 +1,15 @@
-import type { PublicClient, GetLogsParameters, Log } from "viem";
+import type { PublicClient, Log, AbiEvent } from "viem";
 
 const MAX_BLOCK_RANGE = BigInt(49_999);
 
-type GetLogsParams = GetLogsParameters<undefined, undefined, true, bigint, bigint>;
+type GetLogsParams = {
+  address?: `0x${string}`;
+  event?: AbiEvent;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  args?: any;
+  fromBlock: bigint;
+  toBlock: bigint;
+};
 
 /**
  * Fetches event logs in chunked block ranges to avoid RPC "exceed maximum block range" errors.
@@ -36,7 +43,8 @@ export async function getLogsInChunks(
       ...params,
       fromBlock: cursor,
       toBlock: end,
-    } as GetLogsParams);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
 
     allLogs.push(...logs);
     cursor = end + 1n;

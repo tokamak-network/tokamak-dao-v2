@@ -65,7 +65,7 @@ export function DelegateDetailCard({
         {isActive ? (
           <Badge variant="success" size="sm">Active</Badge>
         ) : (
-          <Badge variant="secondary" size="sm">Inactive</Badge>
+          <Badge variant="default" size="sm">Inactive</Badge>
         )}
       </td>
 
