@@ -3,9 +3,9 @@
 import * as React from "react";
 import { useAccount } from "wagmi";
 import { useQueryClient } from "@tanstack/react-query";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { useAllDelegates, useTotalDelegated } from "@/hooks/contracts/useDelegateRegistry";
+import { useAllDelegates, useTotalDelegated, useDelegateInfo } from "@/hooks/contracts/useDelegateRegistry";
 import { useVTONBalance } from "@/hooks/contracts/useVTON";
 import { DelegateDetailCard } from "./DelegateDetailCard";
 import { DelegationModal } from "./DelegationModal";
@@ -29,22 +29,21 @@ const MOCK_VOTING_POWER: Record<string, bigint> = {
 };
 
 /**
- * Component to fetch and display voting power for a single delegate
+ * Component to fetch and display data for a single delegate table row
  */
 function DelegateItem({
   address,
-  rank,
   isCurrentDelegate,
   delegateDisabled,
   onDelegate,
 }: {
   address: `0x${string}`;
-  rank: number;
   isCurrentDelegate: boolean;
   delegateDisabled?: boolean;
   onDelegate: (address: `0x${string}`) => void;
 }) {
   const { data: votingPower, isDeployed } = useTotalDelegated(address);
+  const { data: delegateInfo } = useDelegateInfo(address);
 
   // Use mock data if contracts not deployed
   const displayPower = isDeployed
@@ -55,7 +54,7 @@ function DelegateItem({
     <DelegateDetailCard
       address={address}
       votingPower={displayPower}
-      rank={rank}
+      isActive={delegateInfo?.isActive}
       isCurrentDelegate={isCurrentDelegate}
       delegateDisabled={delegateDisabled}
       onDelegate={() => onDelegate(address)}
@@ -64,8 +63,7 @@ function DelegateItem({
 }
 
 /**
- * Delegates List Section
- * Shows all registered delegates with their voting power
+ * Delegates List — Agora-style table layout
  */
 export function DelegatesList() {
   const { address: userAddress } = useAccount();
@@ -99,63 +97,93 @@ export function DelegatesList() {
   }, [refetchDelegates, queryClient]);
 
   return (
-    <>
-      <Card padding="none">
-        <CardHeader className="p-6 pb-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <CardTitle>Delegates</CardTitle>
-            <Input
-              placeholder="Search by address..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="sm:w-64"
-              size="sm"
-              aria-label="Search delegates by address"
+    <div className="space-y-6">
+      {/* Search */}
+      <Input
+        placeholder="Search by address..."
+        value={searchQuery}
+        onChange={(e) => setSearchQuery(e.target.value)}
+        className="sm:max-w-xs"
+        aria-label="Search delegates by address"
+        leftIcon={
+          <svg
+            className="size-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
             />
-          </div>
-        </CardHeader>
-        <CardContent className="px-6 pb-6">
-          {!isDeployed && (
-            <div className="text-center py-2 mb-4 text-[var(--text-tertiary)]">
-              <p className="text-xs">
-                Showing mock data (contracts not deployed)
-              </p>
-            </div>
-          )}
+          </svg>
+        }
+      />
 
-          {isLoading ? (
-            <div className="space-y-3" role="status" aria-busy="true" aria-label="Loading delegates">
-              {[1, 2, 3, 4, 5].map((i) => (
-                <div
-                  key={i}
-                  className="h-16 bg-[var(--bg-tertiary)] rounded-lg animate-pulse"
-                />
-              ))}
-            </div>
-          ) : filteredDelegates.length === 0 ? (
-            <div className="text-center py-8 text-[var(--text-tertiary)]">
-              <p className="text-sm">
-                {searchQuery
-                  ? "No delegates found matching your search"
-                  : "No delegates registered yet"}
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {filteredDelegates.map((address, index) => (
-                <DelegateItem
-                  key={address}
-                  address={address}
-                  rank={index + 1}
-                  isCurrentDelegate={false}
-                  delegateDisabled={hasNoVTON}
-                  onDelegate={handleDelegate}
-                />
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {!isDeployed && (
+        <div className="text-center py-2 text-[var(--text-tertiary)]">
+          <p className="text-xs">
+            Showing mock data (contracts not deployed)
+          </p>
+        </div>
+      )}
+
+      {isLoading ? (
+        <Card padding="none">
+          <div className="space-y-0" role="status" aria-busy="true" aria-label="Loading delegates">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div
+                key={i}
+                className="h-16 border-b border-[var(--border-default)] last:border-b-0 animate-pulse bg-[var(--bg-tertiary)]"
+              />
+            ))}
+          </div>
+        </Card>
+      ) : filteredDelegates.length === 0 ? (
+        <div className="text-center py-12 text-[var(--text-tertiary)]">
+          <p className="text-sm">
+            {searchQuery
+              ? "No delegates found matching your search"
+              : "No delegates registered yet"}
+          </p>
+        </div>
+      ) : (
+        <Card padding="none" className="overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-[var(--border-default)] bg-[var(--bg-secondary)]">
+                  <th className="py-3 px-4 text-left text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider">
+                    Name
+                  </th>
+                  <th className="py-3 px-4 text-left text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider">
+                    Voting Power
+                  </th>
+                  <th className="py-3 px-4 text-left text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="py-3 px-4 text-right text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider">
+                    <span className="sr-only">Action</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredDelegates.map((address) => (
+                  <DelegateItem
+                    key={address}
+                    address={address}
+                    isCurrentDelegate={false}
+                    delegateDisabled={hasNoVTON}
+                    onDelegate={handleDelegate}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
 
       {selectedDelegate && (
         <DelegationModal
@@ -166,6 +194,6 @@ export function DelegatesList() {
           onSuccess={handleDelegationSuccess}
         />
       )}
-    </>
+    </div>
   );
 }
