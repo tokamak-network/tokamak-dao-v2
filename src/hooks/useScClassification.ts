@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { useChainId } from "wagmi";
 import {
   type ClassifiedFunction,
   type GovernancePath,
@@ -9,6 +10,7 @@ import {
 } from "@/lib/sc-action-classification";
 
 export function useScClassification() {
+  const chainId = useChainId();
   const [classifications, setClassifications] = useState<ClassifiedFunction[]>(
     []
   );
@@ -18,7 +20,7 @@ export function useScClassification() {
   // Fetch merged classifications from API (server-side computation)
   const fetchData = useCallback(async () => {
     try {
-      const res = await fetch("/api/sc-classification");
+      const res = await fetch(`/api/sc-classification?network=${chainId}`);
       if (res.ok) {
         const data = await res.json();
         setClassifications(data.classifications ?? []);
@@ -29,7 +31,7 @@ export function useScClassification() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [chainId]);
 
   useEffect(() => {
     fetchData();
@@ -52,6 +54,7 @@ export function useScClassification() {
           function_name: fn.functionName,
           path: newPath,
           updated_by: updatedBy ?? null,
+          network: chainId,
         }),
       });
 
@@ -60,14 +63,14 @@ export function useScClassification() {
       // Re-fetch to get fresh merged data
       await fetchData();
     },
-    [fetchData]
+    [chainId, fetchData]
   );
 
   // Remove an override (restore default), then re-fetch
   const resetClassification = useCallback(
     async (contractId: string, signature: string) => {
       const res = await fetch(
-        `/api/sc-classification?contract_id=${encodeURIComponent(contractId)}&function_signature=${encodeURIComponent(signature)}`,
+        `/api/sc-classification?contract_id=${encodeURIComponent(contractId)}&function_signature=${encodeURIComponent(signature)}&network=${chainId}`,
         { method: "DELETE" }
       );
 
@@ -75,7 +78,7 @@ export function useScClassification() {
 
       await fetchData();
     },
-    [fetchData]
+    [chainId, fetchData]
   );
 
   // Search across all classifications

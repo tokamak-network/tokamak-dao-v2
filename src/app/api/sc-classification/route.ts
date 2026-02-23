@@ -7,11 +7,18 @@ import {
 
 const TABLE = "sc_action_classifications";
 
-/** GET — return merged classifications (defaults + overrides) */
-export async function GET() {
+/** GET — return merged classifications (defaults + overrides) scoped by network */
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const network = searchParams.get("network");
+  const networkId = network ? parseInt(network, 10) : 11155111;
+
   const defaults = getDefaultClassification();
 
-  const { data: overrides, error } = await supabase.from(TABLE).select("*");
+  const { data: overrides, error } = await supabase
+    .from(TABLE)
+    .select("*")
+    .eq("network", networkId);
 
   if (error) {
     // Return defaults even if Supabase fails
@@ -22,7 +29,7 @@ export async function GET() {
   return NextResponse.json({ classifications, overrides: overrides ?? [] });
 }
 
-/** PUT — upsert a classification override */
+/** PUT — upsert a classification override (scoped by network) */
 export async function PUT(request: NextRequest) {
   const body = await request.json();
   const {
@@ -32,6 +39,7 @@ export async function PUT(request: NextRequest) {
     function_name,
     path,
     updated_by,
+    network,
   } = body;
 
   if (!contract_id || !function_signature || !path) {
@@ -48,6 +56,8 @@ export async function PUT(request: NextRequest) {
     );
   }
 
+  const networkId = network ?? 11155111;
+
   const { data, error } = await supabase
     .from(TABLE)
     .upsert(
@@ -58,9 +68,10 @@ export async function PUT(request: NextRequest) {
         function_name,
         path,
         updated_by,
+        network: networkId,
         updated_at: new Date().toISOString(),
       },
-      { onConflict: "contract_id,function_signature" }
+      { onConflict: "contract_id,function_signature,network" }
     )
     .select()
     .single();
@@ -71,11 +82,13 @@ export async function PUT(request: NextRequest) {
   return NextResponse.json(data);
 }
 
-/** DELETE — remove an override (restore to default) */
+/** DELETE — remove an override (restore to default), scoped by network */
 export async function DELETE(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const contractId = searchParams.get("contract_id");
   const functionSignature = searchParams.get("function_signature");
+  const network = searchParams.get("network");
+  const networkId = network ? parseInt(network, 10) : 11155111;
 
   if (!contractId || !functionSignature) {
     return NextResponse.json(
@@ -88,7 +101,8 @@ export async function DELETE(request: NextRequest) {
     .from(TABLE)
     .delete()
     .eq("contract_id", contractId)
-    .eq("function_signature", functionSignature);
+    .eq("function_signature", functionSignature)
+    .eq("network", networkId);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

@@ -39,6 +39,7 @@ export interface SupabaseOverride {
   function_signature: string;
   function_name: string;
   path: GovernancePath;
+  network: number;
   updated_at: string;
   updated_by: string | null;
 }
