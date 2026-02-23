@@ -338,12 +338,11 @@ contract DeploySepoliaScript is Script {
 
         // === Test parameters for team testing ===
         governor.setVotingDelay(0);             // Immediate voting start
-        governor.setVotingPeriod(300);          // ~1 hour voting (300 blocks × 12s)
+        governor.setVotingPeriod(100);          // ~20 min voting (100 blocks × 12s)
         governor.setTimelockDelay(5 minutes);   // 5 min timelock
         governor.setGracePeriod(1 hours);       // 1 hour execution grace
-        governor.setQuorum(1);                  // 0.01% (effectively none)
-        // proposalThreshold & proposalCreationCost: keep defaults (faucet available)
-        console.log("Test parameters set: votingDelay=0, votingPeriod=300, timelockDelay=5min");
+        // quorum, proposalThreshold, proposalCreationCost: keep defaults (faucet available)
+        console.log("Test parameters set: votingDelay=0, votingPeriod=100(~20min), timelockDelay=5min");
 
         vm.stopBroadcast();
 
