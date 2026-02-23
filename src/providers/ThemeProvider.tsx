@@ -22,7 +22,7 @@ export interface ThemeProviderProps {
 
 export function ThemeProvider({
   children,
-  defaultTheme = "system",
+  defaultTheme = "dark",
   storageKey = THEME_STORAGE_KEY,
 }: ThemeProviderProps) {
   const [theme, setThemeState] = React.useState<Theme>(() => {
@@ -31,7 +31,7 @@ export function ThemeProvider({
     return stored && ["light", "dark", "system"].includes(stored) ? stored : defaultTheme;
   });
   const [resolvedTheme, setResolvedTheme] = React.useState<"light" | "dark">(() => {
-    if (typeof window === "undefined") return "light";
+    if (typeof window === "undefined") return "dark";
     return document.documentElement.classList.contains("dark") ? "dark" : "light";
   });
   const [mounted, setMounted] = React.useState(false);
@@ -85,7 +85,7 @@ export function ThemeProvider({
   // Prevent flash of incorrect theme
   if (!mounted) {
     return (
-      <ThemeContext.Provider value={{ theme: defaultTheme, resolvedTheme: "light", setTheme }}>
+      <ThemeContext.Provider value={{ theme: defaultTheme, resolvedTheme: "dark", setTheme }}>
         {children}
       </ThemeContext.Provider>
     );
