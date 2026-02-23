@@ -6,9 +6,11 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   getContractAddresses,
   areContractsDeployed,
+  getDeploymentBlock,
   DAO_GOVERNOR_ABI,
 } from "@/constants/contracts";
 import { VoteType, ProposalStatus } from "@/types/governance";
+import { getLogsInChunks } from "@/lib/getLogs";
 
 // Average block time in seconds (Sepolia/Ethereum ~12s)
 const BLOCK_TIME_SECONDS = 12;
@@ -414,7 +416,8 @@ export function useVoterCount(proposalId: bigint) {
 
     async function fetchVoterCount() {
       try {
-        const logs = await publicClient!.getLogs({
+        const fromBlock = getDeploymentBlock(chainId);
+        const logs = await getLogsInChunks(publicClient!, {
           address: addresses.daoGovernor as `0x${string}`,
           event: {
             name: "VoteCast",
@@ -430,12 +433,15 @@ export function useVoterCount(proposalId: bigint) {
           args: {
             proposalId: proposalId,
           },
-          fromBlock: 0n,
+          fromBlock,
           toBlock: "latest",
         });
 
         if (!cancelled) {
-          const uniqueVoters = new Set(logs.map((log) => log.args.voter));
+          const uniqueVoters = new Set(
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            logs.map((log) => (log as Record<string, any>).args?.voter)
+          );
           setVoterCount(uniqueVoters.size);
         }
       } catch (error) {
@@ -452,7 +458,7 @@ export function useVoterCount(proposalId: bigint) {
     return () => {
       cancelled = true;
     };
-  }, [isDeployed, publicClient, proposalId, addresses.daoGovernor, fetchKey]);
+  }, [isDeployed, publicClient, proposalId, addresses.daoGovernor, chainId, fetchKey]);
 
   const refetch = React.useCallback(() => {
     setIsLoading(true);
@@ -487,8 +493,9 @@ export function useProposalTimestamps(proposalId: bigint) {
 
     async function fetchTimestamps() {
       try {
+        const fromBlock = getDeploymentBlock(chainId);
         const [queuedLogs, executedLogs] = await Promise.all([
-          publicClient!.getLogs({
+          getLogsInChunks(publicClient!, {
             address: addresses.daoGovernor as `0x${string}`,
             event: {
               name: "ProposalQueued",
@@ -499,10 +506,10 @@ export function useProposalTimestamps(proposalId: bigint) {
               ],
             },
             args: { proposalId },
-            fromBlock: 0n,
+            fromBlock,
             toBlock: "latest",
           }),
-          publicClient!.getLogs({
+          getLogsInChunks(publicClient!, {
             address: addresses.daoGovernor as `0x${string}`,
             event: {
               name: "ProposalExecuted",
@@ -512,7 +519,7 @@ export function useProposalTimestamps(proposalId: bigint) {
               ],
             },
             args: { proposalId },
-            fromBlock: 0n,
+            fromBlock,
             toBlock: "latest",
           }),
         ]);
@@ -552,7 +559,7 @@ export function useProposalTimestamps(proposalId: bigint) {
     return () => {
       cancelled = true;
     };
-  }, [isDeployed, publicClient, proposalId, addresses.daoGovernor]);
+  }, [isDeployed, publicClient, proposalId, addresses.daoGovernor, chainId]);
 
   return { ...timestamps, isLoading };
 }
