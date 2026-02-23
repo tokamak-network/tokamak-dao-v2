@@ -92,7 +92,8 @@ export function CreateProposalForm({ className }: CreateProposalFormProps) {
   const hasEnoughAllowance = tonAllowance >= requiredAmount;
 
   // Calculate required vTON based on threshold (0.25% = 25 basis points)
-  const requiredVTON = vtonTotalSupply && proposalThreshold
+  // Note: BigInt(0) is falsy in JS, so use explicit undefined checks
+  const requiredVTON = (vtonTotalSupply !== undefined && proposalThreshold !== undefined)
     ? (vtonTotalSupply * proposalThreshold) / BigInt(10000)
     : BigInt(0);
   const hasEnoughVTON = totalVotingPower >= requiredVTON;
@@ -230,7 +231,9 @@ export function CreateProposalForm({ className }: CreateProposalFormProps) {
               <p className="text-xs text-[var(--text-tertiary)]">
                 {isVTONDataLoading
                   ? "Loading..."
-                  : `(You need ${formatVTON(requiredVTON)} vTON voting power to create proposals)`}
+                  : requiredVTON === BigInt(0) && proposalThreshold !== undefined && proposalThreshold > BigInt(0)
+                    ? `(${Number(proposalThreshold) / 100}% of total vTON supply required)`
+                    : `(You need ${formatVTON(requiredVTON)} vTON voting power to create proposals)`}
               </p>
             </div>
             <div className="text-right flex flex-col items-end gap-1">
@@ -251,7 +254,11 @@ export function CreateProposalForm({ className }: CreateProposalFormProps) {
                   variant={hasEnoughVTON ? "success" : "error"}
                   size="sm"
                 >
-                  {hasEnoughVTON ? "Ready" : "Insufficient"}
+                  {hasEnoughVTON
+                    ? "Ready"
+                    : requiredVTON === BigInt(0) && proposalThreshold !== undefined && proposalThreshold > BigInt(0)
+                      ? `Need ${Number(proposalThreshold) / 100}%`
+                      : "Insufficient"}
                 </Badge>
               )}
               {!hasEnoughVTON && isConnected && !isVTONDataLoading && (
@@ -329,12 +336,9 @@ Potential risks and mitigations"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={12}
-              error={description.length > 0 && description.length < 50}
             />
-            <HelperText error={description.length > 0 && description.length < 50}>
-              {description.length > 0 && description.length < 50
-                ? "Description should be at least 50 characters"
-                : "Markdown formatting is supported"}
+            <HelperText>
+              {"Markdown formatting is supported"}
             </HelperText>
           </div>
 
