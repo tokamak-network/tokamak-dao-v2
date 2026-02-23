@@ -51,12 +51,14 @@ parse_address() {
     echo "$OUTPUT" | grep -o "$1: 0x[a-fA-F0-9]\{40\}" | head -1 | awk '{print $2}'
 }
 
+MOCK_TON=$(parse_address "MockTON deployed at")
 VTON=$(parse_address "vTON deployed at")
 DELEGATE_REGISTRY=$(parse_address "DelegateRegistry deployed at")
 TIMELOCK=$(parse_address "Timelock deployed at")
 DAO_GOVERNOR=$(parse_address "DAOGovernor deployed at")
 SECURITY_COUNCIL=$(parse_address "SecurityCouncil deployed at")
 FAUCET=$(parse_address "VTONFaucet deployed at")
+TON_FAUCET=$(parse_address "TONFaucet deployed at")
 
 # Verify we got all addresses
 if [ -z "$VTON" ] || [ -z "$DELEGATE_REGISTRY" ] || [ -z "$DAO_GOVERNOR" ]; then
@@ -65,12 +67,14 @@ if [ -z "$VTON" ] || [ -z "$DELEGATE_REGISTRY" ] || [ -z "$DAO_GOVERNOR" ]; then
 fi
 
 echo -e "\n${GREEN}=== Deployed Addresses ===${NC}"
+echo "MockTON:          $MOCK_TON"
 echo "vTON:             $VTON"
 echo "DelegateRegistry: $DELEGATE_REGISTRY"
 echo "Timelock:         $TIMELOCK"
 echo "DAOGovernor:      $DAO_GOVERNOR"
 echo "SecurityCouncil:  $SECURITY_COUNCIL"
 echo "VTONFaucet:       $FAUCET"
+echo "TONFaucet:        $TON_FAUCET"
 
 # Update contracts.ts
 echo -e "\n${YELLOW}Updating webapp contract addresses...${NC}"
@@ -84,21 +88,25 @@ fi
 # Use temporary file for cross-platform compatibility
 TMP_FILE=$(mktemp)
 
-awk -v vton="$VTON" \
+awk -v ton="$MOCK_TON" \
+    -v vton="$VTON" \
     -v registry="$DELEGATE_REGISTRY" \
     -v governor="$DAO_GOVERNOR" \
     -v council="$SECURITY_COUNCIL" \
     -v timelock="$TIMELOCK" \
-    -v faucet="$FAUCET" '
+    -v faucet="$FAUCET" \
+    -v tonfaucet="$TON_FAUCET" '
 BEGIN { in_sepolia = 0 }
 /\/\/ Sepolia Testnet/ { in_sepolia = 1 }
 /11155111:/ && in_sepolia { in_block = 1 }
+in_block && /ton:/ && !/vton:/ && !/tonFaucet:/ { gsub(/"0x[a-fA-F0-9]+"/, "\"" ton "\"") }
 in_block && /vton:/ { gsub(/"0x[a-fA-F0-9]+"/, "\"" vton "\"") }
 in_block && /delegateRegistry:/ { gsub(/"0x[a-fA-F0-9]+"/, "\"" registry "\"") }
 in_block && /daoGovernor:/ { gsub(/"0x[a-fA-F0-9]+"/, "\"" governor "\"") }
 in_block && /securityCouncil:/ { gsub(/"0x[a-fA-F0-9]+"/, "\"" council "\"") }
 in_block && /timelock:/ { gsub(/"0x[a-fA-F0-9]+"/, "\"" timelock "\"") }
-in_block && /faucet:/ { gsub(/"0x[a-fA-F0-9]+"/, "\"" faucet "\"") }
+in_block && /faucet:/ && !/tonFaucet:/ { gsub(/"0x[a-fA-F0-9]+"/, "\"" faucet "\"") }
+in_block && /tonFaucet:/ { gsub(/"0x[a-fA-F0-9]+"/, "\"" tonfaucet "\"") }
 in_block && /},/ { in_block = 0; in_sepolia = 0 }
 { print }
 ' "$CONTRACTS_TS" > "$TMP_FILE"
@@ -111,6 +119,15 @@ if [ -f "$FAUCET_SCRIPT" ]; then
     sed -i.bak "s/address constant VTON_ADDRESS = 0x[a-fA-F0-9]\{40\}/address constant VTON_ADDRESS = $VTON/" "$FAUCET_SCRIPT"
     rm -f "$FAUCET_SCRIPT.bak"
     echo -e "${GREEN}Updated DeployFaucet.s.sol${NC}"
+fi
+
+# Cleanup Supabase data for Sepolia network
+if [ -n "$ADMIN_CLEANUP_SECRET" ]; then
+    WEBAPP_URL="${WEBAPP_URL:-http://localhost:3000}"
+    echo -e "\n${YELLOW}Cleaning up Supabase data for Sepolia (network=11155111)...${NC}"
+    CLEANUP_RESULT=$(curl -s -X DELETE "${WEBAPP_URL}/api/admin/cleanup?network=11155111&table=all&secret=${ADMIN_CLEANUP_SECRET}")
+    echo -e "Cleanup result: $CLEANUP_RESULT"
+    echo -e "${GREEN}Supabase cleanup complete${NC}"
 fi
 
 echo -e "\n${GREEN}=== Deployment Complete ===${NC}"

@@ -14,7 +14,7 @@ const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as const;
 // Deployment blocks by chain ID (for event log queries)
 export const DEPLOYMENT_BLOCKS: Record<number, bigint> = {
   1337: BigInt(0), // Localhost
-  11155111: BigInt(10153752), // Sepolia (0x9aef18)
+  11155111: BigInt(10318291), // Sepolia
   1: BigInt(0), // Mainnet (placeholder)
 };
 
@@ -38,14 +38,14 @@ export const CONTRACT_ADDRESSES: Record<number, ContractAddresses> = {
   },
   // Sepolia Testnet
   11155111: {
-    ton: "0xc1Dd6743b6db69fCBCC65697FC40eF5F1ea57148",
-    vton: "0x57131b72F024C90A5F7A453B43F257E908Bc8987",
-    delegateRegistry: "0xEb12f002790d9057520580e86aa5bbe4FDef9b44",
-    daoGovernor: "0x601D7881c6157625585730E1CC890b7ddd2bEe2c",
-    securityCouncil: "0x92618F3CCF5BAdFFE1f8F38F322d030D55045557",
-    timelock: "0xC8663Bd7151bDe23d1d1586DA0499261B7731Bc8",
-    faucet: "0xe8834C1DCd5F3a244007f540fFd62ECa5019F7bf",
-    tonFaucet: "0x2914dCB23101c023f63B9f94736a7821eca4cE56",
+    ton: "0x0F78013137A2138d6501918B77663Ea21E5E4E5A",
+    vton: "0x4c119b590FdE12779DFe84f769981d77A55F9Ee8",
+    delegateRegistry: "0xCa10515AfdEA84809b7e3bBD75038dd349Cb8461",
+    daoGovernor: "0xb90f5A6AdEf54168c4774D78f370bAAD6C7E6E58",
+    securityCouncil: "0x75cCBb80d129B2fAe9935e469b0B7be98E94ee7f",
+    timelock: "0x968f5B5b6d99E6F3F65EC7B5FAa3adcf9b7631A9",
+    faucet: "0x30bD829972C98451Ee1ca8dF77EcbA0d804a65CD",
+    tonFaucet: "0x1e3A3A65a43e3Aa7b6320C9F73C45D3A73Aaed9B",
   },
   // Ethereum Mainnet
   1: {
