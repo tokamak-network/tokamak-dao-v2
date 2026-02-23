@@ -20,16 +20,6 @@ import { ThemeToggle } from "@/providers/ThemeProvider";
 import { SandboxButton, SandboxBanner } from "@/components/sandbox";
 
 // Navigation icons
-const DashboardIcon = () => (
-  <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
-    />
-  </svg>
-);
-
 const ProposalsIcon = () => (
   <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
     <path
@@ -50,37 +40,19 @@ const DelegatesIcon = () => (
   </svg>
 );
 
-const FaucetIcon = () => (
-  <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-    />
-  </svg>
-);
 
-const SimulatorIcon = () => (
-  <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"
-    />
-  </svg>
-);
-
-const navItems = [
-  { href: "/dashboard", label: "Dashboard", icon: <DashboardIcon /> },
+const primaryNavItems = [
   { href: "/proposals", label: "Proposals", icon: <ProposalsIcon /> },
   { href: "/delegates", label: "Delegates", icon: <DelegatesIcon /> },
-  { href: "/faucet", label: "Faucet", icon: <FaucetIcon /> },
 ];
 
-const simulatorChildren = [
-  { href: "/vton-issuance-simulator", label: "vTON Issuance" },
-  { href: "https://vton-airdrop-simulator.vercel.app/", label: "vTON Airdrop", external: true },
-  { href: "/sc-action-simulator", label: "SC Action Paths" },
+const moreDropdownChildren = [
+  { href: "/dashboard", label: "Dashboard" },
+  { href: "/faucet", label: "Faucet" },
+  { href: "/security-council", label: "Security Council" },
+  { href: "/vton-issuance-simulator", label: "vTON Issuance Simulator" },
+  { href: "https://vton-airdrop-simulator.vercel.app/", label: "vTON Airdrop Simulator", external: true },
+  { href: "/sc-action-simulator", label: "SC Action Simulator" },
 ];
 
 export default function AppLayout({
@@ -100,7 +72,7 @@ export default function AppLayout({
             onClick={() => setMobileNavOpen(!mobileNavOpen)}
           />
           <NavigationBrand>
-            <Link href="/dashboard" className="flex items-center gap-2">
+            <Link href="/" className="flex items-center gap-2">
               <Image
                 src="/tokamak-logo.svg"
                 alt="Tokamak DAO"
@@ -116,7 +88,7 @@ export default function AppLayout({
         </div>
 
         <NavigationItems className="hidden lg:flex">
-          {navItems.map((item) => (
+          {primaryNavItems.map((item) => (
             <NavigationItem
               key={item.href}
               href={item.href}
@@ -130,20 +102,19 @@ export default function AppLayout({
             </NavigationItem>
           ))}
           <NavigationDropdownItem
-            icon={<SimulatorIcon />}
-            label="Simulator"
-            active={simulatorChildren.some(
+            label="More"
+            active={moreDropdownChildren.some(
               (c) =>
-                !c.external &&
+                !("external" in c) &&
                 (pathname === c.href || pathname.startsWith(c.href + "/"))
             )}
           >
-            {simulatorChildren}
+            {moreDropdownChildren}
           </NavigationDropdownItem>
         </NavigationItems>
 
         <NavigationActions>
-          <SandboxButton />
+          {/* <SandboxButton /> */}
           <ThemeToggle />
           <ConnectWalletButton />
         </NavigationActions>
@@ -156,12 +127,11 @@ export default function AppLayout({
         open={mobileNavOpen}
         onClose={() => setMobileNavOpen(false)}
         items={[
-          ...navItems,
+          ...primaryNavItems,
           {
-            href: "/vton-issuance-simulator",
-            label: "Simulator",
-            icon: <SimulatorIcon />,
-            children: simulatorChildren,
+            href: "#",
+            label: "More",
+            children: moreDropdownChildren,
           },
         ]}
         currentPath={pathname}
