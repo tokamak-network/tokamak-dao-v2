@@ -15,17 +15,17 @@ import { ProposalsList } from "@/components/proposals/ProposalsList";
 export default function ProposalsPage() {
   return (
     <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-bold text-[var(--text-primary)]">
-            Proposals
+      {/* Hero Section */}
+      <section className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 py-4">
+        <div className="flex-1">
+          <h1 className="text-3xl sm:text-4xl font-bold text-[var(--text-primary)] mb-2">
+            Tokamak DAO
           </h1>
-          <p className="text-sm text-[var(--text-secondary)]">
-            View and vote on governance proposals
+          <p className="text-base text-[var(--text-secondary)] max-w-lg">
+            Participate in Tokamak Network governance. Vote on proposals,
+            delegate your vTON, and shape the future of the protocol.
           </p>
         </div>
-
         <Button asChild>
           <Link href="/proposals/create">
             <svg
@@ -44,7 +44,7 @@ export default function ProposalsPage() {
             Create Proposal
           </Link>
         </Button>
-      </div>
+      </section>
 
       {/* Proposals List */}
       <ProposalsList />

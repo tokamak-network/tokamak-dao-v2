@@ -64,6 +64,7 @@ export function VotingModal({
   const queryClient = useQueryClient();
 
   const { data: votingPower } = useTotalDelegated(address);
+  const hasVotingPower = votingPower !== undefined && votingPower > BigInt(0);
   const { castVote, data: txHash, isPending } = useCastVote();
 
   // Wait for transaction confirmation
@@ -138,6 +139,18 @@ export function VotingModal({
           </div>
         )}
 
+        {/* No Voting Power Warning */}
+        {!hasVotingPower && (
+          <div className="p-4 rounded-lg bg-[var(--status-warning-bg)]">
+            <p className="text-sm font-medium text-[var(--status-warning-text)]">
+              No Voting Power
+            </p>
+            <p className="text-sm text-[var(--text-secondary)] mt-1">
+              You need vTON to vote on proposals. Delegate TON to yourself or receive delegation from others to get voting power.
+            </p>
+          </div>
+        )}
+
         {/* Vote Options */}
         <div className="space-y-3">
           <p className="text-sm font-medium text-[var(--text-primary)]">
@@ -148,11 +161,13 @@ export function VotingModal({
               <button
                 key={option.type}
                 type="button"
+                disabled={!hasVotingPower}
                 onClick={() => setSelectedVote(option.type)}
                 className={cn(
                   "w-full p-4 rounded-lg border-2 text-left transition-all",
                   "hover:border-[var(--border-hover)]",
                   "focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-500)] focus:ring-offset-2",
+                  "disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-[var(--border-default)]",
                   selectedVote === option.type
                     ? option.bgColor
                     : "border-[var(--border-default)] bg-[var(--bg-secondary)]"
@@ -214,10 +229,10 @@ export function VotingModal({
         </Button>
         <Button
           onClick={handleSubmit}
-          disabled={selectedVote === null || !address || isLoading}
+          disabled={selectedVote === null || !address || isLoading || !hasVotingPower}
           loading={isLoading}
         >
-          {isPending ? "Submitting..." : isConfirming ? "Confirming..." : "Submit Vote"}
+          {!hasVotingPower ? "No Voting Power" : isPending ? "Submitting..." : isConfirming ? "Confirming..." : "Submit Vote"}
         </Button>
       </ModalFooter>
     </Modal>

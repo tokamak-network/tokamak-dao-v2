@@ -18,9 +18,10 @@ import {
 import { ProposalTimeline } from "./ProposalTimeline";
 import { ProposalActions } from "./ProposalActions";
 import { VotingModal } from "./VotingModal";
-import { cn, formatAddress, formatNumber, formatDate } from "@/lib/utils";
+import { cn, formatAddress, formatNumber, formatDate, formatVTON } from "@/lib/utils";
 import type { ProposalStatus } from "@/types/governance";
 import { useHasVoted } from "@/hooks/contracts/useDAOGovernor";
+import { useTotalDelegated } from "@/hooks/contracts/useDelegateRegistry";
 
 export interface ProposalDetailData {
   id: string;
@@ -59,6 +60,8 @@ export function ProposalDetail({ className, proposal, onVoteSuccess }: ProposalD
     proposalIdBigInt,
     isDemo ? undefined : address
   );
+  const { data: votingPower } = useTotalDelegated(isDemo ? undefined : address);
+  const hasVotingPower = votingPower !== undefined && votingPower > BigInt(0);
 
   const totalVotes = proposal.forVotes + proposal.againstVotes + proposal.abstainVotes;
   const forPercentage = totalVotes > 0 ? (proposal.forVotes / totalVotes) * 100 : 0;
@@ -113,25 +116,11 @@ export function ProposalDetail({ className, proposal, onVoteSuccess }: ProposalD
 
       {/* Header */}
       <div className="space-y-4">
-        <div className="flex items-start justify-between gap-4">
-          <div className="space-y-2">
-            <StatusBadge status={proposal.status} size="md" />
-            <h1 className="text-2xl font-bold text-[var(--text-primary)]">
-              {proposal.title}
-            </h1>
-          </div>
-
-          {canVote && (
-            <Button onClick={() => setIsVotingModalOpen(true)}>
-              Cast Vote
-            </Button>
-          )}
-
-          {hasVoted && proposal.status === "active" && (
-            <div className="px-4 py-2 rounded-lg bg-[var(--bg-tertiary)] text-sm text-[var(--text-secondary)]">
-              You have voted
-            </div>
-          )}
+        <div className="space-y-2">
+          <StatusBadge status={proposal.status} size="md" />
+          <h1 className="text-2xl font-bold text-[var(--text-primary)]">
+            {proposal.title}
+          </h1>
         </div>
 
         <div className="flex items-center gap-4 text-sm text-[var(--text-secondary)]">
@@ -148,75 +137,12 @@ export function ProposalDetail({ className, proposal, onVoteSuccess }: ProposalD
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Main content */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-2 space-y-6 min-w-0">
           {/* Description */}
           <Card>
             <CardContent className="py-4">
-              <div className="proposal-prose max-w-none">
+              <div className="proposal-prose max-w-none break-words overflow-hidden">
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{descriptionWithoutTitle}</ReactMarkdown>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Voting Results */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Voting Results</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <VotingProgress
-                forVotes={proposal.forVotes}
-                againstVotes={proposal.againstVotes}
-                abstainVotes={proposal.abstainVotes}
-              />
-
-              <div className="grid gap-4 sm:grid-cols-3">
-                {/* For */}
-                <div className="p-4 rounded-lg bg-[var(--color-vote-for)]/10">
-                  <p className="text-sm text-[var(--text-secondary)]">For</p>
-                  <p className="text-xl font-bold text-[var(--color-vote-for)]">
-                    {formatNumber(proposal.forVotes, { compact: true })}
-                  </p>
-                  <p className="text-xs text-[var(--text-tertiary)]">
-                    {forPercentage.toFixed(1)}%
-                  </p>
-                </div>
-
-                {/* Against */}
-                <div className="p-4 rounded-lg bg-[var(--color-vote-against)]/10">
-                  <p className="text-sm text-[var(--text-secondary)]">Against</p>
-                  <p className="text-xl font-bold text-[var(--color-vote-against)]">
-                    {formatNumber(proposal.againstVotes, { compact: true })}
-                  </p>
-                  <p className="text-xs text-[var(--text-tertiary)]">
-                    {againstPercentage.toFixed(1)}%
-                  </p>
-                </div>
-
-                {/* Abstain */}
-                <div className="p-4 rounded-lg bg-[var(--color-vote-abstain)]/10">
-                  <p className="text-sm text-[var(--text-secondary)]">Abstain</p>
-                  <p className="text-xl font-bold text-[var(--color-vote-abstain)]">
-                    {formatNumber(proposal.abstainVotes, { compact: true })}
-                  </p>
-                  <p className="text-xs text-[var(--text-tertiary)]">
-                    {abstainPercentage.toFixed(1)}%
-                  </p>
-                </div>
-              </div>
-
-              <div className="pt-4 border-t border-[var(--border-default)]">
-                <p className="text-sm text-[var(--text-secondary)]">
-                  Total Votes:{" "}
-                  <span className="font-medium text-[var(--text-primary)]">
-                    {formatNumber(totalVotes, { compact: true })}
-                  </span>{" "}
-                  from{" "}
-                  <span className="font-medium text-[var(--text-primary)]">
-                    {proposal.totalVoters}
-                  </span>{" "}
-                  addresses
-                </p>
               </div>
             </CardContent>
           </Card>
@@ -234,6 +160,110 @@ export function ProposalDetail({ className, proposal, onVoteSuccess }: ProposalD
 
         {/* Sidebar */}
         <div className="space-y-6">
+          {/* Vote CTA */}
+          {(canVote || (hasVoted && proposal.status === "active")) && (
+            <Card>
+              <CardContent className="py-4 space-y-3">
+                {canVote && (
+                  <>
+                    <div className="text-center">
+                      <p className="text-xs text-[var(--text-secondary)]">Your Voting Power</p>
+                      <p className="text-lg font-bold text-[var(--text-primary)]">
+                        {votingPower !== undefined ? formatVTON(votingPower, { compact: true }) : "0"} vTON
+                      </p>
+                    </div>
+                    <Button
+                      className="w-full"
+                      onClick={() => setIsVotingModalOpen(true)}
+                      disabled={!hasVotingPower}
+                    >
+                      Cast Vote
+                    </Button>
+                    {!hasVotingPower && (
+                      <p className="text-xs text-[var(--text-tertiary)] text-center">
+                        You need vTON to vote on proposals
+                      </p>
+                    )}
+                  </>
+                )}
+                {hasVoted && proposal.status === "active" && (
+                  <div className="px-4 py-2 rounded-lg bg-[var(--bg-tertiary)] text-sm text-[var(--text-secondary)] text-center">
+                    You have voted
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Voting Results */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Voting Results</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <VotingProgress
+                forVotes={proposal.forVotes}
+                againstVotes={proposal.againstVotes}
+                abstainVotes={proposal.abstainVotes}
+              />
+
+              <div className="space-y-3">
+                {/* For */}
+                <div className="p-3 rounded-lg bg-[var(--color-vote-for)]/10">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-[var(--text-secondary)]">For</p>
+                    <p className="text-xs text-[var(--text-tertiary)]">
+                      {forPercentage.toFixed(1)}%
+                    </p>
+                  </div>
+                  <p className="text-lg font-bold text-[var(--color-vote-for)]">
+                    {formatNumber(proposal.forVotes, { compact: true })}
+                  </p>
+                </div>
+
+                {/* Against */}
+                <div className="p-3 rounded-lg bg-[var(--color-vote-against)]/10">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-[var(--text-secondary)]">Against</p>
+                    <p className="text-xs text-[var(--text-tertiary)]">
+                      {againstPercentage.toFixed(1)}%
+                    </p>
+                  </div>
+                  <p className="text-lg font-bold text-[var(--color-vote-against)]">
+                    {formatNumber(proposal.againstVotes, { compact: true })}
+                  </p>
+                </div>
+
+                {/* Abstain */}
+                <div className="p-3 rounded-lg bg-[var(--color-vote-abstain)]/10">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-[var(--text-secondary)]">Abstain</p>
+                    <p className="text-xs text-[var(--text-tertiary)]">
+                      {abstainPercentage.toFixed(1)}%
+                    </p>
+                  </div>
+                  <p className="text-lg font-bold text-[var(--color-vote-abstain)]">
+                    {formatNumber(proposal.abstainVotes, { compact: true })}
+                  </p>
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-[var(--border-default)]">
+                <p className="text-sm text-[var(--text-secondary)]">
+                  Total Votes:{" "}
+                  <span className="font-medium text-[var(--text-primary)]">
+                    {formatNumber(totalVotes, { compact: true })}
+                  </span>{" "}
+                  from{" "}
+                  <span className="font-medium text-[var(--text-primary)]">
+                    {proposal.totalVoters}
+                  </span>{" "}
+                  addresses
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Timeline */}
           <Card>
             <CardContent>

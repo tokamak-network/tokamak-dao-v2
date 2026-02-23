@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { formatUnits } from "viem";
 import { ProposalCard } from "@/components/ui/proposal-card";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { useProposals } from "@/hooks/contracts/useDAOGovernor";
 import type { ProposalStatus } from "@/types/governance";
@@ -111,10 +111,13 @@ export interface ProposalsListProps {
   className?: string;
 }
 
+const ITEMS_PER_PAGE = 10;
+
 export function ProposalsList({ className }: ProposalsListProps) {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<FilterStatus>("all");
+  const [currentPage, setCurrentPage] = React.useState(1);
 
   // Fetch real proposals from contract
   const { data: realProposals, isLoading } = useProposals();
@@ -137,6 +140,11 @@ export function ProposalsList({ className }: ProposalsListProps) {
     );
   }, [realProposals]);
 
+  // Reset page when filters change
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, statusFilter]);
+
   // Filter proposals based on search and status
   const filteredProposals = React.useMemo(() => {
     return proposals.filter((proposal) => {
@@ -151,6 +159,13 @@ export function ProposalsList({ className }: ProposalsListProps) {
       return matchesSearch && matchesStatus;
     });
   }, [proposals, searchQuery, statusFilter]);
+
+  // Pagination
+  const totalPages = Math.ceil(filteredProposals.length / ITEMS_PER_PAGE);
+  const paginatedProposals = React.useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredProposals.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredProposals, currentPage]);
 
   const handleProposalClick = (id: string) => {
     router.push(`/proposals/${id}`);
@@ -183,19 +198,20 @@ export function ProposalsList({ className }: ProposalsListProps) {
           }
         />
 
-        {/* Status filter tabs */}
-        <div className="flex flex-wrap gap-1">
+        {/* Status filter */}
+        <Select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value as FilterStatus)}
+          size="sm"
+          className="sm:w-44"
+          aria-label="Filter proposals by status"
+        >
           {STATUS_FILTERS.map((filter) => (
-            <Button
-              key={filter.value}
-              variant={statusFilter === filter.value ? "primary" : "ghost"}
-              size="sm"
-              onClick={() => setStatusFilter(filter.value)}
-            >
+            <option key={filter.value} value={filter.value}>
               {filter.label}
-            </Button>
+            </option>
           ))}
-        </div>
+        </Select>
       </div>
 
       {/* Proposals list */}
@@ -231,23 +247,55 @@ export function ProposalsList({ className }: ProposalsListProps) {
           </div>
         </div>
       ) : (
-        <div className="grid gap-3">
-          {filteredProposals.map((proposal) => (
-            <ProposalCard
-              key={proposal.id}
-              id={proposal.id}
-              title={proposal.title}
-              status={proposal.status}
-              date={proposal.date}
-              forVotes={proposal.forVotes}
-              againstVotes={proposal.againstVotes}
-              abstainVotes={proposal.abstainVotes}
-              totalVoters={proposal.totalVoters}
-              onClick={() => handleProposalClick(proposal.id)}
-              className="cursor-pointer"
-            />
-          ))}
-        </div>
+        <>
+          <div className="grid gap-3">
+            {paginatedProposals.map((proposal) => (
+              <ProposalCard
+                key={proposal.id}
+                id={proposal.id}
+                title={proposal.title}
+                status={proposal.status}
+                date={proposal.date}
+                forVotes={proposal.forVotes}
+                againstVotes={proposal.againstVotes}
+                abstainVotes={proposal.abstainVotes}
+                totalVoters={proposal.totalVoters}
+                onClick={() => handleProposalClick(proposal.id)}
+                className="cursor-pointer"
+              />
+            ))}
+          </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between pt-4 border-t border-[var(--border-default)]">
+              <p className="text-sm text-[var(--text-tertiary)]">
+                Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1}-
+                {Math.min(currentPage * ITEMS_PER_PAGE, filteredProposals.length)}{" "}
+                of {filteredProposals.length}
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1.5 text-sm font-medium rounded-lg border border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Previous
+                </button>
+                <span className="text-sm text-[var(--text-secondary)]">
+                  {currentPage} / {totalPages}
+                </span>
+                <button
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-1.5 text-sm font-medium rounded-lg border border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

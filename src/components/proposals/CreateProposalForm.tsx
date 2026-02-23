@@ -10,8 +10,9 @@ import { Badge } from "@/components/ui/badge";
 import { Input, Textarea, Label, HelperText } from "@/components/ui/input";
 import { cn, formatVTON } from "@/lib/utils";
 import { usePropose, useGovernanceParams } from "@/hooks/contracts/useDAOGovernor";
-import { useTONAllowance, useApproveTON, useTONBalance } from "@/hooks/contracts/useTON";
+import { useTONAllowance, useApproveTON, useTONBalance, useClaimTON } from "@/hooks/contracts/useTON";
 import { useVTONBalance, useTotalSupply } from "@/hooks/contracts/useVTON";
+import { useClaimFromFaucet, useFaucetConfig } from "@/hooks/contracts/useVTONFaucet";
 import { useTotalDelegated } from "@/hooks/contracts/useDelegateRegistry";
 import { getContractAddresses, DAO_GOVERNOR_ABI } from "@/constants/contracts";
 import { parseEventLogs } from "viem";
@@ -41,7 +42,7 @@ export function CreateProposalForm({ className }: CreateProposalFormProps) {
   const { proposalCreationCost, proposalThreshold, isLoading: isGovernanceLoading } = useGovernanceParams();
 
   // vTON balance and threshold state
-  const { data: vtonBalance } = useVTONBalance(address);
+  const { data: vtonBalance, refetch: refetchVTONBalance } = useVTONBalance(address);
   const { data: vtonTotalSupply, isLoading: isTotalSupplyLoading } = useTotalSupply();
   const { data: delegatedToMe } = useTotalDelegated(address);
 
@@ -54,8 +55,28 @@ export function CreateProposalForm({ className }: CreateProposalFormProps) {
   // Total voting power = balance + delegated to me
   const totalVotingPower = (vtonBalance ?? BigInt(0)) + (delegatedToMe ?? BigInt(0));
 
+  // TON Faucet
+  const {
+    claim: claimTON,
+    isPending: isTONClaimPending,
+    isConfirming: isTONClaimConfirming,
+    isConfirmed: isTONClaimConfirmed,
+    reset: resetTONClaim,
+    claimAmount: tonClaimAmount,
+  } = useClaimTON();
+
+  // vTON Faucet
+  const {
+    claim: claimVTON,
+    isPending: isVTONClaimPending,
+    isConfirming: isVTONClaimConfirming,
+    isConfirmed: isVTONClaimConfirmed,
+    reset: resetVTONClaim,
+  } = useClaimFromFaucet();
+  const { claimAmount: vtonClaimAmount } = useFaucetConfig();
+
   // TON approval state
-  const { data: tonBalance } = useTONBalance(address);
+  const { data: tonBalance, refetch: refetchTONBalance } = useTONBalance(address);
   const { data: tonAllowance, refetch: refetchAllowance } = useTONAllowance(
     address,
     addresses.daoGovernor
@@ -75,6 +96,23 @@ export function CreateProposalForm({ className }: CreateProposalFormProps) {
     ? (vtonTotalSupply * proposalThreshold) / BigInt(10000)
     : BigInt(0);
   const hasEnoughVTON = totalVotingPower >= requiredVTON;
+
+  // Refetch balances after successful claims
+  React.useEffect(() => {
+    if (isTONClaimConfirmed) {
+      refetchTONBalance();
+      const timer = setTimeout(() => resetTONClaim(), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [isTONClaimConfirmed, refetchTONBalance, resetTONClaim]);
+
+  React.useEffect(() => {
+    if (isVTONClaimConfirmed) {
+      refetchVTONBalance();
+      const timer = setTimeout(() => resetVTONClaim(), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [isVTONClaimConfirmed, refetchVTONBalance, resetVTONClaim]);
 
   // Form validation
   const isFormValid =
@@ -168,6 +206,20 @@ export function CreateProposalForm({ className }: CreateProposalFormProps) {
               >
                 {hasEnoughTON ? "Ready" : "Insufficient"}
               </Badge>
+              {!hasEnoughTON && isConnected && (
+                isTONClaimConfirmed ? (
+                  <span className="text-xs text-[var(--color-success-600)]">Claimed!</span>
+                ) : (
+                  <Button
+                    variant="secondary"
+                    size="xs"
+                    onClick={() => claimTON()}
+                    loading={isTONClaimPending || isTONClaimConfirming}
+                  >
+                    {isTONClaimPending || isTONClaimConfirming ? "Claiming..." : `Get ${formatVTON(tonClaimAmount)} TON`}
+                  </Button>
+                )
+              )}
             </div>
           </div>
 
@@ -202,6 +254,20 @@ export function CreateProposalForm({ className }: CreateProposalFormProps) {
                   {hasEnoughVTON ? "Ready" : "Insufficient"}
                 </Badge>
               )}
+              {!hasEnoughVTON && isConnected && !isVTONDataLoading && (
+                isVTONClaimConfirmed ? (
+                  <span className="text-xs text-[var(--color-success-600)]">Claimed!</span>
+                ) : (
+                  <Button
+                    variant="secondary"
+                    size="xs"
+                    onClick={() => claimVTON()}
+                    loading={isVTONClaimPending || isVTONClaimConfirming}
+                  >
+                    {isVTONClaimPending || isVTONClaimConfirming ? "Claiming..." : `Get ${formatVTON(vtonClaimAmount)} vTON`}
+                  </Button>
+                )
+              )}
             </div>
           </div>
 
@@ -212,13 +278,6 @@ export function CreateProposalForm({ className }: CreateProposalFormProps) {
             </div>
           )}
 
-          {isConnected && (!hasEnoughTON || !hasEnoughVTON) && (
-            <div className="mt-2 pt-3 border-t border-[var(--border-primary)]">
-              <a href="/faucet" className="text-sm text-[var(--brand-primary)] hover:underline">
-                Get tokens from faucet →
-              </a>
-            </div>
-          )}
         </CardContent>
       </Card>
 
