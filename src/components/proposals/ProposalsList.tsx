@@ -122,7 +122,7 @@ export function ProposalsList({ className }: ProposalsListProps) {
   // Fetch real proposals from contract
   const { data: realProposals, isLoading } = useProposals();
 
-  // Convert real proposals to list items and append demo proposals
+  // Convert real proposals to list items; show demo proposals only when no real ones exist
   const proposals: ProposalListItem[] = React.useMemo(() => {
     const contractProposals = realProposals.map((p) => ({
       id: p.id,
@@ -134,10 +134,11 @@ export function ProposalsList({ className }: ProposalsListProps) {
       abstainVotes: Number(formatUnits(p.abstainVotes, 18)),
       isDemo: false,
     }));
+    const all = contractProposals.length > 0
+      ? contractProposals
+      : [...contractProposals, ...DEMO_PROPOSALS];
     // Sort all proposals by date descending (newest first)
-    return [...contractProposals, ...DEMO_PROPOSALS].sort(
-      (a, b) => b.date.getTime() - a.date.getTime()
-    );
+    return all.sort((a, b) => b.date.getTime() - a.date.getTime());
   }, [realProposals]);
 
   // Reset page when filters change
