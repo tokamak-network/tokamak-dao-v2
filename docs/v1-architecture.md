@@ -108,16 +108,16 @@ graph BT
 
 ```mermaid
 stateDiagram-v2
-    [*] --> NOTICE: TON.approveAndCall()<br/>100 TON 소각
+    [*] --> NOTICE : approveAndCall() - 100 TON 소각
 
-    NOTICE --> VOTING: 첫 번째 castVote() 호출<br/>(공지 기간 16일 경과 후)
+    NOTICE --> VOTING : castVote() 호출 (공지 16일 후)
 
-    VOTING --> WAITING_EXEC: YES >= quorum<br/>(result: ACCEPT)
-    VOTING --> ENDED_REJECT: NO >= (maxMember - quorum + 1)<br/>(result: REJECT)
-    VOTING --> ENDED_DISMISS: 투표 기간 만료<br/>endAgendaVoting()<br/>(result: DISMISS)
+    VOTING --> WAITING_EXEC : YES ≥ quorum (ACCEPT)
+    VOTING --> ENDED_REJECT : NO ≥ maxMember-quorum+1 (REJECT)
+    VOTING --> ENDED_DISMISS : 투표 기간 만료 (DISMISS)
 
-    WAITING_EXEC --> EXECUTED: executeAgenda()<br/>(7일 이내)
-    WAITING_EXEC --> ENDED_EXPIRED: 실행 기한 초과
+    WAITING_EXEC --> EXECUTED : executeAgenda() (7일 이내)
+    WAITING_EXEC --> ENDED_EXPIRED : 실행 기한 초과
 
     state ENDED_REJECT {
         [*] --> Rejected
