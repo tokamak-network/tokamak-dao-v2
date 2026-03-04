@@ -2292,4 +2292,140 @@ contract DAOGovernorTest is Test {
         // Verify proposal is canceled
         assertEq(uint256(governor.state(proposalId)), uint256(IDAOGovernor.ProposalState.Canceled));
     }
+
+    /*//////////////////////////////////////////////////////////////
+                        EDGE CASE TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_CastVoteWithZeroVotingPower() public {
+        // Register delegate but don't delegate any vTON to them
+        vm.prank(delegate1);
+        registry.registerDelegate("Delegate1", "Philosophy", "Interests");
+
+        // Create proposal
+        address[] memory targets = new address[](1);
+        targets[0] = address(governor);
+        uint256[] memory values = new uint256[](1);
+        bytes[] memory calldatas = new bytes[](1);
+        calldatas[0] = abi.encodeWithSignature("setQuorum(uint256)", 500);
+
+        vm.prank(user1);
+        uint256 proposalId = governor.propose(targets, values, calldatas, "Test zero voting power", 0);
+
+        // Move to voting period
+        vm.roll(block.number + governor.votingDelay() + 1);
+
+        // Delegate with 0 voting power casts vote — should succeed with weight=0
+        vm.prank(delegate1);
+        governor.castVote(proposalId, IDAOGovernor.VoteType.For);
+
+        assertTrue(governor.hasVoted(proposalId, delegate1));
+
+        IDAOGovernor.Proposal memory proposal = governor.getProposal(proposalId);
+        assertEq(proposal.forVotes, 0);
+    }
+
+    function test_CreateProposalWithZeroCost() public {
+        // Set proposal creation cost to 0
+        vm.prank(owner);
+        governor.setProposalCreationCost(0);
+
+        // user2 has no TON but should be able to create proposal
+        address[] memory targets = new address[](1);
+        targets[0] = address(governor);
+        uint256[] memory values = new uint256[](1);
+        bytes[] memory calldatas = new bytes[](1);
+        calldatas[0] = abi.encodeWithSignature("setQuorum(uint256)", 500);
+
+        vm.prank(user2);
+        uint256 proposalId = governor.propose(targets, values, calldatas, "Free proposal", 0);
+
+        assertGt(proposalId, 0);
+        assertEq(governor.proposalCount(), 1);
+    }
+
+    function test_CastVoteAfterVotingEndReverts() public {
+        // Setup delegate with voting power
+        vm.prank(delegate1);
+        registry.registerDelegate("Delegate1", "Philosophy", "Interests");
+
+        vm.prank(user1);
+        registry.delegate(delegate1, 1000 ether);
+
+        vm.warp(block.timestamp + 8 days);
+
+        // Create proposal
+        address[] memory targets = new address[](1);
+        targets[0] = address(governor);
+        uint256[] memory values = new uint256[](1);
+        bytes[] memory calldatas = new bytes[](1);
+        calldatas[0] = abi.encodeWithSignature("setQuorum(uint256)", 500);
+
+        vm.prank(user1);
+        uint256 proposalId = governor.propose(targets, values, calldatas, "Test late vote", 0);
+
+        // Move past voting period end
+        vm.roll(block.number + governor.votingDelay() + governor.votingPeriod() + 1);
+
+        // Attempt to vote after voting ended — should revert
+        vm.prank(delegate1);
+        vm.expectRevert(DAOGovernor.VotingEnded.selector);
+        governor.castVote(proposalId, IDAOGovernor.VoteType.For);
+    }
+
+    function test_MultipleDelegatesVoteOnSameProposal() public {
+        address delegate2 = makeAddr("delegate2");
+        address delegate3 = makeAddr("delegate3");
+
+        // Register multiple delegates
+        vm.prank(delegate1);
+        registry.registerDelegate("Delegate1", "Philosophy", "Interests");
+        vm.prank(delegate2);
+        registry.registerDelegate("Delegate2", "Philosophy", "Interests");
+        vm.prank(delegate3);
+        registry.registerDelegate("Delegate3", "Philosophy", "Interests");
+
+        // Delegate vTON to different delegates
+        vm.prank(user1);
+        registry.delegate(delegate1, 5000 ether);
+        vm.prank(user1);
+        registry.delegate(delegate2, 3000 ether);
+        vm.prank(user2);
+        registry.delegate(delegate3, 2000 ether);
+
+        // Wait for delegation maturity
+        vm.warp(block.timestamp + 8 days);
+
+        // Create proposal
+        address[] memory targets = new address[](1);
+        targets[0] = address(governor);
+        uint256[] memory values = new uint256[](1);
+        bytes[] memory calldatas = new bytes[](1);
+        calldatas[0] = abi.encodeWithSignature("setQuorum(uint256)", 500);
+
+        vm.prank(user1);
+        uint256 proposalId = governor.propose(targets, values, calldatas, "Multi delegate vote", 0);
+
+        // Move to voting period
+        vm.roll(block.number + governor.votingDelay() + 1);
+
+        // All delegates vote
+        vm.prank(delegate1);
+        governor.castVote(proposalId, IDAOGovernor.VoteType.For);
+        vm.prank(delegate2);
+        governor.castVote(proposalId, IDAOGovernor.VoteType.Against);
+        vm.prank(delegate3);
+        governor.castVote(proposalId, IDAOGovernor.VoteType.For);
+
+        // Verify all votes recorded
+        assertTrue(governor.hasVoted(proposalId, delegate1));
+        assertTrue(governor.hasVoted(proposalId, delegate2));
+        assertTrue(governor.hasVoted(proposalId, delegate3));
+
+        // Verify vote aggregation: forVotes = delegate1 + delegate3, againstVotes = delegate2
+        IDAOGovernor.Proposal memory proposal = governor.getProposal(proposalId);
+        assertEq(proposal.forVotes, 5000 ether + 2000 ether);
+        assertEq(proposal.againstVotes, 3000 ether);
+        assertEq(proposal.abstainVotes, 0);
+    }
 }
