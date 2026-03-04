@@ -3,68 +3,42 @@
 ## 1. 전체 시스템 구조
 
 ```mermaid
-graph TB
-    subgraph Users["사용자"]
-        EOA["EOA (일반 사용자)"]
-        L2OP["L2 Operator"]
+graph LR
+    subgraph External["외부"]
+        USER["👤 사용자 / L2 Operator"]
+        DCO["🔑 DAOCommitteeOwner<br/>관리자 직접 설정"]
     end
 
-    subgraph Proxy["진입점"]
-        DCP["DAOCommitteeProxy<br/><code>0xDD9f...C26</code><br/>━━━━━━━━━━━━━━<br/>모든 호출의 단일 진입점<br/>Storage 보유 (delegatecall)"]
+    subgraph Governance["거버넌스"]
+        DCP["📌 DAOCommitteeProxy<br/>단일 진입점 · Storage 보유"]
+        DCV1["DAOCommittee_V1<br/>로직 구현체"]
+        DAM["DAOAgendaManager<br/>안건 · 투표 · 실행"]
+        DV["DAOVault<br/>TON/WTON 트레저리"]
     end
 
-    subgraph Implementation["구현체 (Logic)"]
-        DC["DAOCommittee<br/><code>0xd1A3...b8e6</code><br/>(base impl)"]
-        DCV1["DAOCommittee_V1<br/><code>0xdF2e...815</code><br/>(최신 impl)"]
-    end
-
-    subgraph Core["핵심 모듈"]
-        DAM["DAOAgendaManager<br/><code>0xcD44...484</code><br/>━━━━━━━━━━━━━━<br/>안건 저장/관리<br/>투표 기록<br/>실행 정보"]
-        DV["DAOVault<br/><code>0x2520...303</code><br/>━━━━━━━━━━━━━━<br/>TON/WTON 트레저리<br/>활동 보상 지급<br/>TON↔WTON 자동 교환"]
-    end
-
-    subgraph Candidate_System["후보자 시스템"]
-        CF["CandidateFactory<br/><code>0xc5eb...3ffb</code><br/>━━━━━━━━━━━━━━<br/>Candidate 컨트랙트 배포"]
-        C1["Candidate #1<br/>(per operator)"]
-        C2["Candidate #2<br/>(per operator)"]
-        CN["Candidate #N<br/>(per operator)"]
+    subgraph Candidates["후보자 시스템"]
+        CF["CandidateFactory"]
+        CAND["Candidate ×N<br/>오퍼레이터별 1개"]
     end
 
     subgraph Staking["스테이킹 인프라"]
-        SM["SeigManager<br/><code>0x7109...909</code><br/>━━━━━━━━━━━━━━<br/>시뇨리지 분배<br/>Coinage 토큰 관리<br/>스테이킹 잔액 조회"]
-        L2R["Layer2Registry<br/><code>0x0b3E...63e</code><br/>━━━━━━━━━━━━━━<br/>L2 체인 등록소"]
-        DM["DepositManager<br/>━━━━━━━━━━━━━━<br/>WTON 예치/출금"]
+        DM["DepositManager<br/>WTON 예치/출금"]
+        SM["SeigManager<br/>시뇨리지 · Coinage"]
+        L2R["Layer2Registry"]
     end
 
-    subgraph Admin["관리자"]
-        DCO["DAOCommitteeOwner<br/><code>0xe070...f44</code><br/>━━━━━━━━━━━━━━<br/>거버넌스 없이 직접 설정<br/>(sudo 컨트랙트)"]
-    end
-
-    subgraph Tokens["토큰"]
-        TON["TON<br/><code>0x2be5...3C5</code>"]
-        WTON["WTON<br/><code>0xc4A1...bff2</code>"]
-    end
-
-    EOA -->|"createCandidate()"| DCP
-    L2OP -->|"registerLayer2Candidate()"| DCP
-    EOA -->|"TON.approveAndCall()"| DCP
-    DCP -.->|"delegatecall"| DCV1
-    DC -.->|"upgraded to"| DCV1
-    DCV1 -->|"newAgenda()"| DAM
-    DCV1 -->|"claimTON()"| DV
-    DCV1 -->|"deploy()"| CF
-    CF -->|"new"| C1
-    CF -->|"new"| C2
-    CF -->|"new"| CN
-    C1 -->|"castVote()<br/>changeMember()"| DCP
-    C2 -->|"castVote()<br/>changeMember()"| DCP
-    DCV1 -->|"registerAndDeployCoinage()"| L2R
-    SM -->|"coinages(layer2)"| C1
-    DM -->|"onDeposit()"| SM
-    DCO -->|"직접 설정 변경"| DCP
-    DV -->|"보상 지급"| TON
-    EOA -->|"deposit(WTON)"| DM
-    TON -->|"수수료 소각"| DCP
+    USER -->|"approveAndCall · createCandidate"| DCP
+    DCO -.->|"직접 설정"| DCP
+    DCP ===|"delegatecall"| DCV1
+    DCV1 --> DAM
+    DCV1 --> DV
+    DCV1 -->|"deploy"| CF
+    CF --> CAND
+    CAND -->|"castVote · changeMember"| DCP
+    CAND -.->|"totalStaked 조회"| SM
+    DCV1 --> L2R
+    USER -->|"deposit WTON"| DM
+    DM --> SM
 
     style DCP fill:#4A90D9,stroke:#2C5F8A,color:#fff
     style DCV1 fill:#7B68EE,stroke:#5B48CE,color:#fff
@@ -75,7 +49,134 @@ graph TB
     style DCO fill:#FF4444,stroke:#CC2222,color:#fff
 ```
 
-## 2. 상속 구조
+## 2. Proxy 구조
+
+V1은 **Custom Transparent Proxy** 패턴을 사용합니다. EIP-1967이 아닌 일반 storage 변수에 구현체 주소를 저장합니다.
+
+### 2-1. Proxy 호출 흐름
+
+```mermaid
+sequenceDiagram
+    participant User as 사용자
+    participant Proxy as DAOCommitteeProxy<br/>0xDD9f...C26
+    participant Impl as DAOCommittee_V1<br/>0xdF2e...815
+
+    Note over Proxy: Storage 보유<br/>━━━━━━━━━━━━<br/>_implementation<br/>pauseProxy<br/>ton, daoVault, ...<br/>candidates[], members[]<br/>_candidateInfos
+
+    User->>Proxy: castVote(agendaID, vote, comment)
+    Note over Proxy: fallback() 실행
+    alt pauseProxy == true
+        Proxy-->>User: revert
+    else pauseProxy == false
+        Proxy->>Impl: delegatecall(calldata)
+        Note over Impl: Proxy의 Storage를<br/>읽고/쓰는 로직 실행
+        Impl-->>Proxy: returndata
+        Proxy-->>User: returndata
+    end
+```
+
+### 2-2. Proxy Storage Layout
+
+Proxy와 구현체가 **동일한 Storage Layout**을 공유해야 합니다. `StorageStateCommittee`를 양쪽이 상속하여 이를 보장합니다.
+
+```mermaid
+graph TB
+    subgraph Storage["Storage Layout (StorageStateCommittee)"]
+        direction TB
+        S0["slot 0: ton"]
+        S1["slot 1: daoVault"]
+        S2["slot 2: agendaManager"]
+        S3["slot 3: candidateFactory"]
+        S4["slot 4: layer2Registry"]
+        S5["slot 5: seigManager"]
+        S6["slot 6: candidates[]"]
+        S7["slot 7: members[]"]
+        S8["slot 8: maxMember"]
+        S9["slot 9: _candidateInfos mapping"]
+        S10["slot 10: quorum"]
+        S11["slot 11: activityRewardPerSecond"]
+    end
+
+    subgraph ProxyOnly["Proxy 전용"]
+        P1["_implementation"]
+        P2["pauseProxy"]
+        P3["AccessControl roles"]
+    end
+
+    subgraph ImplOnly["구현체 전용"]
+        I1["로직 함수만 보유"]
+        I2["자체 Storage 사용 안 함"]
+    end
+
+    DCP["DAOCommitteeProxy"] --> Storage
+    DCP --> ProxyOnly
+    DCV1["DAOCommittee_V1"] --> Storage
+    DCV1 --> ImplOnly
+
+    style Storage fill:#FFF3CD,stroke:#DAA520,color:#333
+    style ProxyOnly fill:#D1ECF1,stroke:#6AAFE6,color:#333
+    style ImplOnly fill:#D4EDDA,stroke:#5CB85C,color:#333
+    style DCP fill:#4A90D9,stroke:#2C5F8A,color:#fff
+    style DCV1 fill:#7B68EE,stroke:#5B48CE,color:#fff
+```
+
+### 2-3. Proxy 업그레이드 흐름
+
+```mermaid
+graph LR
+    ADMIN["Admin<br/>(DEFAULT_ADMIN_ROLE)"]
+    DCP["DAOCommitteeProxy"]
+    OLD["DAOCommittee<br/>0xd1A3...b8e6<br/>(이전 구현체)"]
+    NEW["DAOCommittee_V1<br/>0xdF2e...815<br/>(새 구현체)"]
+
+    ADMIN -->|"upgradeTo(newImpl)"| DCP
+    DCP -.->|"_implementation (이전)"| OLD
+    DCP ==>|"_implementation (현재)"| NEW
+
+    style DCP fill:#4A90D9,stroke:#2C5F8A,color:#fff
+    style OLD fill:#999,stroke:#666,color:#fff
+    style NEW fill:#7B68EE,stroke:#5B48CE,color:#fff
+    style ADMIN fill:#E8A838,stroke:#C88818,color:#fff
+```
+
+### 2-4. 다중 Proxy 구조
+
+V1에는 3개의 Proxy 패턴이 존재합니다:
+
+```mermaid
+graph TB
+    subgraph CommitteeProxy["DAOCommittee Proxy"]
+        CP["DAOCommitteeProxy<br/>0xDD9f...C26"]
+        CI["DAOCommittee_V1<br/>0xdF2e...815"]
+        CP -.->|delegatecall| CI
+    end
+
+    subgraph FactoryProxy["CandidateFactory Proxy"]
+        FP["CandidateFactoryProxy<br/>0x9fc7...5d7c"]
+        FI["CandidateFactory<br/>0xc5eb...3ffb"]
+        FP -.->|delegatecall| FI
+    end
+
+    subgraph CandidateProxies["Candidate Proxies (×N)"]
+        CPN["CandidateProxy #1..N<br/>(오퍼레이터별 배포)"]
+        CII["Candidate<br/>0x1a8f...0a3<br/>(공유 구현체)"]
+        CPN -.->|delegatecall| CII
+    end
+
+    CP -->|"deploy()"| FP
+    FP -->|"new CandidateProxy()"| CPN
+
+    style CP fill:#4A90D9,stroke:#2C5F8A,color:#fff
+    style FP fill:#FF6B6B,stroke:#DD4B4B,color:#fff
+    style CPN fill:#50C878,stroke:#30A858,color:#fff
+    style CI fill:#7B68EE,stroke:#5B48CE,color:#fff
+    style FI fill:#FF9999,stroke:#DD7777,color:#333
+    style CII fill:#90EE90,stroke:#60BE60,color:#333
+```
+
+> **특이사항**: EIP-1967 표준 슬롯이 아닌 일반 `address internal _implementation` 변수를 사용합니다. 이로 인해 Etherscan 등의 도구에서 자동 구현체 감지가 되지 않을 수 있습니다.
+
+## 3. 상속 구조
 
 ```mermaid
 graph BT
@@ -104,7 +205,7 @@ graph BT
     style DCV1 fill:#7B68EE,stroke:#5B48CE,color:#fff
 ```
 
-## 3. 안건(Agenda) 라이프사이클
+## 4. 안건(Agenda) 라이프사이클
 
 ```mermaid
 stateDiagram-v2
@@ -130,7 +231,7 @@ stateDiagram-v2
     }
 ```
 
-## 4. 스테이킹 → 거버넌스 연결
+## 5. 스테이킹 → 거버넌스 연결
 
 ```mermaid
 flowchart LR
@@ -158,7 +259,7 @@ flowchart LR
     style G fill:#50C878,stroke:#30A858,color:#fff
 ```
 
-## 5. 안건 생성 상세 흐름
+## 6. 안건 생성 상세 흐름
 
 ```mermaid
 sequenceDiagram
@@ -183,7 +284,7 @@ sequenceDiagram
     Note over DAM: 안건 생성됨<br/>status: NOTICE<br/>result: PENDING
 ```
 
-## 6. 투표 → 실행 상세 흐름
+## 7. 투표 → 실행 상세 흐름
 
 ```mermaid
 sequenceDiagram
@@ -223,7 +324,7 @@ sequenceDiagram
     DC->>DAM: setExecutedAgenda(agendaID)
 ```
 
-## 7. 핵심 데이터 구조
+## 8. 핵심 데이터 구조
 
 ```mermaid
 classDiagram
@@ -289,7 +390,7 @@ classDiagram
     Agenda --> AgendaExecutionInfo : execution data
 ```
 
-## 8. 메인넷 배포 주소 요약
+## 9. 메인넷 배포 주소 요약
 
 | 컨트랙트 | 주소 | 역할 |
 |---------|------|------|
