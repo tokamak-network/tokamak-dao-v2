@@ -63,7 +63,7 @@ contract TimelockTest is Test {
         assertEq(timelock.governor(), governor);
         assertEq(timelock.securityCouncil(), securityCouncil);
         assertEq(timelock.delay(), DELAY);
-        assertEq(timelock.MINIMUM_DELAY(), 1 days);
+        assertEq(timelock.MINIMUM_DELAY(), 7 days);
         assertEq(timelock.MAXIMUM_DELAY(), 30 days);
         assertEq(timelock.GRACE_PERIOD(), 14 days);
     }
@@ -75,7 +75,7 @@ contract TimelockTest is Test {
 
     function test_DeploymentRevertsIfDelayTooSmall() public {
         vm.expectRevert(Timelock.InvalidDelay.selector);
-        new Timelock(admin, 1 days - 1);
+        new Timelock(admin, 7 days - 1);
     }
 
     function test_DeploymentRevertsIfDelayTooLarge() public {
@@ -84,8 +84,8 @@ contract TimelockTest is Test {
     }
 
     function test_DeploymentWithMinimumDelay() public {
-        Timelock t = new Timelock(admin, 1 days);
-        assertEq(t.delay(), 1 days);
+        Timelock t = new Timelock(admin, 7 days);
+        assertEq(t.delay(), 7 days);
     }
 
     function test_DeploymentWithMaximumDelay() public {
@@ -192,7 +192,7 @@ contract TimelockTest is Test {
     function test_SetDelayRevertsIfTooSmall() public {
         vm.prank(admin);
         vm.expectRevert(Timelock.InvalidDelay.selector);
-        timelock.setDelay(1 days - 1);
+        timelock.setDelay(7 days - 1);
     }
 
     function test_SetDelayRevertsIfTooLarge() public {
@@ -742,5 +742,155 @@ contract TimelockTest is Test {
 
         assertTrue(success);
         assertEq(address(timelock).balance, balanceBefore + 1 ether);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                    AUDIT FIX VERIFICATION TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_DoubleCancelTransactionReverts() public {
+        bytes memory data = abi.encodeWithSignature("setValue(uint256)", 42);
+
+        vm.prank(governor);
+        bytes32 txHash = timelock.queueTransaction(address(target), 0, data);
+
+        uint256 eta = timelock.transactionEta(txHash);
+
+        // First cancel succeeds
+        vm.prank(securityCouncil);
+        timelock.cancelTransaction(address(target), 0, data, eta);
+
+        // Second cancel should revert
+        vm.prank(securityCouncil);
+        vm.expectRevert(Timelock.TransactionAlreadyCanceled.selector);
+        timelock.cancelTransaction(address(target), 0, data, eta);
+    }
+
+    function test_DoubleCancelByHashReverts() public {
+        bytes memory data = abi.encodeWithSignature("setValue(uint256)", 42);
+
+        vm.prank(governor);
+        bytes32 txHash = timelock.queueTransaction(address(target), 0, data);
+
+        // First cancel succeeds
+        vm.prank(securityCouncil);
+        timelock.cancelTransactionByHash(txHash);
+
+        // Second cancel should revert
+        vm.prank(securityCouncil);
+        vm.expectRevert(Timelock.TransactionAlreadyCanceled.selector);
+        timelock.cancelTransactionByHash(txHash);
+    }
+
+    function test_DoubleExecutionPrevention() public {
+        bytes memory data = abi.encodeWithSignature("setValue(uint256)", 42);
+
+        vm.prank(governor);
+        bytes32 txHash = timelock.queueTransaction(address(target), 0, data);
+
+        uint256 eta = timelock.transactionEta(txHash);
+        vm.warp(eta);
+
+        // First execution succeeds
+        vm.prank(governor);
+        timelock.executeTransaction(address(target), 0, data, eta);
+
+        // Second execution should revert (queuedTransactions set to false)
+        vm.prank(governor);
+        vm.expectRevert(Timelock.TransactionNotQueued.selector);
+        timelock.executeTransaction(address(target), 0, data, eta);
+    }
+
+    function test_SetDelayDoesNotAffectInFlightETA() public {
+        bytes memory data = abi.encodeWithSignature("setValue(uint256)", 42);
+
+        vm.prank(governor);
+        bytes32 txHash = timelock.queueTransaction(address(target), 0, data);
+
+        uint256 originalEta = timelock.transactionEta(txHash);
+
+        // Change delay after queuing
+        vm.prank(admin);
+        timelock.setDelay(14 days);
+
+        // ETA should remain unchanged
+        assertEq(timelock.transactionEta(txHash), originalEta);
+
+        // Execute at original eta
+        vm.warp(originalEta);
+        vm.prank(governor);
+        timelock.executeTransaction(address(target), 0, data, originalEta);
+        assertEq(target.value(), 42);
+    }
+
+    function test_AcceptAdminEmitsEvent() public {
+        address newAdmin = makeAddr("newAdmin");
+
+        vm.prank(admin);
+        timelock.setPendingAdmin(newAdmin);
+
+        vm.prank(newAdmin);
+        vm.expectEmit(true, true, true, true);
+        emit Timelock.AdminUpdated(admin, newAdmin);
+        timelock.acceptAdmin();
+    }
+
+    function test_SetPendingAdminEmitsEvent() public {
+        address newAdmin = makeAddr("newAdmin");
+
+        vm.prank(admin);
+        vm.expectEmit(true, true, true, true);
+        emit Timelock.AdminTransferStarted(admin, newAdmin);
+        timelock.setPendingAdmin(newAdmin);
+    }
+
+    function test_InsufficientETHForValueExecution() public {
+        // Queue a transaction that requires ETH
+        bytes memory data = "";
+
+        vm.prank(governor);
+        bytes32 txHash = timelock.queueTransaction(address(target), 200 ether, data);
+
+        uint256 eta = timelock.transactionEta(txHash);
+        vm.warp(eta);
+
+        // Timelock only has 100 ether (from setUp), needs 200
+        vm.prank(governor);
+        vm.expectRevert(Timelock.ExecutionFailed.selector);
+        timelock.executeTransaction(address(target), 200 ether, data, eta);
+    }
+
+    function test_IsReadyAfterExecution() public {
+        bytes memory data = abi.encodeWithSignature("setValue(uint256)", 42);
+
+        vm.prank(governor);
+        bytes32 txHash = timelock.queueTransaction(address(target), 0, data);
+
+        uint256 eta = timelock.transactionEta(txHash);
+        vm.warp(eta);
+
+        vm.prank(governor);
+        timelock.executeTransaction(address(target), 0, data, eta);
+
+        // After execution, isReady should return false
+        assertFalse(timelock.isReady(txHash));
+    }
+
+    function test_CancelByParamsThenByHashReverts() public {
+        bytes memory data = abi.encodeWithSignature("setValue(uint256)", 42);
+
+        vm.prank(governor);
+        bytes32 txHash = timelock.queueTransaction(address(target), 0, data);
+
+        uint256 eta = timelock.transactionEta(txHash);
+
+        // Cancel by params
+        vm.prank(securityCouncil);
+        timelock.cancelTransaction(address(target), 0, data, eta);
+
+        // Cancel by hash should revert (already canceled)
+        vm.prank(securityCouncil);
+        vm.expectRevert(Timelock.TransactionAlreadyCanceled.selector);
+        timelock.cancelTransactionByHash(txHash);
     }
 }

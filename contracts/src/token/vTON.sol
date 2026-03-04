@@ -7,6 +7,7 @@ import { ERC20Votes } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20
 import { Votes } from "@openzeppelin/contracts/governance/utils/Votes.sol";
 import { Nonces } from "@openzeppelin/contracts/utils/Nonces.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { Ownable2Step } from "@openzeppelin/contracts/access/Ownable2Step.sol";
 
 import { IvTON } from "../interfaces/IvTON.sol";
 
@@ -19,7 +20,7 @@ import { IvTON } from "../interfaces/IvTON.sol";
 ///      - Distributed to L2 Operators and Validators (NOT DAO Treasury)
 ///      - Emission ratio adjustable by DAO (0-100%)
 ///      - Halving: every 5M vTON minted, the minting ratio decays by 25%
-contract vTON is ERC20, ERC20Permit, ERC20Votes, Ownable, IvTON {
+contract vTON is ERC20, ERC20Permit, ERC20Votes, Ownable2Step, IvTON {
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
     //////////////////////////////////////////////////////////////*/

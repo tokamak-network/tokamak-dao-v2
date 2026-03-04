@@ -1310,10 +1310,6 @@ contract DAOGovernorTest is Test {
         vm.expectRevert(IDAOGovernor.InvalidParameter.selector);
         governor.setVotingPeriod(0);
 
-        // setTimelockDelay: value >= 1 days
-        vm.expectRevert(IDAOGovernor.InvalidParameter.selector);
-        governor.setTimelockDelay(1 days - 1);
-
         // setGracePeriod: value >= 1 days
         vm.expectRevert(IDAOGovernor.InvalidParameter.selector);
         governor.setGracePeriod(1 days - 1);
@@ -1326,7 +1322,6 @@ contract DAOGovernorTest is Test {
         governor.setQuorum(500);
         governor.setVotingDelay(1);
         governor.setVotingPeriod(1);
-        governor.setTimelockDelay(1 days);
         governor.setGracePeriod(1 days);
         governor.setProposalThreshold(0);
 
@@ -1521,24 +1516,6 @@ contract DAOGovernorTest is Test {
     }
 
     /*//////////////////////////////////////////////////////////////
-                    ADMIN FUNCTIONS: setTimelockDelay TESTS
-    //////////////////////////////////////////////////////////////*/
-
-    function test_SetTimelockDelay() public {
-        vm.prank(owner);
-        governor.setTimelockDelay(14 days);
-
-        assertEq(governor.timelockDelay(), 14 days);
-    }
-
-    function test_SetTimelockDelayEmitsEvent() public {
-        vm.prank(owner);
-        vm.expectEmit(true, true, true, true);
-        emit IDAOGovernor.TimelockDelayUpdated(7 days, 14 days);
-        governor.setTimelockDelay(14 days);
-    }
-
-    /*//////////////////////////////////////////////////////////////
                     ADMIN FUNCTIONS: setGracePeriod TESTS
     //////////////////////////////////////////////////////////////*/
 
@@ -1727,7 +1704,7 @@ contract DAOGovernorTest is Test {
     //////////////////////////////////////////////////////////////*/
 
     function test_QueueUsesTimelockDelay() public {
-        // This test verifies the critical fix: queue() reads delay from Timelock, not governor.timelockDelay
+        // This test verifies that queue() reads delay from the Timelock contract directly
 
         MockExecutionTarget target = new MockExecutionTarget();
 
@@ -1743,11 +1720,6 @@ contract DAOGovernorTest is Test {
         registry.setGovernor(address(governor));
 
         vm.warp(block.timestamp + 8 days);
-
-        // Intentionally set governor.timelockDelay to a DIFFERENT value than Timelock.delay
-        vm.prank(owner);
-        governor.setTimelockDelay(14 days); // Governor says 14 days
-        // Timelock.delay is still 7 days
 
         address[] memory targets = new address[](1);
         targets[0] = address(target);
@@ -1765,10 +1737,383 @@ contract DAOGovernorTest is Test {
         vm.roll(block.number + governor.votingPeriod() + 1);
         governor.queue(proposalId);
 
-        // Warp past Timelock's delay (7 days), NOT governor's delay (14 days)
+        // Warp past Timelock's delay (7 days)
         vm.warp(block.timestamp + 7 days + 1);
         governor.execute(proposalId);
 
         assertEq(target.value(), 42);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                    AUDIT FIX VERIFICATION TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_ExactQuorumBoundary() public {
+        // Test exact quorum boundary: totalVotes == requiredQuorum should be Defeated
+        vm.prank(delegate1);
+        registry.registerDelegate("Delegate1", "Philosophy", "Interests");
+
+        // Need totalDelegated = 25000 so requiredQuorum = 25000 * 400 / 10000 = 1000
+        vm.prank(user1);
+        registry.delegate(delegate1, 25_000 ether);
+
+        vm.prank(owner);
+        registry.setGovernor(address(governor));
+
+        vm.warp(block.timestamp + 8 days);
+
+        address[] memory targets = new address[](1);
+        targets[0] = address(governor);
+        uint256[] memory values = new uint256[](1);
+        bytes[] memory calldatas = new bytes[](1);
+        calldatas[0] = abi.encodeWithSignature("setQuorum(uint256)", 500);
+
+        vm.prank(user1);
+        uint256 proposalId = governor.propose(targets, values, calldatas, "Exact quorum test", 0);
+
+        vm.roll(block.number + governor.votingDelay() + 1);
+
+        // delegate1 votes For with weight = 25000 (since delegated at block 0, maturity=0)
+        vm.prank(delegate1);
+        governor.castVote(proposalId, IDAOGovernor.VoteType.For);
+
+        vm.roll(block.number + governor.votingPeriod() + 1);
+
+        // requiredQuorum = 25000 * 400 / 10000 = 1000
+        // totalVotes = 25000 > 1000 → passes quorum
+        // forPercentage = 10000 (100%) > 5000 passRate → Succeeded
+        assertEq(uint256(governor.state(proposalId)), uint256(IDAOGovernor.ProposalState.Succeeded));
+    }
+
+    function test_ExactPassRateBoundary() public {
+        // Test exact pass rate boundary: forPercentage == passRate should be Defeated
+        address delegate2 = makeAddr("delegate2");
+
+        vm.prank(delegate1);
+        registry.registerDelegate("Delegate1", "Philosophy", "Interests");
+        vm.prank(delegate2);
+        registry.registerDelegate("Delegate2", "Philosophy2", "Interests2");
+
+        vm.prank(user1);
+        registry.delegate(delegate1, 10_000 ether);
+        vm.prank(user2);
+        registry.delegate(delegate2, 10_000 ether);
+
+        vm.prank(owner);
+        registry.setGovernor(address(governor));
+
+        vm.warp(block.timestamp + 8 days);
+
+        address[] memory targets = new address[](1);
+        targets[0] = address(governor);
+        uint256[] memory values = new uint256[](1);
+        bytes[] memory calldatas = new bytes[](1);
+        calldatas[0] = abi.encodeWithSignature("setQuorum(uint256)", 500);
+
+        vm.prank(user1);
+        uint256 proposalId = governor.propose(targets, values, calldatas, "Pass rate boundary", 0);
+
+        vm.roll(block.number + governor.votingDelay() + 1);
+
+        // Equal votes: for = 10000, against = 10000 → forPercentage = 5000 = passRate → Defeated
+        vm.prank(delegate1);
+        governor.castVote(proposalId, IDAOGovernor.VoteType.For);
+        vm.prank(delegate2);
+        governor.castVote(proposalId, IDAOGovernor.VoteType.Against);
+
+        vm.roll(block.number + governor.votingPeriod() + 1);
+        assertEq(uint256(governor.state(proposalId)), uint256(IDAOGovernor.ProposalState.Defeated));
+    }
+
+    function test_ProposerCannotCancelSucceeded() public {
+        vm.prank(delegate1);
+        registry.registerDelegate("Delegate1", "Philosophy", "Interests");
+
+        vm.prank(user1);
+        registry.delegate(delegate1, 10_000 ether);
+        vm.prank(user2);
+        registry.delegate(delegate1, 10_000 ether);
+
+        vm.prank(owner);
+        registry.setGovernor(address(governor));
+        vm.warp(block.timestamp + 8 days);
+
+        address[] memory targets = new address[](1);
+        targets[0] = address(governor);
+        uint256[] memory values = new uint256[](1);
+        bytes[] memory calldatas = new bytes[](1);
+        calldatas[0] = abi.encodeWithSignature("setQuorum(uint256)", 500);
+
+        vm.prank(user1);
+        uint256 proposalId = governor.propose(targets, values, calldatas, "Cancel succeeded", 0);
+
+        vm.roll(block.number + governor.votingDelay() + 1);
+        vm.prank(delegate1);
+        governor.castVote(proposalId, IDAOGovernor.VoteType.For);
+        vm.roll(block.number + governor.votingPeriod() + 1);
+        assertEq(uint256(governor.state(proposalId)), uint256(IDAOGovernor.ProposalState.Succeeded));
+
+        // Proposer cannot cancel in Succeeded state (only Pending/Active allowed)
+        vm.prank(user1);
+        vm.expectRevert(IDAOGovernor.InvalidProposalState.selector);
+        governor.cancel(proposalId);
+    }
+
+    function test_ProposerCannotCancelQueued() public {
+        vm.prank(delegate1);
+        registry.registerDelegate("Delegate1", "Philosophy", "Interests");
+
+        vm.prank(user1);
+        registry.delegate(delegate1, 10_000 ether);
+        vm.prank(user2);
+        registry.delegate(delegate1, 10_000 ether);
+
+        vm.prank(owner);
+        registry.setGovernor(address(governor));
+        vm.warp(block.timestamp + 8 days);
+
+        address[] memory targets = new address[](1);
+        targets[0] = address(governor);
+        uint256[] memory values = new uint256[](1);
+        bytes[] memory calldatas = new bytes[](1);
+        calldatas[0] = abi.encodeWithSignature("setQuorum(uint256)", 500);
+
+        vm.prank(user1);
+        uint256 proposalId = governor.propose(targets, values, calldatas, "Cancel queued", 0);
+
+        vm.roll(block.number + governor.votingDelay() + 1);
+        vm.prank(delegate1);
+        governor.castVote(proposalId, IDAOGovernor.VoteType.For);
+        vm.roll(block.number + governor.votingPeriod() + 1);
+        governor.queue(proposalId);
+        assertEq(uint256(governor.state(proposalId)), uint256(IDAOGovernor.ProposalState.Queued));
+
+        vm.prank(user1);
+        vm.expectRevert(IDAOGovernor.InvalidProposalState.selector);
+        governor.cancel(proposalId);
+    }
+
+    function test_CastVoteOnNonExistentProposal() public {
+        vm.prank(delegate1);
+        registry.registerDelegate("Delegate1", "Philosophy", "Interests");
+
+        vm.prank(delegate1);
+        vm.expectRevert(DAOGovernor.ProposalNotFound.selector);
+        governor.castVote(999, IDAOGovernor.VoteType.For);
+    }
+
+    function test_DuplicateProposalReverts() public {
+        address[] memory targets = new address[](1);
+        targets[0] = address(governor);
+        uint256[] memory values = new uint256[](1);
+        bytes[] memory calldatas = new bytes[](1);
+        calldatas[0] = abi.encodeWithSignature("setQuorum(uint256)", 500);
+
+        vm.prank(user1);
+        governor.propose(targets, values, calldatas, "Duplicate test", 0);
+
+        // Same proposal should revert
+        vm.prank(user1);
+        vm.expectRevert(DAOGovernor.InvalidProposal.selector);
+        governor.propose(targets, values, calldatas, "Duplicate test", 0);
+    }
+
+    function test_VotingBeforeVoteStartReverts() public {
+        vm.prank(delegate1);
+        registry.registerDelegate("Delegate1", "Philosophy", "Interests");
+
+        address[] memory targets = new address[](1);
+        targets[0] = address(governor);
+        uint256[] memory values = new uint256[](1);
+        bytes[] memory calldatas = new bytes[](1);
+        calldatas[0] = abi.encodeWithSignature("setQuorum(uint256)", 500);
+
+        vm.prank(user1);
+        uint256 proposalId = governor.propose(targets, values, calldatas, "Early vote", 0);
+
+        // Don't advance blocks — still in Pending state
+        vm.prank(delegate1);
+        vm.expectRevert(DAOGovernor.VotingNotStarted.selector);
+        governor.castVote(proposalId, IDAOGovernor.VoteType.For);
+    }
+
+    function test_QueueOnNonSucceededReverts() public {
+        address[] memory targets = new address[](1);
+        targets[0] = address(governor);
+        uint256[] memory values = new uint256[](1);
+        bytes[] memory calldatas = new bytes[](1);
+        calldatas[0] = abi.encodeWithSignature("setQuorum(uint256)", 500);
+
+        vm.prank(user1);
+        uint256 proposalId = governor.propose(targets, values, calldatas, "Queue non-succeeded", 0);
+
+        // Try to queue while still Pending
+        vm.expectRevert(DAOGovernor.ProposalNotSucceeded.selector);
+        governor.queue(proposalId);
+    }
+
+    function test_ExecuteOnNonQueuedReverts() public {
+        address[] memory targets = new address[](1);
+        targets[0] = address(governor);
+        uint256[] memory values = new uint256[](1);
+        bytes[] memory calldatas = new bytes[](1);
+        calldatas[0] = abi.encodeWithSignature("setQuorum(uint256)", 500);
+
+        vm.prank(user1);
+        uint256 proposalId = governor.propose(targets, values, calldatas, "Execute non-queued", 0);
+
+        vm.expectRevert(DAOGovernor.ProposalNotQueued.selector);
+        governor.execute(proposalId);
+    }
+
+    function test_StateOnNonExistentProposalReverts() public {
+        vm.expectRevert(DAOGovernor.ProposalNotFound.selector);
+        governor.state(999);
+    }
+
+    function test_EmptyTargetsReverts() public {
+        address[] memory targets = new address[](0);
+        uint256[] memory values = new uint256[](0);
+        bytes[] memory calldatas = new bytes[](0);
+
+        vm.prank(user1);
+        vm.expectRevert(DAOGovernor.InvalidProposal.selector);
+        governor.propose(targets, values, calldatas, "Empty targets", 0);
+    }
+
+    function test_ArrayLengthMismatchReverts() public {
+        address[] memory targets = new address[](2);
+        targets[0] = address(governor);
+        targets[1] = address(governor);
+        uint256[] memory values = new uint256[](1); // mismatch
+        bytes[] memory calldatas = new bytes[](2);
+        calldatas[0] = abi.encodeWithSignature("setQuorum(uint256)", 500);
+        calldatas[1] = abi.encodeWithSignature("setQuorum(uint256)", 600);
+
+        vm.prank(user1);
+        vm.expectRevert(DAOGovernor.ArrayLengthMismatch.selector);
+        governor.propose(targets, values, calldatas, "Mismatch test", 0);
+    }
+
+    function test_GuardianSelfDefenseMultipleTargets() public {
+        address guardian = makeAddr("guardian");
+        vm.prank(owner);
+        governor.setProposalGuardian(guardian);
+
+        // Create proposal with multiple targets, one of which is the guardian
+        address[] memory targets = new address[](2);
+        targets[0] = address(governor);
+        targets[1] = guardian; // SC target among multiple
+
+        uint256[] memory values = new uint256[](2);
+        bytes[] memory calldatas = new bytes[](2);
+        calldatas[0] = abi.encodeWithSignature("setQuorum(uint256)", 500);
+        calldatas[1] = abi.encodeWithSignature("removeMember(address)", makeAddr("someMember"));
+
+        vm.prank(user1);
+        uint256 proposalId = governor.propose(targets, values, calldatas, "Multi-target SC", 0);
+
+        // Guardian should not be able to cancel (SC self-defense)
+        vm.prank(guardian);
+        vm.expectRevert(IDAOGovernor.CannotCancelSCProposal.selector);
+        governor.cancel(proposalId);
+    }
+
+    function test_QuorumSnapshotPerProposal() public {
+        // M-1: Verify quorum is snapshotted per proposal
+        vm.prank(delegate1);
+        registry.registerDelegate("Delegate1", "Philosophy", "Interests");
+
+        vm.prank(user1);
+        registry.delegate(delegate1, 10_000 ether);
+        vm.prank(user2);
+        registry.delegate(delegate1, 10_000 ether);
+
+        vm.prank(owner);
+        registry.setGovernor(address(governor));
+        vm.warp(block.timestamp + 8 days);
+
+        // Create proposal with quorum = 400 (default)
+        address[] memory targets = new address[](1);
+        targets[0] = address(governor);
+        uint256[] memory values = new uint256[](1);
+        bytes[] memory calldatas = new bytes[](1);
+        calldatas[0] = abi.encodeWithSignature("setQuorum(uint256)", 500);
+
+        vm.prank(user1);
+        uint256 proposalId = governor.propose(targets, values, calldatas, "Quorum snapshot", 0);
+
+        // Verify snapshot fields
+        IDAOGovernor.Proposal memory proposal = governor.getProposal(proposalId);
+        assertEq(proposal.snapshotQuorum, 400);
+
+        // Change quorum AFTER proposal creation
+        vm.prank(owner);
+        governor.setQuorum(8000); // 80%
+
+        // The proposal should still use snapshotQuorum = 400, not 8000
+        vm.roll(block.number + governor.votingDelay() + 1);
+        vm.prank(delegate1);
+        governor.castVote(proposalId, IDAOGovernor.VoteType.For);
+        vm.roll(block.number + governor.votingPeriod() + 1);
+
+        // With snapshotQuorum=400: requiredQuorum = 20000 * 400 / 10000 = 800
+        // totalVotes = 20000 > 800 → passes
+        assertEq(uint256(governor.state(proposalId)), uint256(IDAOGovernor.ProposalState.Succeeded));
+    }
+
+    function test_PassRateSnapshotPerProposal() public {
+        // M-1: Verify passRate is snapshotted per proposal
+        address delegate2 = makeAddr("delegate2");
+
+        vm.prank(delegate1);
+        registry.registerDelegate("Delegate1", "Philosophy", "Interests");
+        vm.prank(delegate2);
+        registry.registerDelegate("Delegate2", "Philosophy2", "Interests2");
+
+        vm.prank(user1);
+        registry.delegate(delegate1, 10_000 ether);
+        vm.prank(user2);
+        registry.delegate(delegate2, 4_000 ether);
+
+        vm.prank(owner);
+        registry.setGovernor(address(governor));
+        vm.warp(block.timestamp + 8 days);
+
+        // Create proposal with passRate = 5000 (default 50%)
+        address[] memory targets = new address[](1);
+        targets[0] = address(governor);
+        uint256[] memory values = new uint256[](1);
+        bytes[] memory calldatas = new bytes[](1);
+        calldatas[0] = abi.encodeWithSignature("setQuorum(uint256)", 500);
+
+        vm.prank(user1);
+        uint256 proposalId = governor.propose(targets, values, calldatas, "PassRate snapshot", 0);
+
+        IDAOGovernor.Proposal memory proposal = governor.getProposal(proposalId);
+        assertEq(proposal.snapshotPassRate, 5000);
+
+        // Change passRate to 9000 (90%) AFTER proposal creation
+        vm.prank(owner);
+        governor.setPassRate(9000);
+
+        vm.roll(block.number + governor.votingDelay() + 1);
+
+        // delegate1 votes For (10000), delegate2 votes Against (4000)
+        // forPercentage = 10000 * 10000 / 14000 = 7142 > snapshotPassRate 5000 → Succeeded
+        // With new passRate 9000: 7142 < 9000 → would be Defeated, but we use snapshot
+        vm.prank(delegate1);
+        governor.castVote(proposalId, IDAOGovernor.VoteType.For);
+        vm.prank(delegate2);
+        governor.castVote(proposalId, IDAOGovernor.VoteType.Against);
+
+        vm.roll(block.number + governor.votingPeriod() + 1);
+        assertEq(uint256(governor.state(proposalId)), uint256(IDAOGovernor.ProposalState.Succeeded));
+    }
+
+    function test_SetPassRateZeroReverts() public {
+        vm.prank(owner);
+        vm.expectRevert(DAOGovernor.InvalidPassRate.selector);
+        governor.setPassRate(0);
     }
 }

@@ -129,7 +129,7 @@ contract DelegateRegistry is IDelegateRegistry, Ownable, ReentrancyGuard {
     /// @inheritdoc IDelegateRegistry
     function deactivateDelegate() external override {
         DelegateInfo storage info = _delegates[msg.sender];
-        if (info.registeredAt == 0) revert NotRegisteredDelegate();
+        if (info.registeredAt == 0 || !info.isActive) revert NotRegisteredDelegate();
 
         info.isActive = false;
 

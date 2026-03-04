@@ -50,6 +50,8 @@ interface IDAOGovernor {
         bool executed;
         uint16 burnRate; // basis points (0-10000 = 0-100%)
         uint256 totalDelegatedAtSnapshot; // snapshot of total delegated for quorum calculation
+        uint256 snapshotQuorum; // quorum at proposal creation (basis points)
+        uint256 snapshotPassRate; // passRate at proposal creation (basis points)
     }
 
     /// @notice Emitted when a proposal is created
@@ -98,9 +100,6 @@ interface IDAOGovernor {
 
     /// @notice Emitted when proposal threshold is updated
     event ProposalThresholdUpdated(uint256 oldThreshold, uint256 newThreshold);
-
-    /// @notice Emitted when timelock delay is updated
-    event TimelockDelayUpdated(uint256 oldDelay, uint256 newDelay);
 
     /// @notice Emitted when grace period is updated
     event GracePeriodUpdated(uint256 oldPeriod, uint256 newPeriod);

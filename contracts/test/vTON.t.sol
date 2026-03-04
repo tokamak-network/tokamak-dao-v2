@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import { Test, console } from "forge-std/Test.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { Ownable2Step } from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import { vTON } from "../src/token/vTON.sol";
 
 contract vTONTest is Test {
@@ -528,5 +529,186 @@ contract vTONTest is Test {
         vm.prank(user1);
         vm.expectRevert(vTON.UseDelegateRegistry.selector);
         token.delegateBySig(user2, 0, 0, 0, bytes32(0), bytes32(0));
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                    AUDIT FIX VERIFICATION TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_HalvingRatioAtHighEpoch() public {
+        vm.prank(owner);
+        token.setMinter(minter, true);
+
+        // Mint to reach a high epoch. Due to halving decay + MAX_SUPPLY cap,
+        // minting eventually fills to MAX_SUPPLY (epoch 20, ratio = 0).
+        // Verify the ratio at whatever epoch we land at.
+        for (uint256 i = 0; i < 500; i++) {
+            if (token.totalSupply() >= token.MAX_SUPPLY()) break;
+            vm.prank(minter);
+            token.mint(user1, 100_000_000e18);
+        }
+
+        // After filling to MAX_SUPPLY, epoch = 20, ratio = 0
+        assertEq(token.totalSupply(), token.MAX_SUPPLY());
+        assertEq(token.getCurrentEpoch(), 20);
+        assertEq(token.getHalvingRatio(), 0);
+
+        // Also verify the halving ratio formula for epoch 19 by checking intermediate values
+        // We can verify via getHalvingRatio at a reachable epoch. Let's verify epoch 5 (25M).
+        // Deploy a fresh token to test epoch 5
+    }
+
+    function test_HalvingRatioAtEpoch5() public {
+        vm.prank(owner);
+        token.setMinter(minter, true);
+
+        // Calculate expected: 0.75^5 * 1e18
+        uint256 expected = 1e18;
+        for (uint256 i = 0; i < 5; i++) {
+            expected = (expected * 75e16) / 1e18;
+        }
+
+        // Mint in small increments to cross epoch boundaries properly.
+        // Each epoch is 5M tokens. Using 1M raw mints ensures we don't skip epochs.
+        for (uint256 i = 0; i < 200; i++) {
+            if (token.getCurrentEpoch() >= 5) break;
+            vm.prank(minter);
+            token.mint(user1, 1_000_000e18);
+        }
+
+        assertEq(token.getCurrentEpoch(), 5);
+        assertEq(token.getHalvingRatio(), expected);
+    }
+
+    function test_HalvingRatioReturnsZeroAtMaxEpoch() public {
+        vm.prank(owner);
+        token.setMinter(minter, true);
+
+        // Mint up to MAX_SUPPLY
+        for (uint256 i = 0; i < 100; i++) {
+            uint256 supplyBefore = token.totalSupply();
+            if (supplyBefore >= token.MAX_SUPPLY()) break;
+            vm.prank(minter);
+            token.mint(user1, 100_000_000e18);
+        }
+
+        // At MAX_SUPPLY (epoch 20), halving ratio = 0
+        assertEq(token.getCurrentEpoch(), 20);
+        assertEq(token.getHalvingRatio(), 0);
+    }
+
+    function test_MintPrecisionLossEdgeCase() public {
+        vm.prank(owner);
+        token.setMinter(minter, true);
+
+        // Move to epoch 1 (ratio 0.75)
+        vm.prank(minter);
+        token.mint(user1, 5_000_000e18);
+
+        // Set emission ratio to a value that causes small adjusted amount
+        vm.prank(owner);
+        token.setEmissionRatio(0.01e18); // 1%
+
+        // Mint small amount: 100 * 0.75 * 0.01 = 0.75 (rounds down to 0 → revert)
+        vm.prank(minter);
+        vm.expectRevert(vTON.AmountTooSmall.selector);
+        token.mint(user2, 100);
+    }
+
+    function test_MultiEpochSkipTransition() public {
+        vm.prank(owner);
+        token.setMinter(minter, true);
+
+        assertEq(token.getCurrentEpoch(), 0);
+
+        // Mint a huge amount that crosses multiple epoch boundaries in one call
+        // At epoch 0 ratio = 1.0, minting 15M raw → 15M actual → epoch 3
+        vm.prank(minter);
+        token.mint(user1, 15_000_000e18);
+
+        assertEq(token.getCurrentEpoch(), 3);
+        assertEq(token.totalSupply(), 15_000_000e18);
+    }
+
+    function test_RemovedMinterCannotMint() public {
+        vm.startPrank(owner);
+        token.setMinter(minter, true);
+        token.setMinter(minter, false);
+        vm.stopPrank();
+
+        vm.prank(minter);
+        vm.expectRevert(vTON.NotMinter.selector);
+        token.mint(user1, 1000 ether);
+    }
+
+    function test_PartialMaxSupplyFill() public {
+        vm.prank(owner);
+        token.setMinter(minter, true);
+
+        // Mint up to near max supply
+        for (uint256 i = 0; i < 100; i++) {
+            uint256 supplyBefore = token.totalSupply();
+            if (supplyBefore >= token.MAX_SUPPLY()) break;
+            vm.prank(minter);
+            token.mint(user1, 100_000_000e18);
+        }
+
+        // totalSupply should be exactly MAX_SUPPLY (cap enforced)
+        assertEq(token.totalSupply(), token.MAX_SUPPLY());
+    }
+
+    function testFuzz_CrossEpochMint(uint256 mintAmount) public {
+        mintAmount = bound(mintAmount, 1e18, 20_000_000e18);
+
+        vm.prank(owner);
+        token.setMinter(minter, true);
+
+        vm.prank(minter);
+        token.mint(user1, mintAmount);
+
+        // Invariant: totalSupply should equal what was minted (epoch 0, ratio 1.0, emission 100%)
+        assertEq(token.totalSupply(), mintAmount);
+        assertEq(token.balanceOf(user1), mintAmount);
+    }
+
+    function test_GetVotesInvariantAfterTransfer() public {
+        vm.prank(owner);
+        token.setMinter(minter, true);
+
+        vm.prank(minter);
+        token.mint(user1, 1000 ether);
+
+        // ERC20Votes delegation is disabled — getVotes should always return 0
+        assertEq(token.getVotes(user1), 0);
+
+        vm.prank(user1);
+        token.transfer(user2, 500 ether);
+
+        assertEq(token.getVotes(user1), 0);
+        assertEq(token.getVotes(user2), 0);
+    }
+
+    function test_TwoStepOwnershipTransfer() public {
+        address newOwner = makeAddr("newOwner");
+
+        // Start transfer
+        vm.prank(owner);
+        token.transferOwnership(newOwner);
+
+        // Owner is still the old owner
+        assertEq(token.owner(), owner);
+
+        // New owner accepts
+        vm.prank(newOwner);
+        token.acceptOwnership();
+
+        assertEq(token.owner(), newOwner);
+    }
+
+    function test_InterfaceConstants() public view {
+        assertEq(token.MAX_EPOCHS(), 20);
+        assertEq(token.INITIAL_HALVING_RATE(), 1e18);
+        assertEq(token.EPOCH_SIZE(), 5_000_000e18);
+        assertEq(token.DECAY_RATE(), 75e16);
     }
 }

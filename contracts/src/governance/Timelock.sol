@@ -53,8 +53,8 @@ contract Timelock is ReentrancyGuard {
                                 CONSTANTS
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Minimum delay (1 day)
-    uint256 public constant MINIMUM_DELAY = 1 days;
+    /// @notice Minimum delay (7 days)
+    uint256 public constant MINIMUM_DELAY = 7 days;
 
     /// @notice Maximum delay (30 days)
     uint256 public constant MAXIMUM_DELAY = 30 days;
@@ -191,6 +191,7 @@ contract Timelock is ReentrancyGuard {
         bytes32 txHash = keccak256(abi.encode(target, value, data, eta));
 
         if (!queuedTransactions[txHash]) revert TransactionNotQueued();
+        if (canceledTransactions[txHash]) revert TransactionAlreadyCanceled();
 
         canceledTransactions[txHash] = true;
 
@@ -201,6 +202,7 @@ contract Timelock is ReentrancyGuard {
     /// @param txHash The transaction hash
     function cancelTransactionByHash(bytes32 txHash) external onlySecurityCouncil {
         if (!queuedTransactions[txHash]) revert TransactionNotQueued();
+        if (canceledTransactions[txHash]) revert TransactionAlreadyCanceled();
 
         canceledTransactions[txHash] = true;
 

@@ -102,10 +102,12 @@ contract SecurityCouncil is ISecurityCouncil, ReentrancyGuard {
     ) {
         if (
             foundationMember == address(0) || daoGovernor_ == address(0)
-                || timelock_ == address(0)
+                || timelock_ == address(0) || protocolTarget_ == address(0)
         ) {
             revert ZeroAddress();
         }
+
+        if (externalMembers.length != 2) revert NotEnoughMembers();
 
         // Add foundation member
         _addMember(foundationMember, true);
@@ -185,7 +187,8 @@ contract SecurityCouncil is ISecurityCouncil, ReentrancyGuard {
 
     /// @inheritdoc ISecurityCouncil
     function setThreshold(uint256 newThreshold) external override onlyDAO {
-        if (newThreshold == 0 || newThreshold > _members.length) {
+        uint256 minimumThreshold = (_members.length * 2 + 2) / 3;
+        if (newThreshold < minimumThreshold || newThreshold > _members.length) {
             revert InvalidThreshold();
         }
 
@@ -254,7 +257,11 @@ contract SecurityCouncil is ISecurityCouncil, ReentrancyGuard {
         if (action.executed) revert ActionAlreadyExecuted();
         if (action.canceled) revert ActionAlreadyCanceled();
         if (block.timestamp > action.createdAt + ACTION_TTL) revert ActionExpired();
-        if (action.approvers.length < threshold) revert ActionNotApproved();
+        uint256 validApprovals = 0;
+        for (uint256 i = 0; i < action.approvers.length; i++) {
+            if (_isMember[action.approvers[i]]) validApprovals++;
+        }
+        if (validApprovals < threshold) revert ActionNotApproved();
 
         action.executed = true;
         action.executedAt = block.timestamp;

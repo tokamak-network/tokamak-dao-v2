@@ -120,9 +120,6 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
     /// @notice Proposal threshold in basis points (25 = 0.25%)
     uint256 public override proposalThreshold;
 
-    /// @notice Timelock delay in seconds
-    uint256 public timelockDelay;
-
     /// @notice Grace period in seconds
     uint256 public gracePeriod;
 
@@ -190,7 +187,6 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
         votingDelay = DEFAULT_VOTING_DELAY;
         votingPeriod = DEFAULT_VOTING_PERIOD;
         proposalThreshold = DEFAULT_PROPOSAL_THRESHOLD;
-        timelockDelay = DEFAULT_TIMELOCK_DELAY;
         gracePeriod = DEFAULT_GRACE_PERIOD;
         passRate = DEFAULT_PASS_RATE;
         maturityPeriod = DEFAULT_MATURITY_PERIOD;
@@ -251,6 +247,8 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
         proposal.voteEnd = voteEnd;
         proposal.burnRate = burnRate;
         proposal.totalDelegatedAtSnapshot = delegateRegistry.totalDelegatedAll();
+        proposal.snapshotQuorum = quorum;
+        proposal.snapshotPassRate = passRate;
 
         _proposalIds.push(proposalId);
         _proposalCount++;
@@ -394,7 +392,7 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
 
         // Voting ended - check results
         uint256 totalVotes = proposal.forVotes + proposal.againstVotes + proposal.abstainVotes;
-        uint256 requiredQuorum = (proposal.totalDelegatedAtSnapshot * quorum) / BASIS_POINTS;
+        uint256 requiredQuorum = (proposal.totalDelegatedAtSnapshot * proposal.snapshotQuorum) / BASIS_POINTS;
 
         if (totalVotes < requiredQuorum) {
             return ProposalState.Defeated;
@@ -404,7 +402,7 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
         uint256 totalNonAbstain = proposal.forVotes + proposal.againstVotes;
         if (totalNonAbstain > 0) {
             uint256 forPercentage = (proposal.forVotes * BASIS_POINTS) / totalNonAbstain;
-            if (forPercentage <= passRate) {
+            if (forPercentage <= proposal.snapshotPassRate) {
                 return ProposalState.Defeated;
             }
         } else {
@@ -532,15 +530,6 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
         emit ProposalThresholdUpdated(oldThreshold, newThreshold);
     }
 
-    /// @notice Set timelock delay
-    /// @param newDelay New delay in seconds
-    function setTimelockDelay(uint256 newDelay) external onlyOwner {
-        if (newDelay < 1 days) revert IDAOGovernor.InvalidParameter();
-        uint256 oldDelay = timelockDelay;
-        timelockDelay = newDelay;
-        emit TimelockDelayUpdated(oldDelay, newDelay);
-    }
-
     /// @notice Set grace period
     /// @param newPeriod New period in seconds
     function setGracePeriod(uint256 newPeriod) external onlyOwner {
@@ -561,7 +550,7 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
     /// @notice Set pass rate
     /// @param newRate New rate in basis points (5000 = 50%)
     function setPassRate(uint256 newRate) external onlyOwner {
-        if (newRate > BASIS_POINTS) revert InvalidPassRate();
+        if (newRate == 0 || newRate > BASIS_POINTS) revert InvalidPassRate();
         uint256 oldRate = passRate;
         passRate = newRate;
         emit PassRateUpdated(oldRate, newRate);

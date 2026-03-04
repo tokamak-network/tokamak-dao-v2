@@ -176,9 +176,6 @@ contract DeployLocalScript is Script {
         governor.setVotingDelay(300);
         governor.setVotingPeriod(300);
 
-        // Set timelock delay to 1 hour for local testing
-        governor.setTimelockDelay(1 hours);
-
         // Setup vTON minter
         vton.setMinter(deployer, true);
 
@@ -339,10 +336,9 @@ contract DeploySepoliaScript is Script {
         // === Test parameters for team testing ===
         governor.setVotingDelay(0);             // Immediate voting start
         governor.setVotingPeriod(100);          // ~20 min voting (100 blocks × 12s)
-        governor.setTimelockDelay(5 minutes);   // 5 min timelock
         governor.setGracePeriod(1 hours);       // 1 hour execution grace
         // quorum, proposalThreshold, proposalCreationCost: keep defaults (faucet available)
-        console.log("Test parameters set: votingDelay=0, votingPeriod=100(~20min), timelockDelay=5min");
+        console.log("Test parameters set: votingDelay=0, votingPeriod=100(~20min)");
 
         vm.stopBroadcast();
 

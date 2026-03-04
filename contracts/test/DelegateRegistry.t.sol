@@ -730,4 +730,141 @@ contract DelegateRegistryTest is Test {
         assertEq(delegates[0], delegate1);
         assertEq(delegates[1], delegate2);
     }
+
+    /*//////////////////////////////////////////////////////////////
+                    AUDIT FIX VERIFICATION TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_UpdateDelegateRevertsIfNotRegistered() public {
+        vm.prank(delegate1);
+        vm.expectRevert(DelegateRegistry.NotRegisteredDelegate.selector);
+        registry.updateDelegate("New", "New", "New");
+    }
+
+    function test_DeactivateDelegateRevertsIfNotRegistered() public {
+        vm.prank(delegate1);
+        vm.expectRevert(DelegateRegistry.NotRegisteredDelegate.selector);
+        registry.deactivateDelegate();
+    }
+
+    function test_DeactivateDelegateIdempotency() public {
+        vm.prank(delegate1);
+        registry.registerDelegate("Alice", "Philosophy", "Interests");
+
+        vm.prank(delegate1);
+        registry.deactivateDelegate();
+
+        // Second deactivation should revert (already inactive)
+        vm.prank(delegate1);
+        vm.expectRevert(DelegateRegistry.NotRegisteredDelegate.selector);
+        registry.deactivateDelegate();
+    }
+
+    function test_AutoExpiryFieldSetCorrectly() public {
+        vm.prank(owner);
+        registry.setAutoExpiryPeriod(90 days);
+
+        assertEq(registry.autoExpiryPeriod(), 90 days);
+    }
+
+    function test_BurnFromDelegateByNonGovernorReverts() public {
+        vm.prank(delegate1);
+        registry.registerDelegate("Alice", "Philosophy", "Interests");
+
+        vm.prank(user1);
+        registry.delegate(delegate1, 1000 ether);
+
+        // user1 tries to burn — should revert since they're not governor
+        vm.prank(user1);
+        vm.expectRevert(DelegateRegistry.NotGovernor.selector);
+        registry.burnFromDelegate(delegate1, 100 ether);
+    }
+
+    function test_SetAutoExpiryPeriodRevertsIfNotOwner() public {
+        vm.prank(user1);
+        vm.expectRevert();
+        registry.setAutoExpiryPeriod(30 days);
+    }
+
+    function test_SetGovernorRevertsIfNotOwner() public {
+        vm.prank(user1);
+        vm.expectRevert();
+        registry.setGovernor(makeAddr("newGov"));
+    }
+
+    function test_SelfRedelegateWithActiveBurns() public {
+        vm.prank(delegate1);
+        registry.registerDelegate("Alice", "Philosophy", "Interests");
+
+        vm.prank(owner);
+        registry.setGovernor(address(this));
+
+        vm.prank(user1);
+        registry.delegate(delegate1, 1000 ether);
+
+        // Burn 200 from delegate1
+        registry.burnFromDelegate(delegate1, 200 ether);
+
+        // Self-redelegate (from delegate1 to delegate1)
+        vm.prank(user1);
+        registry.redelegate(delegate1, delegate1, 1000 ether);
+
+        // After self-redelegate with burn:
+        // proportionalAmount = 1000 * 800 / (800 + 200) = 800
+        // burnShare = 1000 - 800 = 200
+        // delegate1 totalDelegated stays at 800
+        assertEq(registry.getTotalDelegated(delegate1), 800 ether);
+    }
+
+    function test_RedelegateWithNoPriorDelegationReverts() public {
+        vm.prank(delegate1);
+        registry.registerDelegate("Alice", "Philosophy", "Interests");
+        vm.prank(delegate2);
+        registry.registerDelegate("Bob", "Philosophy", "Interests");
+
+        // user1 never delegated to delegate1
+        vm.prank(user1);
+        vm.expectRevert(DelegateRegistry.InsufficientDelegation.selector);
+        registry.redelegate(delegate1, delegate2, 100 ether);
+    }
+
+    function test_GetVotingPowerAtBlockZero() public {
+        vm.prank(delegate1);
+        registry.registerDelegate("Alice", "Philosophy", "Interests");
+
+        // Voting power at block 0 should be 0
+        assertEq(registry.getVotingPower(delegate1, 0, 0), 0);
+    }
+
+    function test_GetAllDelegatesIncludesDeactivated() public {
+        vm.prank(delegate1);
+        registry.registerDelegate("Alice", "Philosophy", "Interests");
+        vm.prank(delegate2);
+        registry.registerDelegate("Bob", "Philosophy", "Interests");
+
+        // Deactivate delegate1
+        vm.prank(delegate1);
+        registry.deactivateDelegate();
+
+        // getAllDelegates should still include deactivated delegates
+        address[] memory delegates = registry.getAllDelegates();
+        assertEq(delegates.length, 2);
+    }
+
+    function test_GetTotalDelegatedByPerUserIsolation() public {
+        vm.prank(delegate1);
+        registry.registerDelegate("Alice", "Philosophy", "Interests");
+
+        // user1 delegates 500
+        vm.prank(user1);
+        registry.delegate(delegate1, 500 ether);
+
+        // user2 delegates 300
+        vm.prank(user2);
+        registry.delegate(delegate1, 300 ether);
+
+        // Each user's totalDelegatedBy should be independent
+        assertEq(registry.getTotalDelegatedBy(user1), 500 ether);
+        assertEq(registry.getTotalDelegatedBy(user2), 300 ether);
+    }
 }

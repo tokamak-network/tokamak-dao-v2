@@ -641,4 +641,188 @@ contract SecurityCouncilTest is Test {
             foundationMember, externalMembers, daoGovernor, timelock, address(target)
         );
     }
+
+    /*//////////////////////////////////////////////////////////////
+                    AUDIT FIX VERIFICATION TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_StaleApprovalAfterMemberRemoval() public {
+        // M-2 verification: approvals from removed members don't count
+        bytes memory data = abi.encodeWithSignature("setValue(uint256)", 42);
+
+        // foundationMember proposes
+        vm.prank(foundationMember);
+        uint256 actionId = council.proposeEmergencyAction(
+            ISecurityCouncil.ActionType.Custom, address(target), data, "Test"
+        );
+
+        // external1 approves (2 approvals now: foundationMember + external1)
+        vm.prank(external1);
+        council.approveEmergencyAction(actionId);
+
+        // Remove external1 via DAO
+        vm.prank(daoGovernor);
+        council.removeMember(external1);
+
+        // Now try to execute — foundationMember's approval is valid, external1's is stale
+        // Threshold is 2 (for 2 members), valid approvals = 1 (only foundationMember)
+        vm.prank(foundationMember);
+        vm.expectRevert(SecurityCouncil.ActionNotApproved.selector);
+        council.executeEmergencyAction(actionId);
+    }
+
+    function test_ThresholdDropDoesNotEnableStaleExecution() public {
+        // Add a 4th member to make threshold = 3
+        address external3 = makeAddr("external3");
+        vm.prank(daoGovernor);
+        council.addMember(external3, false);
+        assertEq(council.threshold(), 3);
+
+        bytes memory data = abi.encodeWithSignature("setValue(uint256)", 42);
+
+        // foundationMember proposes (1 approval)
+        vm.prank(foundationMember);
+        uint256 actionId = council.proposeEmergencyAction(
+            ISecurityCouncil.ActionType.Custom, address(target), data, "Test"
+        );
+
+        // external1 approves (2 approvals)
+        vm.prank(external1);
+        council.approveEmergencyAction(actionId);
+
+        // external3 approves (3 approvals)
+        vm.prank(external3);
+        council.approveEmergencyAction(actionId);
+
+        // Remove external3 (valid approvals drop to 2, threshold for 3 members = 2)
+        vm.prank(daoGovernor);
+        council.removeMember(external3);
+        assertEq(council.threshold(), 2);
+
+        // Should still execute since 2 valid approvals >= threshold 2
+        vm.prank(foundationMember);
+        council.executeEmergencyAction(actionId);
+        assertEq(target.value(), 42);
+    }
+
+    function test_CancelAlreadyExecutedAction() public {
+        bytes memory data = abi.encodeWithSignature("setValue(uint256)", 42);
+
+        vm.prank(foundationMember);
+        uint256 actionId = council.proposeEmergencyAction(
+            ISecurityCouncil.ActionType.Custom, address(target), data, "Test"
+        );
+
+        vm.prank(external1);
+        council.approveEmergencyAction(actionId);
+
+        vm.prank(external2);
+        council.executeEmergencyAction(actionId);
+
+        // Try to cancel an already executed action
+        vm.prank(foundationMember);
+        vm.expectRevert(SecurityCouncil.ActionAlreadyExecuted.selector);
+        council.cancelEmergencyAction(actionId);
+    }
+
+    function test_ApproveAlreadyExecutedAction() public {
+        bytes memory data = abi.encodeWithSignature("setValue(uint256)", 42);
+
+        vm.prank(foundationMember);
+        uint256 actionId = council.proposeEmergencyAction(
+            ISecurityCouncil.ActionType.Custom, address(target), data, "Test"
+        );
+
+        vm.prank(external1);
+        council.approveEmergencyAction(actionId);
+
+        vm.prank(external2);
+        council.executeEmergencyAction(actionId);
+
+        // Try to approve an already executed action
+        vm.prank(external2);
+        vm.expectRevert(SecurityCouncil.ActionAlreadyExecuted.selector);
+        council.approveEmergencyAction(actionId);
+    }
+
+    function test_NonMemberCannotCancelAction() public {
+        bytes memory data = abi.encodeWithSignature("setValue(uint256)", 42);
+
+        vm.prank(foundationMember);
+        uint256 actionId = council.proposeEmergencyAction(
+            ISecurityCouncil.ActionType.Custom, address(target), data, "Test"
+        );
+
+        address nonMember = makeAddr("nonMember");
+        vm.prank(nonMember);
+        vm.expectRevert(SecurityCouncil.NotMember.selector);
+        council.cancelEmergencyAction(actionId);
+    }
+
+    function test_ConstructorRevertsOnZeroProtocolTarget() public {
+        address[] memory externalMembers = new address[](2);
+        externalMembers[0] = external1;
+        externalMembers[1] = external2;
+
+        vm.expectRevert(SecurityCouncil.ZeroAddress.selector);
+        new SecurityCouncil(
+            foundationMember, externalMembers, daoGovernor, timelock, address(0)
+        );
+    }
+
+    function test_SetThresholdBelowMinimumReverts() public {
+        // 3 members, minimum threshold = ceil(3 * 2/3) = 2
+        // Setting to 1 should revert
+        vm.prank(daoGovernor);
+        vm.expectRevert(SecurityCouncil.InvalidThreshold.selector);
+        council.setThreshold(1);
+    }
+
+    function test_ConstructorRevertsOnZeroExternalMembers() public {
+        address[] memory externalMembers = new address[](0);
+
+        vm.expectRevert(SecurityCouncil.NotEnoughMembers.selector);
+        new SecurityCouncil(
+            foundationMember, externalMembers, daoGovernor, timelock, address(target)
+        );
+    }
+
+    function test_ConstructorRevertsOnOneExternalMember() public {
+        address[] memory externalMembers = new address[](1);
+        externalMembers[0] = external1;
+
+        vm.expectRevert(SecurityCouncil.NotEnoughMembers.selector);
+        new SecurityCouncil(
+            foundationMember, externalMembers, daoGovernor, timelock, address(target)
+        );
+    }
+
+    function test_NonDAOCallingSetDAOGovernorReverts() public {
+        vm.prank(foundationMember);
+        vm.expectRevert(SecurityCouncil.OnlyDAOCanModifyMembers.selector);
+        council.setDAOGovernor(makeAddr("newGovernor"));
+    }
+
+    function test_NonDAOCallingSetProtocolTargetReverts() public {
+        vm.prank(foundationMember);
+        vm.expectRevert(SecurityCouncil.OnlyDAOCanModifyMembers.selector);
+        council.setProtocolTarget(makeAddr("newTarget"));
+    }
+
+    function test_ExecuteEmergencyActionByNonMemberReverts() public {
+        bytes memory data = abi.encodeWithSignature("setValue(uint256)", 42);
+
+        vm.prank(foundationMember);
+        uint256 actionId = council.proposeEmergencyAction(
+            ISecurityCouncil.ActionType.Custom, address(target), data, "Test"
+        );
+
+        vm.prank(external1);
+        council.approveEmergencyAction(actionId);
+
+        address nonMember = makeAddr("nonMember");
+        vm.prank(nonMember);
+        vm.expectRevert(SecurityCouncil.NotMember.selector);
+        council.executeEmergencyAction(actionId);
+    }
 }
