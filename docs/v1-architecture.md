@@ -6,7 +6,7 @@
 graph LR
     subgraph External["외부"]
         USER["👤 사용자 / L2 Operator"]
-        DCO["🔑 DAOCommitteeOwner<br/>관리자 직접 설정"]
+        DCO["🔑 Admin Multisig<br/>0xE3F7...d2d95<br/>Gnosis Safe 관리자"]
     end
 
     subgraph Governance["거버넌스"]
@@ -437,7 +437,8 @@ classDiagram
 | **DAOVault** | `0x2520CD65BAa2cEEe9E6Ad6EBD3F45490C42dd303` | 트레저리 |
 | **CandidateFactory** | `0xc5eb1c5ce7196bdb49ea7500ca18a1b9f1fa3ffb` | 후보자 배포 |
 | **CandidateFactoryProxy** | `0x9fc7100a16407ee24a79c834a56e6eca555a5d7c` | 팩토리 프록시 |
-| **DAOCommitteeOwner** | `0xe070fFD0E25801392108076ed5291fA9524c3f44` | 관리자 (sudo) |
+| **DAOCommitteeOwner** (이전) | `0xe070fFD0E25801392108076ed5291fA9524c3f44` | 이전 관리자 (현재 `DEFAULT_ADMIN_ROLE` 미보유) |
+| **Admin Multisig** (현재) | `0xE3F72E959834d0A72aFb2ea79F5ec2b4243d2d95` | Gnosis Safe 멀티시그 (`DEFAULT_ADMIN_ROLE` 보유) |
 | **Candidate** (impl) | `0x1a8f59017e0434efc27e89640ac4b7d7d194c0a3` | 후보자 구현체 |
 | **SeigManager** | `0x0b55a0f463b6defb81c6063973763951712d0e5f` | 시뇨리지 (온체인 현재값) |
 | **Layer2Registry** | `0x7846c2248a7b4de77e9c2bae7fbb93bfc286837b` | L2 등록소 (온체인 현재값) |
@@ -447,3 +448,5 @@ classDiagram
 > **Storage 값 변경 이력**: `layer2Registry` (slot 4)와 `seigManager` (slot 5)의 값이 원래 배포 시점과 다릅니다. 이는 온체인 업그레이드(agenda 실행)를 통해 변경된 것으로 추정됩니다.
 > - `layer2Registry`: `0x0b3E...063e` → `0x7846...837b`
 > - `seigManager`: `0x7109...0909` → `0x0b55...0e5f`
+>
+> **Admin 변경 이력**: `DEFAULT_ADMIN_ROLE`이 `DAOCommitteeOwner`(`0xe070...3f44`)에서 Gnosis Safe 멀티시그(`0xE3F7...d2d95`, 소유자 3명)로 이전되었습니다. 현재 `DEFAULT_ADMIN_ROLE` 보유자는 해당 멀티시그과 DAOCommitteeProxy 자신(`0xDD9f...C26`) 2개입니다.
