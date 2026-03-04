@@ -94,47 +94,66 @@ sequenceDiagram
 
 ### 2-2. Proxy Storage Layout
 
-Proxy와 구현체가 **동일한 Storage Layout**을 공유해야 합니다. `StorageStateCommittee`를 양쪽이 상속하여 이를 보장합니다.
+Proxy와 구현체가 **동일한 Storage Layout**을 공유해야 합니다. `StorageStateCommittee` → `StorageStateCommitteeV2`를 양쪽이 상속하여 이를 보장합니다.
 
 ```mermaid
 graph TB
-    subgraph Storage["Storage Layout (StorageStateCommittee)"]
+    subgraph SSC["StorageStateCommittee (slot 0-11)"]
         direction TB
-        S0["slot 0: ton"]
-        S1["slot 1: daoVault"]
-        S2["slot 2: agendaManager"]
-        S3["slot 3: candidateFactory"]
-        S4["slot 4: layer2Registry"]
-        S5["slot 5: seigManager"]
-        S6["slot 6: candidates[]"]
-        S7["slot 7: members[]"]
-        S8["slot 8: maxMember"]
-        S9["slot 9: _candidateInfos mapping"]
-        S10["slot 10: quorum"]
-        S11["slot 11: activityRewardPerSecond"]
+        S0["slot 0: ton (address)"]
+        S1["slot 1: daoVault (IDAOVault)"]
+        S2["slot 2: agendaManager (IDAOAgendaManager)"]
+        S3["slot 3: candidateFactory (ICandidateFactory)"]
+        S4["slot 4: layer2Registry (ILayer2Registry)"]
+        S5["slot 5: seigManager (ISeigManager)"]
+        S6["slot 6: candidates[] (address[])"]
+        S7["slot 7: members[] (address[])"]
+        S8["slot 8: maxMember (uint256)"]
+        S9["slot 9: _candidateInfos (mapping)"]
+        S10["slot 10: quorum (uint256)"]
+        S11["slot 11: activityRewardPerSecond (uint256)"]
     end
 
-    subgraph ProxyOnly["Proxy 전용"]
-        P1["_implementation"]
-        P2["pauseProxy"]
-        P3["AccessControl roles"]
+    subgraph OZ["ERC165 + AccessControl (OpenZeppelin, slot 12-13)"]
+        S12["slot 12: ERC165._supportedInterfaces (mapping)"]
+        S13["slot 13: AccessControl._roles (mapping)"]
     end
 
-    subgraph ImplOnly["구현체 전용"]
-        I1["로직 함수만 보유"]
-        I2["자체 Storage 사용 안 함"]
+    subgraph ProxyOnly["Proxy 전용 (slot 14)"]
+        S14["slot 14: _implementation + pauseProxy (packed: address 20B + bool 1B)"]
     end
 
-    DCP["DAOCommitteeProxy"] --> Storage
+    subgraph SSCV2["StorageStateCommitteeV2 (slot 15-25)"]
+        S15["slot 15: _oldCandidateInfos (mapping)"]
+        S16["slot 16: wton (address)"]
+        S17["slot 17: layer2Manager (address)"]
+        S18["slot 18: candidateAddOnFactory (address)"]
+        S19["slot 19: proxyImplementation (mapping)"]
+        S20["slot 20: aliveImplementation (mapping)"]
+        S21["slot 21: selectorImplementation (mapping)"]
+        S22["slot 22: blacklist (mapping)"]
+        S23["slot 23: privateLayer2 (mapping)"]
+        S24["slot 24: cooldown (mapping)"]
+        S25["slot 25: cooldownTime (uint256)"]
+    end
+
+    DCP["DAOCommitteeProxy"] --> SSC
+    DCP --> OZ
     DCP --> ProxyOnly
-    DCV1["DAOCommittee_V1"] --> Storage
-    DCV1 --> ImplOnly
+    DCV1["DAOCommittee_V1<br/>(구현체 A)"] --> SSC
+    DCV1 --> OZ
+    DCV1 --> SSCV2
+    DCO["DAOCommitteeOwner<br/>(구현체 B)"] --> SSC
+    DCO --> OZ
+    DCO --> SSCV2
 
-    style Storage fill:#FFF3CD,stroke:#DAA520,color:#333
+    style SSC fill:#FFF3CD,stroke:#DAA520,color:#333
+    style OZ fill:#E8E8E8,stroke:#999,color:#333
     style ProxyOnly fill:#D1ECF1,stroke:#6AAFE6,color:#333
-    style ImplOnly fill:#D4EDDA,stroke:#5CB85C,color:#333
+    style SSCV2 fill:#FFE4E1,stroke:#CD5C5C,color:#333
     style DCP fill:#4A90D9,stroke:#2C5F8A,color:#fff
     style DCV1 fill:#7B68EE,stroke:#5B48CE,color:#fff
+    style DCO fill:#9370DB,stroke:#7350BB,color:#fff
 ```
 
 ### 2-3. Proxy 업그레이드 이력
@@ -209,13 +228,28 @@ graph TB
 >
 > **DAOCommitteeProxy2**: Solidity v0.8.19로 작성된 셀렉터 기반 멀티 구현체 프록시입니다. `getSelectorImplementation2(bytes4)` 함수로 특정 셀렉터에 매핑된 구현체를 조회할 수 있으며, 매핑되지 않은 셀렉터는 default 구현체(`0x9050...1a25`)로 라우팅됩니다.
 
+### 2-5. ImplB 셀렉터 매핑 상세
+
+`DAOCommitteeProxy2`에서 구현체 B(`DAOCommitteeOwner`, `0xcb98...7d92`)에 매핑된 함수 셀렉터:
+
+| 함수 시그니처 | 셀렉터 | 설명 |
+|-------------|--------|------|
+| `setQuorum(uint256)` | `0xc1ba4e59` | 쿼럼 변경 |
+| `setActivityRewardPerSecond(uint256)` | `0x5ebe7622` | 활동 보상 비율 변경 |
+| `increaseMaxMember(uint256,uint256)` | `0x6da8f3ce` | 최대 멤버 수 증가 |
+| `decreaseMaxMember(uint256,uint256)` | `0x50e8f17d` | 최대 멤버 수 감소 |
+
+> 위 4개 셀렉터 외 나머지 모든 함수 호출은 구현체 A(`DAOCommittee_V1`, `0x9050...1a25`)로 라우팅됩니다 (default).
+
 ## 3. 상속 구조
 
 ```mermaid
 graph BT
+    ISSC["IStorageStateCommittee<br/>━━━━━━━━━━━━━━<br/>CandidateInfo struct"]
+
     SSC["StorageStateCommittee<br/>━━━━━━━━━━━━━━<br/>ton, daoVault, agendaManager<br/>candidateFactory, seigManager<br/>layer2Registry<br/>candidates[], members[]<br/>maxMember, quorum<br/>_candidateInfos mapping<br/>activityRewardPerSecond"]
 
-    ISSC["IStorageStateCommittee<br/>━━━━━━━━━━━━━━<br/>CandidateInfo struct"]
+    SSCV2["StorageStateCommitteeV2<br/>━━━━━━━━━━━━━━<br/>_oldCandidateInfos<br/>wton, layer2Manager<br/>candidateAddOnFactory<br/>proxyImplementation<br/>aliveImplementation<br/>selectorImplementation<br/>blacklist, privateLayer2<br/>cooldown, cooldownTime"]
 
     AC["AccessControl<br/>(OpenZeppelin)"]
 
@@ -223,19 +257,27 @@ graph BT
 
     DC["DAOCommittee<br/>━━━━━━━━━━━━━━<br/>거버넌스 로직 전체"]
 
-    DCV1["DAOCommittee_V1<br/>━━━━━━━━━━━━━━<br/>+ _oldCandidateInfos<br/>+ createCandidate(memo, operator)<br/>+ setBurntAmountAtDAO"]
+    DCV1["DAOCommittee_V1<br/>(구현체 A · 0x9050...1a25)<br/>━━━━━━━━━━━━━━<br/>+ createCandidate(memo, operator)<br/>+ setBurntAmountAtDAO"]
+
+    DCO["DAOCommitteeOwner<br/>(구현체 B · 0xcb98...7d92)<br/>━━━━━━━━━━━━━━<br/>setQuorum, increaseMaxMember<br/>decreaseMaxMember<br/>setActivityRewardPerSecond"]
 
     SSC -->|"inherits"| ISSC
+    SSCV2 -->|"extends"| SSC
     DCP -->|"inherits"| SSC
     DCP -->|"inherits"| AC
     DC -->|"inherits"| SSC
     DC -->|"inherits"| AC
     DCV1 -->|"extends"| DC
+    DCV1 -->|"inherits"| SSCV2
+    DCO -->|"inherits"| SSCV2
+    DCO -->|"inherits"| AC
 
     style SSC fill:#FFD700,stroke:#DAA520,color:#333
+    style SSCV2 fill:#FFE4E1,stroke:#CD5C5C,color:#333
     style DCP fill:#4A90D9,stroke:#2C5F8A,color:#fff
     style DC fill:#9370DB,stroke:#7350BB,color:#fff
     style DCV1 fill:#7B68EE,stroke:#5B48CE,color:#fff
+    style DCO fill:#9370DB,stroke:#7350BB,color:#fff
 ```
 
 ## 4. 안건(Agenda) 라이프사이클
@@ -429,10 +471,10 @@ classDiagram
 |---------|------|------|
 | **DAOCommitteeProxy** | `0xDD9f0cCc044B0781289Ee318e5971b0139602C26` | 프록시 (진입점) |
 | **DAOCommitteeProxy2** | `0x9e7f54eff4a4d35097e0acb6994a723f1a28368c` | 셀렉터 기반 멀티 구현체 라우터 (현재 `_implementation`) |
-| ↳ 구현체 A (default) | `0x9050af1638f379a018737880ad946cdda9101a25` | Proxy2 default 구현체 |
-| ↳ 구현체 B (일부 셀렉터) | `0xcb9859dc0fbeca68efff2bce289150513fdf7d92` | Proxy2 셀렉터 매칭 구현체 |
+| ↳ 구현체 A — `DAOCommittee_V1` (default) | `0x9050af1638f379a018737880ad946cdda9101a25` | Proxy2 default 구현체 |
+| ↳ 구현체 B — `DAOCommitteeOwner` (일부 셀렉터) | `0xcb9859dc0fbeca68efff2bce289150513fdf7d92` | Proxy2 셀렉터 매칭 구현체 |
 | **DAOCommittee** | `0xd1A3fDDCCD09ceBcFCc7845dDba666B7B8e6D1fb` | 이전 구현체 (초기) |
-| **DAOCommittee_V1** | `0xdF2eCda32970DB7dB3428FC12Bc1697098418815` | 이전 구현체 (V1) |
+| **DAOCommittee_V1** | `0xdF2eCda32970DB7dB3428FC12Bc1697098418815` | 이전 구현체 (V1, Proxy2 이전) |
 | **DAOAgendaManager** | `0xcD4421d082752f363E1687544a09d5112cD4f484` | 안건 관리 |
 | **DAOVault** | `0x2520CD65BAa2cEEe9E6Ad6EBD3F45490C42dd303` | 트레저리 |
 | **CandidateFactory** | `0xc5eb1c5ce7196bdb49ea7500ca18a1b9f1fa3ffb` | 후보자 배포 |
@@ -442,11 +484,29 @@ classDiagram
 | **Candidate** (impl) | `0x1a8f59017e0434efc27e89640ac4b7d7d194c0a3` | 후보자 구현체 |
 | **SeigManager** | `0x0b55a0f463b6defb81c6063973763951712d0e5f` | 시뇨리지 (온체인 현재값) |
 | **Layer2Registry** | `0x7846c2248a7b4de77e9c2bae7fbb93bfc286837b` | L2 등록소 (온체인 현재값) |
+| **Layer2Manager** | `0xd6bf6b2b7553c8064ba763ad6989829060fdfc1d` | L2 매니저 (slot 17) |
+| **CandidateAddOnFactory** | `0xfa8ce5caf456115e72b96e5074769b8f66aa5861` | 후보자 AddOn 팩토리 (slot 18) |
 | **TON** | `0x2be5e8c109e2197D077D13A82dAead6a9b3433C5` | 네이티브 토큰 |
-| **WTON** | `0xc4A11aaf6ea915Ed7Ac194161d2fC9384F15bff2` | Wrapped TON |
+| **WTON** | `0xc4A11aaf6ea915Ed7Ac194161d2fC9384F15bff2` | Wrapped TON (slot 16) |
 
 > **Storage 값 변경 이력**: `layer2Registry` (slot 4)와 `seigManager` (slot 5)의 값이 원래 배포 시점과 다릅니다. 이는 온체인 업그레이드(agenda 실행)를 통해 변경된 것으로 추정됩니다.
 > - `layer2Registry`: `0x0b3E...063e` → `0x7846...837b`
 > - `seigManager`: `0x7109...0909` → `0x0b55...0e5f`
 >
 > **Admin 변경 이력**: `DEFAULT_ADMIN_ROLE`이 `DAOCommitteeOwner`(`0xe070...3f44`)에서 Gnosis Safe 멀티시그(`0xE3F7...d2d95`, 소유자 3명)로 이전되었습니다. 현재 `DEFAULT_ADMIN_ROLE` 보유자는 해당 멀티시그과 DAOCommitteeProxy 자신(`0xDD9f...C26`) 2개입니다.
+
+## 10. 현재 온체인 상태값
+
+DAOCommitteeProxy(`0xDD9f...C26`) 및 DAOAgendaManager에서 조회한 주요 상태값입니다.
+
+| 항목 | 값 | 비고 |
+|------|-----|------|
+| `candidates.length` | 13 | 등록된 후보자 수 |
+| `members.length` | 3 | 현재 위원회 멤버 수 |
+| `maxMember` | 3 | 최대 멤버 수 |
+| `quorum` | 2 | 의결 정족수 |
+| `numAgendas` | 16 | 총 생성된 안건 수 |
+| `minimumNoticePeriodSeconds` | 1,382,400 (16일) | 최소 공지 기간 |
+| `minimumVotingPeriodSeconds` | 172,800 (2일) | 최소 투표 기간 |
+| `executingPeriodSeconds` | 604,800 (7일) | 실행 가능 기간 |
+| `createAgendaFees` | 10 TON (10e18 wei) | 안건 생성 수수료 |
