@@ -188,6 +188,23 @@ contract vTON is ERC20, ERC20Permit, ERC20Votes, Ownable, IvTON {
     }
 
     /*//////////////////////////////////////////////////////////////
+                     ERC20Votes DELEGATION OVERRIDE
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice Thrown when users call ERC20Votes.delegate() instead of using DelegateRegistry
+    error UseDelegateRegistry();
+
+    /// @dev ERC20Votes.delegate() is disabled — use DelegateRegistry for governance delegation
+    function delegate(address) public pure override {
+        revert UseDelegateRegistry();
+    }
+
+    /// @dev ERC20Votes.delegateBySig() is disabled — use DelegateRegistry for governance delegation
+    function delegateBySig(address, uint256, uint256, uint8, bytes32, bytes32) public pure override {
+        revert UseDelegateRegistry();
+    }
+
+    /*//////////////////////////////////////////////////////////////
                            REQUIRED OVERRIDES
     //////////////////////////////////////////////////////////////*/
 

@@ -288,7 +288,10 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
         if (state(proposalId) != ProposalState.Succeeded) revert ProposalNotSucceeded();
 
         Proposal storage proposal = _proposals[proposalId];
-        uint256 eta = block.timestamp + timelockDelay;
+
+        // Read delay directly from Timelock to ensure eta matches the hash computed by Timelock.queueTransaction().
+        // Using a separate timelockDelay would cause execute() to fail with TransactionNotQueued if the values diverge.
+        uint256 eta = block.timestamp + Timelock(payable(timelock)).delay();
 
         for (uint256 i = 0; i < proposal.targets.length; i++) {
             Timelock(payable(timelock)).queueTransaction(

@@ -580,4 +580,154 @@ contract DelegateRegistryTest is Test {
         emit IDelegateRegistry.GovernorUpdated(address(0), newGovernor);
         registry.setGovernor(newGovernor);
     }
+
+    /*//////////////////////////////////////////////////////////////
+                    ZERO ADDRESS EDGE CASE TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_DelegateRevertsOnZeroAddress() public {
+        vm.prank(user1);
+        vm.expectRevert(DelegateRegistry.ZeroAddress.selector);
+        registry.delegate(address(0), 1000 ether);
+    }
+
+    function test_UndelegateRevertsOnZeroAddress() public {
+        vm.prank(user1);
+        vm.expectRevert(DelegateRegistry.ZeroAddress.selector);
+        registry.undelegate(address(0), 1000 ether);
+    }
+
+    function test_RedelegateRevertsOnZeroFromAddress() public {
+        vm.prank(delegate1);
+        registry.registerDelegate("Alice", "Philosophy", "Interests");
+
+        vm.prank(user1);
+        vm.expectRevert(DelegateRegistry.ZeroAddress.selector);
+        registry.redelegate(address(0), delegate1, 1000 ether);
+    }
+
+    function test_RedelegateRevertsOnZeroToAddress() public {
+        vm.prank(delegate1);
+        registry.registerDelegate("Alice", "Philosophy", "Interests");
+
+        vm.prank(user1);
+        registry.delegate(delegate1, 1000 ether);
+
+        vm.prank(user1);
+        vm.expectRevert(DelegateRegistry.ZeroAddress.selector);
+        registry.redelegate(delegate1, address(0), 1000 ether);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                    REDELEGATE TO INACTIVE DELEGATE TEST
+    //////////////////////////////////////////////////////////////*/
+
+    function test_RedelegateToInactiveDelegateReverts() public {
+        vm.prank(delegate1);
+        registry.registerDelegate("Alice", "Philosophy", "Interests");
+
+        vm.prank(delegate2);
+        registry.registerDelegate("Bob", "Philosophy", "Interests");
+
+        vm.prank(user1);
+        registry.delegate(delegate1, 1000 ether);
+
+        // Deactivate destination delegate
+        vm.prank(delegate2);
+        registry.deactivateDelegate();
+
+        vm.prank(user1);
+        vm.expectRevert(DelegateRegistry.DelegateNotActive.selector);
+        registry.redelegate(delegate1, delegate2, 500 ether);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                    ZERO AMOUNT TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_DelegateRevertsOnZeroAmount() public {
+        vm.prank(delegate1);
+        registry.registerDelegate("Alice", "Philosophy", "Interests");
+
+        vm.prank(user1);
+        vm.expectRevert(DelegateRegistry.ZeroAmount.selector);
+        registry.delegate(delegate1, 0);
+    }
+
+    function test_UndelegateRevertsOnZeroAmount() public {
+        vm.prank(delegate1);
+        registry.registerDelegate("Alice", "Philosophy", "Interests");
+
+        vm.prank(user1);
+        registry.delegate(delegate1, 1000 ether);
+
+        vm.prank(user1);
+        vm.expectRevert(DelegateRegistry.ZeroAmount.selector);
+        registry.undelegate(delegate1, 0);
+    }
+
+    function test_RedelegateRevertsOnZeroAmount() public {
+        vm.prank(delegate1);
+        registry.registerDelegate("Alice", "Philosophy", "Interests");
+        vm.prank(delegate2);
+        registry.registerDelegate("Bob", "Philosophy", "Interests");
+
+        vm.prank(user1);
+        registry.delegate(delegate1, 1000 ether);
+
+        vm.prank(user1);
+        vm.expectRevert(DelegateRegistry.ZeroAmount.selector);
+        registry.redelegate(delegate1, delegate2, 0);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                    SET GOVERNOR ZERO ADDRESS TEST
+    //////////////////////////////////////////////////////////////*/
+
+    function test_SetGovernorRevertsOnZeroAddress() public {
+        vm.prank(owner);
+        vm.expectRevert(DelegateRegistry.ZeroAddress.selector);
+        registry.setGovernor(address(0));
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                    BURN FROM DELEGATE EXCEEDING TEST
+    //////////////////////////////////////////////////////////////*/
+
+    function test_BurnFromDelegateRevertsOnInsufficientDelegation() public {
+        vm.prank(delegate1);
+        registry.registerDelegate("Alice", "Philosophy", "Interests");
+
+        vm.prank(owner);
+        registry.setGovernor(address(this));
+
+        vm.prank(user1);
+        registry.delegate(delegate1, 1000 ether);
+
+        // Try to burn more than delegated
+        vm.expectRevert(DelegateRegistry.InsufficientDelegation.selector);
+        registry.burnFromDelegate(delegate1, 1001 ether);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                    GET ALL DELEGATES TEST
+    //////////////////////////////////////////////////////////////*/
+
+    function test_GetAllDelegates() public {
+        // Initially no delegates
+        address[] memory delegates = registry.getAllDelegates();
+        assertEq(delegates.length, 0);
+
+        // Register two delegates
+        vm.prank(delegate1);
+        registry.registerDelegate("Alice", "Philosophy", "Interests");
+
+        vm.prank(delegate2);
+        registry.registerDelegate("Bob", "Philosophy", "Interests");
+
+        delegates = registry.getAllDelegates();
+        assertEq(delegates.length, 2);
+        assertEq(delegates[0], delegate1);
+        assertEq(delegates[1], delegate2);
+    }
 }

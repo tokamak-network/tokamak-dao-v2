@@ -110,9 +110,10 @@ contract SecurityCouncil is ISecurityCouncil, ReentrancyGuard {
         // Add foundation member
         _addMember(foundationMember, true);
 
-        // Add external members
+        // Add external members (reject duplicates)
         for (uint256 i = 0; i < externalMembers.length; i++) {
             if (externalMembers[i] == address(0)) revert ZeroAddress();
+            if (_isMember[externalMembers[i]]) revert AlreadyMember();
             _addMember(externalMembers[i], false);
         }
 

@@ -524,4 +524,121 @@ contract SecurityCouncilTest is Test {
         emit ISecurityCouncil.ProtocolTargetUpdated(address(target), newTarget);
         council.setProtocolTarget(newTarget);
     }
+
+    /*//////////////////////////////////////////////////////////////
+                FOUNDATION MEMBER REMOVAL PROTECTION
+    //////////////////////////////////////////////////////////////*/
+
+    function test_RemoveLastFoundationMemberReverts() public {
+        // There is 1 foundation member. Removing it should revert.
+        vm.prank(daoGovernor);
+        vm.expectRevert(SecurityCouncil.CannotRemoveLastFoundationMember.selector);
+        council.removeMember(foundationMember);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                DUPLICATE MEMBER TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_AddDuplicateMemberReverts() public {
+        vm.prank(daoGovernor);
+        vm.expectRevert(SecurityCouncil.AlreadyMember.selector);
+        council.addMember(external1, false);
+    }
+
+    function test_ConstructorRevertsDuplicateExternalMembers() public {
+        address[] memory externalMembers = new address[](2);
+        externalMembers[0] = external1;
+        externalMembers[1] = external1; // duplicate
+
+        vm.expectRevert(SecurityCouncil.AlreadyMember.selector);
+        new SecurityCouncil(
+            foundationMember, externalMembers, daoGovernor, timelock, address(target)
+        );
+    }
+
+    function test_ConstructorRevertsExternalSameAsFoundation() public {
+        address[] memory externalMembers = new address[](2);
+        externalMembers[0] = foundationMember; // same as foundation
+        externalMembers[1] = external2;
+
+        vm.expectRevert(SecurityCouncil.AlreadyMember.selector);
+        new SecurityCouncil(
+            foundationMember, externalMembers, daoGovernor, timelock, address(target)
+        );
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                ZERO ADDRESS ADMIN FUNCTION TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_SetDAOGovernorRevertsOnZeroAddress() public {
+        vm.prank(daoGovernor);
+        vm.expectRevert(SecurityCouncil.ZeroAddress.selector);
+        council.setDAOGovernor(address(0));
+    }
+
+    function test_SetProtocolTargetRevertsOnZeroAddress() public {
+        vm.prank(daoGovernor);
+        vm.expectRevert(SecurityCouncil.ZeroAddress.selector);
+        council.setProtocolTarget(address(0));
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                EXECUTION FAILED REVERT TEST
+    //////////////////////////////////////////////////////////////*/
+
+    function test_ExecuteEmergencyActionRevertsOnExecutionFailed() public {
+        // Call a function that doesn't exist on the target → execution will fail
+        bytes memory data = abi.encodeWithSignature("nonexistentFunction()");
+
+        vm.prank(foundationMember);
+        uint256 actionId = council.proposeEmergencyAction(
+            ISecurityCouncil.ActionType.Custom, address(target), data, "Will fail"
+        );
+
+        vm.prank(external1);
+        council.approveEmergencyAction(actionId);
+
+        vm.prank(external2);
+        vm.expectRevert(SecurityCouncil.ExecutionFailed.selector);
+        council.executeEmergencyAction(actionId);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                CONSTRUCTOR VALIDATION TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_ConstructorRevertsOnZeroFoundationMember() public {
+        address[] memory externalMembers = new address[](2);
+        externalMembers[0] = external1;
+        externalMembers[1] = external2;
+
+        vm.expectRevert(SecurityCouncil.ZeroAddress.selector);
+        new SecurityCouncil(
+            address(0), externalMembers, daoGovernor, timelock, address(target)
+        );
+    }
+
+    function test_ConstructorRevertsOnZeroDAOGovernor() public {
+        address[] memory externalMembers = new address[](2);
+        externalMembers[0] = external1;
+        externalMembers[1] = external2;
+
+        vm.expectRevert(SecurityCouncil.ZeroAddress.selector);
+        new SecurityCouncil(
+            foundationMember, externalMembers, address(0), timelock, address(target)
+        );
+    }
+
+    function test_ConstructorRevertsOnZeroExternalMember() public {
+        address[] memory externalMembers = new address[](2);
+        externalMembers[0] = external1;
+        externalMembers[1] = address(0);
+
+        vm.expectRevert(SecurityCouncil.ZeroAddress.selector);
+        new SecurityCouncil(
+            foundationMember, externalMembers, daoGovernor, timelock, address(target)
+        );
+    }
 }

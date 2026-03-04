@@ -222,24 +222,23 @@ contract vTONTest is Test {
                           VOTING POWER TESTS
     //////////////////////////////////////////////////////////////*/
 
-    function test_VotingPowerDelegation() public {
+    function test_ERC20VotesDelegationDisabled() public {
         vm.prank(owner);
         token.setMinter(minter, true);
 
         vm.prank(minter);
         token.mint(user1, 1000 ether);
 
-        // Initially no voting power (must self-delegate)
-        assertEq(token.getVotes(user1), 0);
-
-        // Self-delegate
+        // ERC20Votes.delegate() is disabled — use DelegateRegistry instead
         vm.prank(user1);
+        vm.expectRevert(vTON.UseDelegateRegistry.selector);
         token.delegate(user1);
 
-        assertEq(token.getVotes(user1), 1000 ether);
+        // Voting power remains 0 since ERC20Votes delegation is disabled
+        assertEq(token.getVotes(user1), 0);
     }
 
-    function test_VotingPowerDelegationToOther() public {
+    function test_ERC20VotesDelegationToOtherDisabled() public {
         vm.prank(owner);
         token.setMinter(minter, true);
 
@@ -247,27 +246,22 @@ contract vTONTest is Test {
         token.mint(user1, 1000 ether);
 
         vm.prank(user1);
+        vm.expectRevert(vTON.UseDelegateRegistry.selector);
         token.delegate(user2);
-
-        assertEq(token.getVotes(user1), 0);
-        assertEq(token.getVotes(user2), 1000 ether);
     }
 
-    function test_GetPastVotes() public {
+    function test_GetPastVotesWithoutDelegation() public {
         vm.prank(owner);
         token.setMinter(minter, true);
 
         vm.prank(minter);
         token.mint(user1, 1000 ether);
 
-        vm.prank(user1);
-        token.delegate(user1);
-
-        // Roll forward first so the delegation block is strictly in the past
+        // Without ERC20Votes delegation (disabled), past votes should be 0
         vm.roll(block.number + 10);
         uint256 pastBlock = block.number - 5;
 
-        assertEq(token.getPastVotes(user1, pastBlock), 1000 ether);
+        assertEq(token.getPastVotes(user1, pastBlock), 0);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -518,5 +512,21 @@ contract vTONTest is Test {
         token.setEmissionRatio(ratio);
 
         assertEq(token.emissionRatio(), ratio);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                    ERC20Votes DELEGATION OVERRIDE TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_DelegateRevertsWithUseDelegateRegistry() public {
+        vm.prank(user1);
+        vm.expectRevert(vTON.UseDelegateRegistry.selector);
+        token.delegate(user2);
+    }
+
+    function test_DelegateBySigRevertsWithUseDelegateRegistry() public {
+        vm.prank(user1);
+        vm.expectRevert(vTON.UseDelegateRegistry.selector);
+        token.delegateBySig(user2, 0, 0, 0, bytes32(0), bytes32(0));
     }
 }

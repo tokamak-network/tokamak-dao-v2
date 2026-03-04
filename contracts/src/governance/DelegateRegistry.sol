@@ -321,10 +321,12 @@ contract DelegateRegistry is IDelegateRegistry, Ownable, ReentrancyGuard {
     }
 
     /// @inheritdoc IDelegateRegistry
+    /// @dev snapshotBlock is currently unused — maturity enforcement is handled at the Governor level
+    ///      by setting blockNumber = block.number - maturityPeriod. Kept for interface compatibility.
     function getVotingPower(
         address delegateAddr,
         uint256 blockNumber,
-        uint256 snapshotBlock
+        uint256 /* snapshotBlock */
     ) external view override returns (uint256) {
         return uint256(_votingPowerCheckpoints[delegateAddr].upperLookupRecent(uint48(blockNumber)));
     }

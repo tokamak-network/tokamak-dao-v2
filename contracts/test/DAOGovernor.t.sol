@@ -13,7 +13,7 @@ import { IDAOGovernor } from "../src/interfaces/IDAOGovernor.sol";
 contract MockExecutionTarget {
     uint256 public value;
 
-    function setValue(uint256 _value) external {
+    function setValue(uint256 _value) external payable {
         value = _value;
     }
 }
@@ -1469,5 +1469,306 @@ contract DAOGovernorTest is Test {
         vm.expectEmit(true, true, true, true);
         emit IDAOGovernor.VotingPeriodUpdated(50_400, 100_800);
         governor.setVotingPeriod(100_800);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                    ADMIN FUNCTIONS: setTimelock TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_SetTimelock() public {
+        address newTimelock = makeAddr("newTimelock");
+
+        vm.prank(owner);
+        governor.setTimelock(newTimelock);
+
+        assertEq(governor.timelock(), newTimelock);
+    }
+
+    function test_SetTimelockRevertsOnZeroAddress() public {
+        vm.prank(owner);
+        vm.expectRevert(DAOGovernor.ZeroAddress.selector);
+        governor.setTimelock(address(0));
+    }
+
+    function test_SetTimelockRevertsIfNotOwner() public {
+        vm.prank(user1);
+        vm.expectRevert();
+        governor.setTimelock(makeAddr("newTimelock"));
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                    ADMIN FUNCTIONS: setPassRate TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_SetPassRate() public {
+        vm.prank(owner);
+        governor.setPassRate(6000);
+
+        assertEq(governor.passRate(), 6000);
+    }
+
+    function test_SetPassRateRevertsIfExceedsBasisPoints() public {
+        vm.prank(owner);
+        vm.expectRevert(DAOGovernor.InvalidPassRate.selector);
+        governor.setPassRate(10_001);
+    }
+
+    function test_SetPassRateEmitsEvent() public {
+        vm.prank(owner);
+        vm.expectEmit(true, true, true, true);
+        emit IDAOGovernor.PassRateUpdated(5000, 6000);
+        governor.setPassRate(6000);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                    ADMIN FUNCTIONS: setTimelockDelay TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_SetTimelockDelay() public {
+        vm.prank(owner);
+        governor.setTimelockDelay(14 days);
+
+        assertEq(governor.timelockDelay(), 14 days);
+    }
+
+    function test_SetTimelockDelayEmitsEvent() public {
+        vm.prank(owner);
+        vm.expectEmit(true, true, true, true);
+        emit IDAOGovernor.TimelockDelayUpdated(7 days, 14 days);
+        governor.setTimelockDelay(14 days);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                    ADMIN FUNCTIONS: setGracePeriod TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_SetGracePeriod() public {
+        vm.prank(owner);
+        governor.setGracePeriod(21 days);
+
+        assertEq(governor.gracePeriod(), 21 days);
+    }
+
+    function test_SetGracePeriodEmitsEvent() public {
+        vm.prank(owner);
+        vm.expectEmit(true, true, true, true);
+        emit IDAOGovernor.GracePeriodUpdated(14 days, 21 days);
+        governor.setGracePeriod(21 days);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                    ADMIN FUNCTIONS: setMaturityPeriod EVENT
+    //////////////////////////////////////////////////////////////*/
+
+    function test_SetMaturityPeriodEmitsEvent() public {
+        vm.prank(owner);
+        vm.expectEmit(true, true, true, true);
+        emit IDAOGovernor.MaturityPeriodUpdated(0, 100);
+        governor.setMaturityPeriod(100);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                    VIEW FUNCTIONS: getAllProposalIds
+    //////////////////////////////////////////////////////////////*/
+
+    function test_GetAllProposalIds() public {
+        address[] memory targets = new address[](1);
+        targets[0] = address(governor);
+        uint256[] memory values = new uint256[](1);
+        bytes[] memory calldatas = new bytes[](1);
+        calldatas[0] = abi.encodeWithSignature("setQuorum(uint256)", 500);
+
+        vm.prank(user1);
+        uint256 id1 = governor.propose(targets, values, calldatas, "Proposal 1", 0);
+
+        calldatas[0] = abi.encodeWithSignature("setQuorum(uint256)", 600);
+
+        vm.prank(user1);
+        uint256 id2 = governor.propose(targets, values, calldatas, "Proposal 2", 0);
+
+        uint256[] memory ids = governor.getAllProposalIds();
+        assertEq(ids.length, 2);
+        assertEq(ids[0], id1);
+        assertEq(ids[1], id2);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                    VIEW FUNCTIONS: getVoteReceipt
+    //////////////////////////////////////////////////////////////*/
+
+    function test_GetVoteReceipt() public {
+        vm.prank(delegate1);
+        registry.registerDelegate("Delegate1", "Philosophy", "Interests");
+
+        vm.prank(user1);
+        registry.delegate(delegate1, 1000 ether);
+
+        vm.warp(block.timestamp + 8 days);
+
+        address[] memory targets = new address[](1);
+        targets[0] = address(governor);
+        uint256[] memory values = new uint256[](1);
+        bytes[] memory calldatas = new bytes[](1);
+        calldatas[0] = abi.encodeWithSignature("setQuorum(uint256)", 500);
+
+        vm.prank(user1);
+        uint256 proposalId = governor.propose(targets, values, calldatas, "Receipt test", 0);
+
+        vm.roll(block.number + governor.votingDelay() + 1);
+
+        vm.prank(delegate1);
+        governor.castVote(proposalId, IDAOGovernor.VoteType.Against);
+
+        (IDAOGovernor.VoteType support, uint256 weight) = governor.getVoteReceipt(proposalId, delegate1);
+        assertEq(uint256(support), uint256(IDAOGovernor.VoteType.Against));
+        assertEq(weight, 1000 ether);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                    MULTI-TARGET PROPOSAL TEST
+    //////////////////////////////////////////////////////////////*/
+
+    function test_MultiTargetProposal() public {
+        MockExecutionTarget target1 = new MockExecutionTarget();
+        MockExecutionTarget target2 = new MockExecutionTarget();
+
+        vm.prank(delegate1);
+        registry.registerDelegate("Delegate1", "Philosophy", "Interests");
+
+        vm.prank(user1);
+        registry.delegate(delegate1, 10_000 ether);
+        vm.prank(user2);
+        registry.delegate(delegate1, 10_000 ether);
+
+        vm.prank(owner);
+        registry.setGovernor(address(governor));
+
+        vm.warp(block.timestamp + 8 days);
+
+        // Multi-target proposal
+        address[] memory targets = new address[](2);
+        targets[0] = address(target1);
+        targets[1] = address(target2);
+
+        uint256[] memory values = new uint256[](2);
+        values[0] = 0;
+        values[1] = 0;
+
+        bytes[] memory calldatas = new bytes[](2);
+        calldatas[0] = abi.encodeWithSignature("setValue(uint256)", 42);
+        calldatas[1] = abi.encodeWithSignature("setValue(uint256)", 99);
+
+        vm.prank(user1);
+        uint256 proposalId = governor.propose(targets, values, calldatas, "Multi-target", 0);
+
+        vm.roll(block.number + governor.votingDelay() + 1);
+        vm.prank(delegate1);
+        governor.castVote(proposalId, IDAOGovernor.VoteType.For);
+
+        vm.roll(block.number + governor.votingPeriod() + 1);
+        governor.queue(proposalId);
+
+        vm.warp(block.timestamp + 7 days + 1);
+        governor.execute(proposalId);
+
+        assertEq(target1.value(), 42);
+        assertEq(target2.value(), 99);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                    PROPOSAL WITH ETH VALUE TEST
+    //////////////////////////////////////////////////////////////*/
+
+    function test_ProposalWithETHValue() public {
+        MockExecutionTarget target = new MockExecutionTarget();
+
+        vm.prank(delegate1);
+        registry.registerDelegate("Delegate1", "Philosophy", "Interests");
+
+        vm.prank(user1);
+        registry.delegate(delegate1, 10_000 ether);
+        vm.prank(user2);
+        registry.delegate(delegate1, 10_000 ether);
+
+        vm.prank(owner);
+        registry.setGovernor(address(governor));
+
+        vm.warp(block.timestamp + 8 days);
+
+        address[] memory targets = new address[](1);
+        targets[0] = address(target);
+        uint256[] memory values = new uint256[](1);
+        values[0] = 1 ether; // Send 1 ETH
+        bytes[] memory calldatas = new bytes[](1);
+        calldatas[0] = abi.encodeWithSignature("setValue(uint256)", 42);
+
+        vm.prank(user1);
+        uint256 proposalId = governor.propose(targets, values, calldatas, "ETH transfer", 0);
+
+        vm.roll(block.number + governor.votingDelay() + 1);
+        vm.prank(delegate1);
+        governor.castVote(proposalId, IDAOGovernor.VoteType.For);
+
+        vm.roll(block.number + governor.votingPeriod() + 1);
+        governor.queue(proposalId);
+
+        vm.warp(block.timestamp + 7 days + 1);
+
+        // Fund the timelock with ETH
+        vm.deal(address(timelock), 10 ether);
+
+        governor.execute{value: 1 ether}(proposalId);
+
+        assertEq(target.value(), 42);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                    TIMELOCK DELAY SYNC TEST (CRITICAL FIX)
+    //////////////////////////////////////////////////////////////*/
+
+    function test_QueueUsesTimelockDelay() public {
+        // This test verifies the critical fix: queue() reads delay from Timelock, not governor.timelockDelay
+
+        MockExecutionTarget target = new MockExecutionTarget();
+
+        vm.prank(delegate1);
+        registry.registerDelegate("Delegate1", "Philosophy", "Interests");
+
+        vm.prank(user1);
+        registry.delegate(delegate1, 10_000 ether);
+        vm.prank(user2);
+        registry.delegate(delegate1, 10_000 ether);
+
+        vm.prank(owner);
+        registry.setGovernor(address(governor));
+
+        vm.warp(block.timestamp + 8 days);
+
+        // Intentionally set governor.timelockDelay to a DIFFERENT value than Timelock.delay
+        vm.prank(owner);
+        governor.setTimelockDelay(14 days); // Governor says 14 days
+        // Timelock.delay is still 7 days
+
+        address[] memory targets = new address[](1);
+        targets[0] = address(target);
+        uint256[] memory values = new uint256[](1);
+        bytes[] memory calldatas = new bytes[](1);
+        calldatas[0] = abi.encodeWithSignature("setValue(uint256)", 42);
+
+        vm.prank(user1);
+        uint256 proposalId = governor.propose(targets, values, calldatas, "Sync test", 0);
+
+        vm.roll(block.number + governor.votingDelay() + 1);
+        vm.prank(delegate1);
+        governor.castVote(proposalId, IDAOGovernor.VoteType.For);
+
+        vm.roll(block.number + governor.votingPeriod() + 1);
+        governor.queue(proposalId);
+
+        // Warp past Timelock's delay (7 days), NOT governor's delay (14 days)
+        vm.warp(block.timestamp + 7 days + 1);
+        governor.execute(proposalId);
+
+        assertEq(target.value(), 42);
     }
 }
