@@ -79,13 +79,13 @@ event EpochTransitioned(uint256 oldEpoch, uint256 newEpoch, uint256 newHalvingRa
 **주요 함수**:
 | 함수 | 파라미터 | 반환값 | 설명 |
 |------|----------|--------|------|
-| `registerDelegator` | `profile: string, philosophy: string, interests: string[]` | - | 위임자 등록 |
+| `registerDelegate` | `profile: string, philosophy: string, interests: string[]` | - | 위임자 등록 |
 | `delegate` | `delegator: address, amount: uint256` | - | vTON 위임 |
 | `undelegate` | `delegator: address, amount: uint256` | - | 위임 해제 |
 | `redelegate` | `from: address, to: address, amount: uint256` | - | 위임 이전 |
 | `getVotingPower` | `delegator: address, blockNumber: uint256, snapshotBlock: uint256` | `uint256` | 투표력 조회 |
-| `getDelegatorInfo` | `delegator: address` | `DelegatorInfo` | 위임자 정보 조회 |
-| `getAllDelegators` | - | `address[]` | 전체 위임자 목록 |
+| `getDelegateInfo` | `delegator: address` | `DelegatorInfo` | 위임자 정보 조회 |
+| `getAllDelegates` | - | `address[]` | 전체 위임자 목록 |
 | `setGovernor` | `governor_: address` | - | Governor 주소 설정 (owner only) |
 | `burnFromDelegate` | `delegateAddr: address, amount: uint256` | - | 위임자 vTON 소각 (governor only) |
 
@@ -240,7 +240,7 @@ event MemberRemoved(address member);
 **상수**:
 | 상수 | 값 | 설명 |
 |------|-----|------|
-| `MINIMUM_DELAY` | `1 days` | 최소 지연 시간 |
+| `MINIMUM_DELAY` | `7 days` | 최소 지연 시간 |
 | `MAXIMUM_DELAY` | `30 days` | 최대 지연 시간 |
 | `GRACE_PERIOD` | `14 days` | 유예 기간 |
 
@@ -267,7 +267,7 @@ event TransactionCanceled(bytes32 indexed txHash);
 ### 읽기 전용 함수 (view/pure)
 Call로 조회 가능, 가스 비용 없음:
 - `vTON.getVotes(account)`
-- `DelegateRegistry.getDelegatorInfo(delegator)`
+- `DelegateRegistry.getDelegateInfo(delegator)`
 - `DAOGovernor.state(proposalId)`
 - `DAOGovernor.getProposal(proposalId)`
 

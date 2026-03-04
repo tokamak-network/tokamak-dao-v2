@@ -38,7 +38,7 @@ Parameters applied across the governance lifecycle — from proposal creation th
 |----------|-------------|-----------------|--------|
 | `timelockDelay` | Delay between vote approval and execution | 7 days | ⬜ |
 | `gracePeriod` | Execution window after timelock expires | 14 days | ⬜ |
-| `MINIMUM_DELAY` | Minimum allowed timelock delay | 1 hour | ⬜ |
+| `MINIMUM_DELAY` | Minimum allowed timelock delay | 7 days | ⬜ |
 | `MAXIMUM_DELAY` | Maximum allowed timelock delay | 30 days | ⬜ |
 
 ## 3. Security Council (Emergency Response)

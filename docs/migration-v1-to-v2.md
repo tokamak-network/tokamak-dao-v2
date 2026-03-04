@@ -113,6 +113,7 @@
 │ 프록시 패턴        │ 커스텀 (non-EIP-1967) │ 직접 배포 (프록시 없음)    │
 │ 토큰 공급          │ 무제한              │ 100M 상한 + 반감기         │
 │ 스냅샷            │ 첫 투표 시점          │ 제안 생성 - maturityPeriod│
+│                  │                     │ (DAOGovernor 소속)       │
 │ Flash loan 방어    │ 미흡                │ votingDelay + maturity    │
 └────────────────────┴──────────────────────┴──────────────────────────┘
 ```
@@ -259,7 +260,8 @@ V1 보안 모델                              V2 보안 모델
 │                │                        │                        │
 │ · 프록시 일시정지│                        │ · 제안 취소 (cancel)    │
 │ · 구현체 업그레이드│                      │ · 프로토콜 일시정지      │
-│ · 관리 기능     │                        │ · 긴급 업그레이드       │
+│ · 관리 기능     │                        │ · 프로토콜 재개 (unpause)│
+│                │                        │ · 긴급 업그레이드       │
 │                │                        │ · 7일 TTL 행동 만료    │
 │ ※ 실행 권한 有  │                        │ ※ 실행 권한 無 (차단만)  │
 └────────────────┘                        └────────────────────────┘
@@ -397,15 +399,16 @@ Phase 1              Phase 2              Phase 3              Phase 4
 
   Step 1: vTON 배포
   ─────────────────
-  constructor(name, symbol)
-  → 소유자 = deployer (임시)
+  constructor(initialOwner)
+  → name/symbol은 하드코딩 ("Tokamak Network Governance Token", "vTON")
+  → 소유자 = deployer (임시, Ownable2Step)
 
           │
           ▼
 
   Step 2: DelegateRegistry 배포
   ─────────────────────────────
-  constructor(vTON_address)
+  constructor(vTON_address, initialOwner)
   → 소유자 = deployer (임시)
 
           │
@@ -425,7 +428,8 @@ Phase 1              Phase 2              Phase 3              Phase 4
     ton_address,           ← 기존 TON 토큰
     vton_address,          ← Step 1
     delegateRegistry,      ← Step 2
-    timelock_address       ← Step 3
+    timelock_address,      ← Step 3
+    initialOwner           ← deployer (임시)
   )
 
           │
@@ -434,11 +438,13 @@ Phase 1              Phase 2              Phase 3              Phase 4
   Step 5: SecurityCouncil 배포
   ────────────────────────────
   constructor(
-    governor_address,      ← Step 4
-    timelock_address,      ← Step 3
-    members[3],            ← 1 Foundation + 2 External
-    threshold=2
+    foundationMember,      ← 재단 멤버 주소
+    externalMembers[],     ← 외부 멤버 2명 (배열)
+    daoGovernor,           ← Step 4
+    timelock,              ← Step 3
+    protocolTarget         ← 프로토콜 pause/unpause 대상
   )
+  → threshold는 자동 계산: ceil(members × 2/3) = 2
 ```
 
 ### 5.3 Phase 2: 초기화 및 연동
@@ -453,40 +459,64 @@ Phase 1              Phase 2              Phase 3              Phase 4
   │  TX1: vTON.setMinter(seigManager, true)                 │
   │       → 시뇨리지 연동 민터 등록                            │
   │                                                         │
-  │  TX2: vTON.transferOwnership(governor)                  │
-  │       → vTON 소유권을 DAOGovernor로 이전                  │
-  │                                                         │
-  │  TX3: delegateRegistry.setGovernor(governor)             │
+  │  TX2: delegateRegistry.setGovernor(governor)             │
   │       → DelegateRegistry에 Governor 주소 설정             │
   │                                                         │
-  │  TX4: delegateRegistry.transferOwnership(governor)       │
-  │       → DelegateRegistry 소유권을 DAOGovernor로 이전      │
-  │                                                         │
-  │  TX5: timelock.setGovernor(governor)                     │
+  │  TX3: timelock.setGovernor(governor)                     │
   │       → Timelock에 Governor 주소 설정                    │
   │                                                         │
-  │  TX6: timelock.setSecurityCouncil(securityCouncil)       │
+  │  TX4: timelock.setSecurityCouncil(securityCouncil)       │
   │       → Timelock에 SecurityCouncil 주소 설정             │
   │                                                         │
-  │  TX7: governor.setProposalGuardian(securityCouncil)      │
+  │  TX5: governor.setProposalGuardian(securityCouncil)      │
   │       → Governor에 제안 가디언 설정                       │
   │                                                         │
-  │  TX8: timelock.setPendingAdmin(timelock)                 │
+  │  TX6: delegateRegistry.transferOwnership(timelock)       │
+  │       → DelegateRegistry 소유권을 Timelock으로 이전       │
+  │                                                         │
+  │  TX7: governor.transferOwnership(timelock)               │
+  │       → DAOGovernor 소유권을 Timelock으로 이전            │
+  │                                                         │
+  │  TX8: vTON.transferOwnership(timelock)                   │
+  │       → vTON 소유권을 Timelock으로 이전                   │
+  │       ※ Ownable2Step: 이 TX는 pending 상태 시작일 뿐     │
+  │         Phase 3에서 governance 제안으로 acceptOwnership() │
+  │         실행 필요                                         │
+  │                                                         │
+  │  TX9: timelock.setPendingAdmin(timelock)                 │
   │       → Timelock 자체 관리 설정 (자기참조)                 │
+  │       ※ Phase 3에서 governance 제안으로 acceptAdmin()     │
+  │         실행 필요                                         │
   │                                                         │
   └─────────────────────────────────────────────────────────┘
+
+  ※ 소유권 이전 대상이 Timelock인 이유:
+  ═══════════════════════════════════════
+  execute()가 Timelock.executeTransaction()을 통해 실행되므로
+  target 입장에서 msg.sender = Timelock.
+  따라서 vTON, DelegateRegistry, DAOGovernor의 owner가
+  Timelock이어야 governance 제안으로 파라미터 변경 가능.
+
+  ※ Ownable2Step 주의:
+  ═══════════════════════
+  vTON은 Ownable2Step을 사용하므로 transferOwnership()은
+  pending 상태를 시작할 뿐, acceptOwnership()이 호출되어야
+  소유권 이전이 완료됨. Phase 3에서 governance 제안으로 실행.
 
   최종 소유권 구조:
   ═════════════════
 
-  ┌──────────┐  owner   ┌────────────┐  owner   ┌──────────────────┐
-  │   vTON   │◀─────────│DAOGovernor │─────────▶│DelegateRegistry  │
-  └──────────┘          └──────┬─────┘          └──────────────────┘
-                               │
-                         ┌─────▼─────┐         ┌──────────────────┐
-                         │ Timelock  │◀────────│ SecurityCouncil  │
-                         │ admin=self│  cancel  │ (proposalGuardian)│
-                         └───────────┘         └──────────────────┘
+  ┌───────────┐
+  │ Timelock  │──owner──▶ vTON
+  │ admin=self│──owner──▶ DelegateRegistry
+  │           │──owner──▶ DAOGovernor
+  └─────┬─────┘
+        │                 ┌──────────────────┐
+        │◀────cancel──────│ SecurityCouncil  │
+        │                 │ (proposalGuardian)│
+        │                 └──────────────────┘
+        │
+  DAOGovernor ──queue/execute──▶ Timelock
 ```
 
 ### 5.4 Phase 3: 거버넌스 전환
@@ -501,6 +531,18 @@ Phase 1              Phase 2              Phase 3              Phase 4
   · V2에서 테스트 제안 생성/투표/실행
   · vTON 에어드롭 및 위임 진행
   · 위임자 등록 촉진
+
+  Week 2: 소유권 이전 완료 (Governance 제안)
+  ───────────────────────────────────────────
+  · 제안 1: vTON.acceptOwnership() 실행
+    → Ownable2Step 소유권 이전 완료
+  · 제안 2: Timelock.acceptAdmin() 실행
+    → Timelock 자기참조 admin 설정 완료
+  · 두 제안 모두 실행 후 deployer 잔여 권한 없음 확인
+    - vTON.owner() == timelock ✓
+    - DelegateRegistry.owner() == timelock ✓
+    - DAOGovernor.owner() == timelock ✓
+    - Timelock.admin() == timelock ✓
 
   Week 3-4: V2 전환
   ───────────────────
@@ -556,6 +598,9 @@ V1 비활성화 절차
 │  위험: Phase 2 TX 실패 시 불완전한 소유권 상태                      │
 │  검증: 모든 TX를 단일 멀티콜로 실행하거나                           │
 │        각 단계 후 상태 검증                                        │
+│  주의: vTON은 Ownable2Step 사용 → transferOwnership()은           │
+│        pending 상태 시작일 뿐, acceptOwnership()이 governance     │
+│        제안으로 실행되어야 소유권 이전 완료                          │
 │  테스트: 중간 단계에서 실패 시 롤백 가능 여부                        │
 │                                                                  │
 │  🔴 CR-02: Timelock 자기참조 admin 설정                           │
@@ -564,6 +609,8 @@ V1 비활성화 절차
 │        반드시 Timelock을 통해야 함 → 데드락 가능성                  │
 │  검증: Timelock.setDelay(), setPendingAdmin() 등                 │
 │        Governor 제안으로 실행 가능 확인                             │
+│  주의: setPendingAdmin(timelock) 후 acceptAdmin()이              │
+│        governance 제안으로 실행되어야 admin 이전 완료               │
 │  테스트: E2E 시나리오로 admin 변경 플로우 검증                      │
 │                                                                  │
 │  🔴 CR-03: Governor → Timelock 권한 집중                         │
@@ -803,6 +850,7 @@ SecurityCouncil
 □ executeEmergencyAction - threshold 충족 시 실행
 □ executeEmergencyAction - 7일 TTL 만료 → revert
 □ cancelEmergencyAction - 제안자만 취소 가능
+□ unpauseProtocol - 프로토콜 재개 요청 (멤버만)
 □ addMember / removeMember - DAO만 가능
 □ removeMember - 마지막 Foundation 멤버 제거 → revert
 □ setThreshold - DAO만 가능 + 범위 검증
@@ -871,7 +919,7 @@ SecurityCouncil
 │  ─────────────────────────────────────                           │
 │  Mainnet Fork 위에서:                                            │
 │  1. V2 컨트랙트 전체 배포                                        │
-│  2. 연동 TX 실행 (TX1~TX8)                                      │
+│  2. 연동 TX 실행 (TX1~TX9)                                      │
 │  3. V1 참여자 → V2 위임자 등록                                   │
 │  4. vTON 배분 → 위임 → 제안 → 투표 → 실행                       │
 │  5. V1 pause → V2 단독 운영 확인                                │
@@ -1071,7 +1119,7 @@ forge test --fork-url $ETH_MAINNET_RPC --match-contract E2EMigrationTest
 | `maturityPeriod` | 50,400 blocks (~7일) | 위임 성숙 기간 |
 | `timelockDelay` | 7 days | 실행 지연 |
 | `gracePeriod` | 14 days | 실행 유예 |
-| `MINIMUM_DELAY` | 1 hour | Timelock 최소 |
+| `MINIMUM_DELAY` | 7 days | Timelock 최소 |
 | `MAXIMUM_DELAY` | 30 days | Timelock 최대 |
 | `SC threshold` | ceil(members × 2/3) | 보안위원회 승인 기준 |
 | `ACTION_TTL` | 7 days | SC 행동 만료 |
@@ -1097,3 +1145,4 @@ forge test --fork-url $ETH_MAINNET_RPC --match-contract E2EMigrationTest
 | 날짜 | 버전 | 내용 |
 |------|------|------|
 | 2026-03-04 | 0.1.0 | 초안 작성 |
+| 2026-03-04 | 0.2.0 | 생성자 시그니처, 소유권 이전 대상, MINIMUM_DELAY 수정 |
