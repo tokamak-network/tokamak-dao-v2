@@ -242,7 +242,7 @@ graph BT
 
 ```mermaid
 stateDiagram-v2
-    [*] --> NOTICE : approveAndCall() - 100 TON 소각
+    [*] --> NOTICE : approveAndCall() - 10 TON 소각
 
     NOTICE --> VOTING : castVote() 호출 (공지 16일 후)
 
@@ -302,15 +302,15 @@ sequenceDiagram
     participant DC as 구현체 (via Proxy2)
     participant DAM as DAOAgendaManager
 
-    User->>TON: approveAndCall(proxy, 100 TON, data)
-    TON->>DCP: onApprove(owner, spender, 100 TON, data)
+    User->>TON: approveAndCall(proxy, 10 TON, data)
+    TON->>DCP: onApprove(owner, spender, 10 TON, data)
     DCP->>DC: delegatecall (Proxy → Proxy2 → 구현체)
 
     Note over DC: data 디코딩:<br/>(targets[], noticePeriod,<br/>votingPeriod, atomicExecute,<br/>functionBytecodes[])
 
     Note over DC: 보안 필터:<br/>claimTON/claimWTON/claimERC20<br/>셀렉터 차단
 
-    DC->>DC: payCreatingAgendaFee()<br/>100 TON → address(1) 소각
+    DC->>DC: payCreatingAgendaFee()<br/>10 TON → address(1) 소각
     DC->>DAM: newAgenda(targets, notice, voting, atomic, bytecodes)
     DAM-->>DC: agendaID 반환
 
