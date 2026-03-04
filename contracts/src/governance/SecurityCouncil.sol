@@ -439,7 +439,12 @@ contract SecurityCouncil is ISecurityCouncil, ReentrancyGuard {
 
     /// @inheritdoc ISecurityCouncil
     function isActionApproved(uint256 actionId) external view override returns (bool) {
-        return _actions[actionId].approvers.length >= threshold;
+        EmergencyAction storage action = _actions[actionId];
+        uint256 validApprovals = 0;
+        for (uint256 i = 0; i < action.approvers.length; i++) {
+            if (_isMember[action.approvers[i]]) validApprovals++;
+        }
+        return validApprovals >= threshold;
     }
 
     /*//////////////////////////////////////////////////////////////

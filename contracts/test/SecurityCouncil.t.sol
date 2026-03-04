@@ -809,6 +809,33 @@ contract SecurityCouncilTest is Test {
         council.setProtocolTarget(makeAddr("newTarget"));
     }
 
+    function test_IsActionApprovedAfterMemberRemoval() public {
+        // Fix 1 verification: isActionApproved must return false when
+        // a removed member's approval is no longer valid
+        bytes memory data = abi.encodeWithSignature("setValue(uint256)", 42);
+
+        // foundationMember proposes (1 approval)
+        vm.prank(foundationMember);
+        uint256 actionId = council.proposeEmergencyAction(
+            ISecurityCouncil.ActionType.Custom, address(target), data, "Test"
+        );
+
+        // external1 approves (2 approvals — meets threshold of 2)
+        vm.prank(external1);
+        council.approveEmergencyAction(actionId);
+
+        // Verify approved before removal
+        assertTrue(council.isActionApproved(actionId));
+
+        // Remove external1 via DAO
+        vm.prank(daoGovernor);
+        council.removeMember(external1);
+
+        // isActionApproved should now return false:
+        // only foundationMember's approval is valid, threshold is 2
+        assertFalse(council.isActionApproved(actionId));
+    }
+
     function test_ExecuteEmergencyActionByNonMemberReverts() public {
         bytes memory data = abi.encodeWithSignature("setValue(uint256)", 42);
 

@@ -282,6 +282,10 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
     }
 
     /// @inheritdoc IDAOGovernor
+    /// @dev WARNING: Proposals must not contain duplicate (target, value, calldata) entries.
+    ///      The Timelock hashes each action as keccak256(abi.encode(target, value, data, eta)),
+    ///      so duplicate actions within the same proposal will produce the same hash and cause
+    ///      queueTransaction() to revert with TransactionAlreadyQueued.
     function queue(uint256 proposalId) external override {
         if (state(proposalId) != ProposalState.Succeeded) revert ProposalNotSucceeded();
 
@@ -512,7 +516,9 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
     /// @param newTimelock New timelock address
     function setTimelock(address newTimelock) external onlyOwner {
         if (newTimelock == address(0)) revert ZeroAddress();
+        address oldTimelock = timelock;
         timelock = newTimelock;
+        emit TimelockUpdated(oldTimelock, newTimelock);
     }
 
     /// @inheritdoc IDAOGovernor

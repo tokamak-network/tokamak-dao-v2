@@ -8,6 +8,8 @@ import { DelegateRegistry } from "../src/governance/DelegateRegistry.sol";
 import { DAOGovernor } from "../src/governance/DAOGovernor.sol";
 import { Timelock } from "../src/governance/Timelock.sol";
 import { IDAOGovernor } from "../src/interfaces/IDAOGovernor.sol";
+import { SecurityCouncil } from "../src/governance/SecurityCouncil.sol";
+import { ISecurityCouncil } from "../src/interfaces/ISecurityCouncil.sol";
 
 /// @notice Mock execution target for testing proposal execution
 contract MockExecutionTarget {
@@ -2115,5 +2117,179 @@ contract DAOGovernorTest is Test {
         vm.prank(owner);
         vm.expectRevert(DAOGovernor.InvalidPassRate.selector);
         governor.setPassRate(0);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                    AUDIT FIX: setTimelock EVENT (Fix 2)
+    //////////////////////////////////////////////////////////////*/
+
+    function test_SetTimelockEmitsEvent() public {
+        address newTimelock = makeAddr("newTimelock");
+
+        vm.prank(owner);
+        vm.expectEmit(true, true, true, true);
+        emit IDAOGovernor.TimelockUpdated(address(timelock), newTimelock);
+        governor.setTimelock(newTimelock);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                DUPLICATE ACTIONS IN PROPOSAL (Fix 3)
+    //////////////////////////////////////////////////////////////*/
+
+    function test_DuplicateActionsInProposalFailsOnQueue() public {
+        // Verify that proposals with duplicate (target, value, calldata) revert on queue
+        MockExecutionTarget target = new MockExecutionTarget();
+
+        vm.prank(delegate1);
+        registry.registerDelegate("Delegate1", "Philosophy", "Interests");
+
+        vm.prank(user1);
+        registry.delegate(delegate1, 10_000 ether);
+        vm.prank(user2);
+        registry.delegate(delegate1, 10_000 ether);
+
+        vm.prank(owner);
+        registry.setGovernor(address(governor));
+
+        vm.warp(block.timestamp + 8 days);
+
+        // Create proposal with duplicate actions
+        address[] memory targets = new address[](2);
+        targets[0] = address(target);
+        targets[1] = address(target); // same target
+
+        uint256[] memory values = new uint256[](2);
+        values[0] = 0;
+        values[1] = 0; // same value
+
+        bytes[] memory calldatas = new bytes[](2);
+        calldatas[0] = abi.encodeWithSignature("setValue(uint256)", 42);
+        calldatas[1] = abi.encodeWithSignature("setValue(uint256)", 42); // same calldata
+
+        vm.prank(user1);
+        uint256 proposalId = governor.propose(targets, values, calldatas, "Duplicate actions", 0);
+
+        // Vote to pass
+        vm.roll(block.number + governor.votingDelay() + 1);
+        vm.prank(delegate1);
+        governor.castVote(proposalId, IDAOGovernor.VoteType.For);
+        vm.roll(block.number + governor.votingPeriod() + 1);
+
+        assertEq(uint256(governor.state(proposalId)), uint256(IDAOGovernor.ProposalState.Succeeded));
+
+        // Queue should revert because duplicate actions produce the same Timelock hash
+        vm.expectRevert(Timelock.TransactionAlreadyQueued.selector);
+        governor.queue(proposalId);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                FULL LIFECYCLE WITH ETH VALUE
+    //////////////////////////////////////////////////////////////*/
+
+    function test_ProposalFullLifecycleWithETHValue() public {
+        // End-to-end proposal that sends ETH through timelock to target
+        MockExecutionTarget target = new MockExecutionTarget();
+
+        vm.prank(delegate1);
+        registry.registerDelegate("Delegate1", "Philosophy", "Interests");
+
+        vm.prank(user1);
+        registry.delegate(delegate1, 10_000 ether);
+        vm.prank(user2);
+        registry.delegate(delegate1, 10_000 ether);
+
+        vm.prank(owner);
+        registry.setGovernor(address(governor));
+
+        vm.warp(block.timestamp + 8 days);
+
+        // Proposal: send 1 ETH to target and set value
+        address[] memory targets = new address[](1);
+        targets[0] = address(target);
+        uint256[] memory values = new uint256[](1);
+        values[0] = 1 ether;
+        bytes[] memory calldatas = new bytes[](1);
+        calldatas[0] = abi.encodeWithSignature("setValue(uint256)", 99);
+
+        vm.prank(user1);
+        uint256 proposalId = governor.propose(targets, values, calldatas, "ETH lifecycle", 0);
+
+        // Vote
+        vm.roll(block.number + governor.votingDelay() + 1);
+        vm.prank(delegate1);
+        governor.castVote(proposalId, IDAOGovernor.VoteType.For);
+
+        // Past voting
+        vm.roll(block.number + governor.votingPeriod() + 1);
+        assertEq(uint256(governor.state(proposalId)), uint256(IDAOGovernor.ProposalState.Succeeded));
+
+        // Queue
+        governor.queue(proposalId);
+        assertEq(uint256(governor.state(proposalId)), uint256(IDAOGovernor.ProposalState.Queued));
+
+        // Fund timelock and execute
+        vm.deal(address(timelock), 10 ether);
+        uint256 targetBalanceBefore = address(target).balance;
+
+        vm.warp(block.timestamp + 7 days + 1);
+        governor.execute{value: 1 ether}(proposalId);
+
+        // Verify execution
+        assertEq(uint256(governor.state(proposalId)), uint256(IDAOGovernor.ProposalState.Executed));
+        assertEq(target.value(), 99);
+        assertEq(address(target).balance, targetBalanceBefore + 1 ether);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+            SC CANCELS THROUGH GOVERNOR (Integration Test)
+    //////////////////////////////////////////////////////////////*/
+
+    function test_SecurityCouncilCancelsThroughGovernor() public {
+        // Integration: SecurityCouncil executes cancel action through DAOGovernor
+
+        // Deploy SecurityCouncil
+        address scFoundation = makeAddr("scFoundation");
+        address scExternal1 = makeAddr("scExternal1");
+        address scExternal2 = makeAddr("scExternal2");
+
+        address[] memory scExternals = new address[](2);
+        scExternals[0] = scExternal1;
+        scExternals[1] = scExternal2;
+
+        SecurityCouncil sc = new SecurityCouncil(
+            scFoundation, scExternals, address(governor), address(timelock), address(governor)
+        );
+
+        // Set SC as proposal guardian
+        vm.prank(owner);
+        governor.setProposalGuardian(address(sc));
+
+        // Create a proposal to cancel
+        address[] memory targets = new address[](1);
+        targets[0] = address(governor);
+        uint256[] memory values = new uint256[](1);
+        bytes[] memory calldatas = new bytes[](1);
+        calldatas[0] = abi.encodeWithSignature("setQuorum(uint256)", 500);
+
+        vm.prank(user1);
+        uint256 proposalId = governor.propose(targets, values, calldatas, "To be cancelled by SC", 0);
+
+        // SC member proposes cancel
+        vm.prank(scFoundation);
+        sc.cancelProposal(proposalId);
+
+        uint256[] memory pending = sc.getPendingActions();
+        uint256 actionId = pending[0];
+
+        // SC member approves
+        vm.prank(scExternal1);
+        sc.approveEmergencyAction(actionId);
+
+        // SC member executes — this calls governor.cancel(proposalId) via SC
+        vm.prank(scExternal2);
+        sc.executeEmergencyAction(actionId);
+
+        // Verify proposal is canceled
+        assertEq(uint256(governor.state(proposalId)), uint256(IDAOGovernor.ProposalState.Canceled));
     }
 }

@@ -116,6 +116,9 @@ interface IDAOGovernor {
     /// @notice Emitted when maturity period is updated
     event MaturityPeriodUpdated(uint256 oldPeriod, uint256 newPeriod);
 
+    /// @notice Emitted when timelock address is updated
+    event TimelockUpdated(address oldTimelock, address newTimelock);
+
     /// @notice Error when caller is not authorized to cancel proposal
     error NotAuthorizedToCancel();
 
