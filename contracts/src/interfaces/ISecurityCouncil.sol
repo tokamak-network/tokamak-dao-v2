@@ -18,12 +18,11 @@ interface ISecurityCouncil {
 
     /// @notice Emergency action types
     enum ActionType {
-        CancelProposal, // Cancel a proposal in timelock
-        EmergencyUpgrade, // Emergency contract upgrade
-        PauseProtocol, // Pause protocol functions
-        UnpauseProtocol, // Unpause protocol functions
-        Custom // Custom action
-
+        CancelProposal, // 0: Cancel a proposal in timelock
+        PauseProtocol, // 1: Pause protocol functions
+        UnpauseProtocol, // 2: Unpause protocol functions
+        EmergencyUpgrade, // 3: Emergency contract upgrade
+        Custom // 4: Custom action
     }
 
     /// @notice Emergency action structure
@@ -36,6 +35,7 @@ interface ISecurityCouncil {
         uint256 createdAt;
         uint256 executedAt;
         bool executed;
+        bool canceled;
         address[] approvers;
     }
 
@@ -66,6 +66,12 @@ interface ISecurityCouncil {
 
     /// @notice Emitted when an emergency action is canceled
     event EmergencyActionCanceled(uint256 indexed actionId);
+
+    /// @notice Emitted when the DAO Governor address is updated
+    event DAOGovernorUpdated(address oldGovernor, address newGovernor);
+
+    /// @notice Emitted when the protocol target address is updated
+    event ProtocolTargetUpdated(address oldTarget, address newTarget);
 
     /// @notice Add a new council member
     /// @param member The member address

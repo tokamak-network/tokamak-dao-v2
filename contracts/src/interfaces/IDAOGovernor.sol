@@ -49,6 +49,7 @@ interface IDAOGovernor {
         bool canceled;
         bool executed;
         uint16 burnRate; // basis points (0-10000 = 0-100%)
+        uint256 totalDelegatedAtSnapshot; // snapshot of total delegated for quorum calculation
     }
 
     /// @notice Emitted when a proposal is created
@@ -107,6 +108,15 @@ interface IDAOGovernor {
     /// @notice Emitted when pass rate is updated
     event PassRateUpdated(uint256 oldRate, uint256 newRate);
 
+    /// @notice Emitted when voting delay is updated
+    event VotingDelayUpdated(uint256 oldDelay, uint256 newDelay);
+
+    /// @notice Emitted when voting period is updated
+    event VotingPeriodUpdated(uint256 oldPeriod, uint256 newPeriod);
+
+    /// @notice Emitted when maturity period is updated
+    event MaturityPeriodUpdated(uint256 oldPeriod, uint256 newPeriod);
+
     /// @notice Error when caller is not authorized to cancel proposal
     error NotAuthorizedToCancel();
 
@@ -115,6 +125,12 @@ interface IDAOGovernor {
 
     /// @notice Error when burn rate exceeds maximum (100%)
     error InvalidBurnRate();
+
+    /// @notice Error when guardian tries to cancel a proposal targeting the guardian address
+    error CannotCancelSCProposal();
+
+    /// @notice Error when parameter value is out of valid range
+    error InvalidParameter();
 
     /// @notice Create a new proposal
     /// @param targets Target addresses for calls

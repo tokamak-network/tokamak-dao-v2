@@ -8,6 +8,7 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 
 import { IDAOGovernor } from "../interfaces/IDAOGovernor.sol";
 import { IDelegateRegistry } from "../interfaces/IDelegateRegistry.sol";
+import { Timelock } from "./Timelock.sol";
 
 /// @title DAOGovernor - vTON DAO Governance
 /// @notice Main governance contract for Tokamak Network DAO
@@ -82,6 +83,9 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
     /// @notice Maximum burn rate (100% = 10000 basis points)
     uint16 public constant MAX_BURN_RATE = 10_000;
 
+    /// @notice Default maturity period (7 days in blocks, ~12s/block)
+    uint256 public constant DEFAULT_MATURITY_PERIOD = 50_400;
+
     /*//////////////////////////////////////////////////////////////
                                  STATE
     //////////////////////////////////////////////////////////////*/
@@ -124,6 +128,9 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
 
     /// @notice Pass rate in basis points (5000 = 50%, requires > passRate to pass)
     uint256 public passRate;
+
+    /// @notice Delegation maturity period in blocks (delegations must be this old to count)
+    uint256 public maturityPeriod;
 
     /// @notice Proposal counter
     uint256 private _proposalCount;
@@ -186,6 +193,7 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
         timelockDelay = DEFAULT_TIMELOCK_DELAY;
         gracePeriod = DEFAULT_GRACE_PERIOD;
         passRate = DEFAULT_PASS_RATE;
+        maturityPeriod = DEFAULT_MATURITY_PERIOD;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -227,7 +235,7 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
         // Check proposal doesn't already exist
         if (_proposals[proposalId].snapshotBlock != 0) revert InvalidProposal();
 
-        uint256 snapshot = block.number;
+        uint256 snapshot = block.number > maturityPeriod ? block.number - maturityPeriod : 0;
         uint256 voteStart = block.number + votingDelay;
         uint256 voteEnd = voteStart + votingPeriod;
 
@@ -242,6 +250,7 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
         proposal.voteStart = voteStart;
         proposal.voteEnd = voteEnd;
         proposal.burnRate = burnRate;
+        proposal.totalDelegatedAtSnapshot = delegateRegistry.totalDelegatedAll();
 
         _proposalIds.push(proposalId);
         _proposalCount++;
@@ -278,7 +287,15 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
     function queue(uint256 proposalId) external override {
         if (state(proposalId) != ProposalState.Succeeded) revert ProposalNotSucceeded();
 
+        Proposal storage proposal = _proposals[proposalId];
         uint256 eta = block.timestamp + timelockDelay;
+
+        for (uint256 i = 0; i < proposal.targets.length; i++) {
+            Timelock(payable(timelock)).queueTransaction(
+                proposal.targets[i], proposal.values[i], proposal.calldatas[i]
+            );
+        }
+
         _proposalEta[proposalId] = eta;
 
         emit ProposalQueued(proposalId, eta);
@@ -296,11 +313,11 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
         Proposal storage proposal = _proposals[proposalId];
         proposal.executed = true;
 
-        // Execute all calls
+        // Execute all calls through Timelock
         for (uint256 i = 0; i < proposal.targets.length; i++) {
-            (bool success,) =
-                proposal.targets[i].call{ value: proposal.values[i] }(proposal.calldatas[i]);
-            if (!success) revert ExecutionFailed();
+            Timelock(payable(timelock)).executeTransaction{value: proposal.values[i]}(
+                proposal.targets[i], proposal.values[i], proposal.calldatas[i], eta
+            );
         }
 
         emit ProposalExecuted(proposalId);
@@ -325,17 +342,19 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
 
         ProposalState currentState = state(proposalId);
 
-        // Proposer can only cancel in Pending or Active states
-        if (isProposer && !isGuardian) {
+        // Proposer takes priority (more restrictive): can only cancel in Pending or Active
+        if (isProposer) {
             if (currentState != ProposalState.Pending && currentState != ProposalState.Active) {
                 revert IDAOGovernor.InvalidProposalState();
             }
-        }
-
-        // Guardian cannot cancel final states (Defeated, Expired)
-        if (isGuardian && !isProposer) {
+        } else if (isGuardian) {
+            // Guardian cannot cancel final states (Defeated, Expired)
             if (currentState == ProposalState.Defeated || currentState == ProposalState.Expired) {
                 revert IDAOGovernor.InvalidProposalState();
+            }
+            // Guardian cannot cancel proposals that target the guardian address (SC self-defense)
+            for (uint256 i = 0; i < proposal.targets.length; i++) {
+                if (proposal.targets[i] == proposalGuardian) revert IDAOGovernor.CannotCancelSCProposal();
             }
         }
 
@@ -372,8 +391,7 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
 
         // Voting ended - check results
         uint256 totalVotes = proposal.forVotes + proposal.againstVotes + proposal.abstainVotes;
-        uint256 totalDelegated = delegateRegistry.totalDelegatedAll();
-        uint256 requiredQuorum = (totalDelegated * quorum) / BASIS_POINTS;
+        uint256 requiredQuorum = (proposal.totalDelegatedAtSnapshot * quorum) / BASIS_POINTS;
 
         if (totalVotes < requiredQuorum) {
             return ProposalState.Defeated;
@@ -458,6 +476,7 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
 
     /// @inheritdoc IDAOGovernor
     function setQuorum(uint256 newQuorum) external override onlyOwner {
+        if (newQuorum == 0 || newQuorum > BASIS_POINTS) revert IDAOGovernor.InvalidParameter();
         uint256 oldQuorum = quorum;
         quorum = newQuorum;
         emit QuorumUpdated(oldQuorum, newQuorum);
@@ -473,13 +492,19 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
     /// @notice Set voting delay
     /// @param newDelay New delay in blocks
     function setVotingDelay(uint256 newDelay) external onlyOwner {
+        if (newDelay == 0) revert IDAOGovernor.InvalidParameter();
+        uint256 oldDelay = votingDelay;
         votingDelay = newDelay;
+        emit VotingDelayUpdated(oldDelay, newDelay);
     }
 
     /// @notice Set voting period
     /// @param newPeriod New period in blocks
     function setVotingPeriod(uint256 newPeriod) external onlyOwner {
+        if (newPeriod == 0) revert IDAOGovernor.InvalidParameter();
+        uint256 oldPeriod = votingPeriod;
         votingPeriod = newPeriod;
+        emit VotingPeriodUpdated(oldPeriod, newPeriod);
     }
 
     /// @notice Set timelock address
@@ -498,6 +523,7 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
 
     /// @inheritdoc IDAOGovernor
     function setProposalThreshold(uint256 newThreshold) external override onlyOwner {
+        if (newThreshold > BASIS_POINTS) revert IDAOGovernor.InvalidParameter();
         uint256 oldThreshold = proposalThreshold;
         proposalThreshold = newThreshold;
         emit ProposalThresholdUpdated(oldThreshold, newThreshold);
@@ -506,6 +532,7 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
     /// @notice Set timelock delay
     /// @param newDelay New delay in seconds
     function setTimelockDelay(uint256 newDelay) external onlyOwner {
+        if (newDelay < 1 days) revert IDAOGovernor.InvalidParameter();
         uint256 oldDelay = timelockDelay;
         timelockDelay = newDelay;
         emit TimelockDelayUpdated(oldDelay, newDelay);
@@ -514,9 +541,18 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
     /// @notice Set grace period
     /// @param newPeriod New period in seconds
     function setGracePeriod(uint256 newPeriod) external onlyOwner {
+        if (newPeriod < 1 days) revert IDAOGovernor.InvalidParameter();
         uint256 oldPeriod = gracePeriod;
         gracePeriod = newPeriod;
         emit GracePeriodUpdated(oldPeriod, newPeriod);
+    }
+
+    /// @notice Set maturity period
+    /// @param newPeriod New period in blocks
+    function setMaturityPeriod(uint256 newPeriod) external onlyOwner {
+        uint256 oldPeriod = maturityPeriod;
+        maturityPeriod = newPeriod;
+        emit MaturityPeriodUpdated(oldPeriod, newPeriod);
     }
 
     /// @notice Set pass rate

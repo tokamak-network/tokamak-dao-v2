@@ -30,7 +30,6 @@ contract DelegateRegistry is IDelegateRegistry, Ownable, ReentrancyGuard {
     error ZeroAmount();
     error ZeroAddress();
     error EmptyProfile();
-    error DelegationExpired();
     error NotGovernor();
 
     /*//////////////////////////////////////////////////////////////
@@ -43,7 +42,7 @@ contract DelegateRegistry is IDelegateRegistry, Ownable, ReentrancyGuard {
     /// @notice The governor contract address
     address public override governor;
 
-    /// @notice Auto-expiry period for delegations (0 = no expiry)
+    /// @notice Auto-expiry period for delegations (0 = no expiry, informational only - not enforced on-chain)
     uint256 public override autoExpiryPeriod;
 
     /// @notice Registered delegates
@@ -135,6 +134,17 @@ contract DelegateRegistry is IDelegateRegistry, Ownable, ReentrancyGuard {
         info.isActive = false;
 
         emit DelegateDeactivated(msg.sender);
+    }
+
+    /// @inheritdoc IDelegateRegistry
+    function reactivateDelegate() external override {
+        DelegateInfo storage info = _delegates[msg.sender];
+        if (info.registeredAt == 0) revert NotRegisteredDelegate();
+        if (info.isActive) revert AlreadyRegisteredDelegate();
+
+        info.isActive = true;
+
+        emit DelegateReactivated(msg.sender);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -267,7 +277,11 @@ contract DelegateRegistry is IDelegateRegistry, Ownable, ReentrancyGuard {
         }
         _totalDelegated[toDelegate] += proportionalAmount;
 
-        // _totalDelegatedAll unchanged (proportionalAmount moved from one to another)
+        // Adjust totals for burn share
+        if (burnShare > 0) {
+            _totalDelegatedBy[msg.sender] -= burnShare;
+            _totalDelegatedAll -= burnShare;
+        }
 
         // Update voting power checkpoints
         _updateVotingPowerCheckpoint(fromDelegate);
@@ -310,7 +324,7 @@ contract DelegateRegistry is IDelegateRegistry, Ownable, ReentrancyGuard {
     function getVotingPower(
         address delegateAddr,
         uint256 blockNumber,
-        uint256 /* snapshotBlock */
+        uint256 snapshotBlock
     ) external view override returns (uint256) {
         return uint256(_votingPowerCheckpoints[delegateAddr].upperLookupRecent(uint48(blockNumber)));
     }
@@ -353,7 +367,9 @@ contract DelegateRegistry is IDelegateRegistry, Ownable, ReentrancyGuard {
     /// @inheritdoc IDelegateRegistry
     function setGovernor(address governor_) external override onlyOwner {
         if (governor_ == address(0)) revert ZeroAddress();
+        address oldGovernor = governor;
         governor = governor_;
+        emit GovernorUpdated(oldGovernor, governor_);
     }
 
     /// @inheritdoc IDelegateRegistry

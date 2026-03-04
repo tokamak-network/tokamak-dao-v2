@@ -181,11 +181,12 @@ contract SecurityCouncilTest is Test {
             ISecurityCouncil.ActionType.Custom, address(target), data, "Test"
         );
 
-        vm.prank(external1);
+        vm.prank(foundationMember);
         council.cancelEmergencyAction(actionId);
 
         ISecurityCouncil.EmergencyAction memory action = council.getEmergencyAction(actionId);
-        assertTrue(action.executed); // Marked as executed to prevent reuse
+        assertTrue(action.canceled); // Marked as canceled to prevent reuse
+        assertFalse(action.executed);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -377,5 +378,150 @@ contract SecurityCouncilTest is Test {
 
         // Verify the action is approved (don't execute)
         assertTrue(council.isActionApproved(actionId));
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                    AUTO-THRESHOLD RECALCULATION TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_AddMemberRecalculatesThreshold() public {
+        address newMember = makeAddr("newMember");
+
+        // Start: 3 members, threshold = 2
+        assertEq(council.threshold(), 2);
+
+        vm.prank(daoGovernor);
+        council.addMember(newMember, false);
+
+        // 4 members: threshold = (4*2+2)/3 = 10/3 = 3
+        assertEq(council.threshold(), 3);
+        assertEq(council.memberCount(), 4);
+    }
+
+    function test_RemoveMemberRecalculatesThreshold() public {
+        // Start: 3 members, threshold = 2
+        assertEq(council.threshold(), 2);
+
+        vm.prank(daoGovernor);
+        council.removeMember(external2);
+
+        // 2 members: threshold = (2*2+2)/3 = 6/3 = 2
+        assertEq(council.threshold(), 2);
+        assertEq(council.memberCount(), 2);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                    CANCEL RESTRICTION TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_CancelEmergencyActionOnlyProposer() public {
+        bytes memory data = abi.encodeWithSignature("setValue(uint256)", 42);
+
+        vm.prank(foundationMember);
+        uint256 actionId = council.proposeEmergencyAction(
+            ISecurityCouncil.ActionType.Custom, address(target), data, "Test"
+        );
+
+        // external1 (non-proposer) tries to cancel -> should revert
+        vm.prank(external1);
+        vm.expectRevert(SecurityCouncil.OnlyProposerCanCancel.selector);
+        council.cancelEmergencyAction(actionId);
+
+        // foundationMember (proposer) can cancel
+        vm.prank(foundationMember);
+        council.cancelEmergencyAction(actionId);
+
+        ISecurityCouncil.EmergencyAction memory action = council.getEmergencyAction(actionId);
+        assertTrue(action.canceled);
+        assertFalse(action.executed);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                    ACTION EXPIRY TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_EmergencyActionExpiry() public {
+        bytes memory data = abi.encodeWithSignature("setValue(uint256)", 42);
+
+        vm.prank(foundationMember);
+        uint256 actionId = council.proposeEmergencyAction(
+            ISecurityCouncil.ActionType.Custom, address(target), data, "Test"
+        );
+
+        // Warp past TTL
+        vm.warp(block.timestamp + 7 days + 1);
+
+        // Approve should revert
+        vm.prank(external1);
+        vm.expectRevert(SecurityCouncil.ActionExpired.selector);
+        council.approveEmergencyAction(actionId);
+    }
+
+    function test_ExecuteEmergencyActionExpiry() public {
+        bytes memory data = abi.encodeWithSignature("setValue(uint256)", 42);
+
+        vm.prank(foundationMember);
+        uint256 actionId = council.proposeEmergencyAction(
+            ISecurityCouncil.ActionType.Custom, address(target), data, "Test"
+        );
+
+        // Approve within TTL
+        vm.prank(external1);
+        council.approveEmergencyAction(actionId);
+
+        // Warp past TTL
+        vm.warp(block.timestamp + 7 days + 1);
+
+        // Execute should revert
+        vm.prank(external2);
+        vm.expectRevert(SecurityCouncil.ActionExpired.selector);
+        council.executeEmergencyAction(actionId);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                    CANCELED STATE TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_CanceledActionState() public {
+        bytes memory data = abi.encodeWithSignature("setValue(uint256)", 42);
+
+        vm.prank(foundationMember);
+        uint256 actionId = council.proposeEmergencyAction(
+            ISecurityCouncil.ActionType.Custom, address(target), data, "Test"
+        );
+
+        vm.prank(foundationMember);
+        council.cancelEmergencyAction(actionId);
+
+        ISecurityCouncil.EmergencyAction memory action = council.getEmergencyAction(actionId);
+        assertTrue(action.canceled);
+        assertFalse(action.executed);
+
+        // Cannot approve canceled action
+        vm.prank(external1);
+        vm.expectRevert(SecurityCouncil.ActionAlreadyCanceled.selector);
+        council.approveEmergencyAction(actionId);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                    MISSING EVENT TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_EmitDAOGovernorUpdatedEvent() public {
+        address newGovernor = makeAddr("newGovernor");
+
+        vm.prank(daoGovernor);
+        vm.expectEmit(true, true, true, true);
+        emit ISecurityCouncil.DAOGovernorUpdated(daoGovernor, newGovernor);
+        council.setDAOGovernor(newGovernor);
+    }
+
+    function test_EmitProtocolTargetUpdatedEvent() public {
+        address newTarget = makeAddr("newTarget");
+
+        vm.prank(daoGovernor);
+        vm.expectEmit(true, true, true, true);
+        emit ISecurityCouncil.ProtocolTargetUpdated(address(target), newTarget);
+        council.setProtocolTarget(newTarget);
     }
 }

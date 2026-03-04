@@ -439,4 +439,145 @@ contract DelegateRegistryTest is Test {
         registry.undelegate(delegate1, 500 ether);
         assertEq(registry.totalDelegatedAll(), 2500 ether);
     }
+
+    /*//////////////////////////////////////////////////////////////
+                    REDELEGATE WITH BURN TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_RedelegateWithBurn() public {
+        // Register delegates
+        vm.prank(delegate1);
+        registry.registerDelegate("Alice", "Philosophy1", "Interests1");
+        vm.prank(delegate2);
+        registry.registerDelegate("Bob", "Philosophy2", "Interests2");
+
+        // Set governor
+        vm.prank(owner);
+        registry.setGovernor(address(this));
+
+        // user1 delegates 1000 to delegate1
+        vm.prank(user1);
+        registry.delegate(delegate1, 1000 ether);
+
+        // Burn 200 from delegate1
+        registry.burnFromDelegate(delegate1, 200 ether);
+
+        uint256 totalAllBefore = registry.totalDelegatedAll();
+        uint256 totalByBefore = registry.getTotalDelegatedBy(user1);
+
+        // Redelegate 1000 from delegate1 to delegate2
+        // proportionalAmount = 1000 * 800 / (800 + 200) = 800
+        // burnShare = 1000 - 800 = 200
+        vm.prank(user1);
+        registry.redelegate(delegate1, delegate2, 1000 ether);
+
+        // delegate1 should have 0 delegated
+        assertEq(registry.getTotalDelegated(delegate1), 0);
+        // delegate2 should have 800 (proportional amount)
+        assertEq(registry.getTotalDelegated(delegate2), 800 ether);
+        // totalDelegatedAll should decrease by burnShare (200)
+        assertEq(registry.totalDelegatedAll(), totalAllBefore - 200 ether);
+        // totalDelegatedBy should decrease by burnShare (200)
+        assertEq(registry.getTotalDelegatedBy(user1), totalByBefore - 200 ether);
+    }
+
+    function test_GetTotalDelegatedByAfterRedelegate() public {
+        // Register delegates
+        vm.prank(delegate1);
+        registry.registerDelegate("Alice", "Philosophy1", "Interests1");
+        vm.prank(delegate2);
+        registry.registerDelegate("Bob", "Philosophy2", "Interests2");
+
+        vm.prank(owner);
+        registry.setGovernor(address(this));
+
+        // user1 delegates 1000 to delegate1
+        vm.prank(user1);
+        registry.delegate(delegate1, 1000 ether);
+
+        // No burn, redelegate 500
+        vm.prank(user1);
+        registry.redelegate(delegate1, delegate2, 500 ether);
+
+        // No burn, so totalDelegatedBy should be unchanged
+        assertEq(registry.getTotalDelegatedBy(user1), 1000 ether);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                    REACTIVATE DELEGATE TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_ReactivateDelegate() public {
+        vm.prank(delegate1);
+        registry.registerDelegate("Alice", "Philosophy", "Interests");
+
+        vm.prank(delegate1);
+        registry.deactivateDelegate();
+        assertFalse(registry.isRegisteredDelegate(delegate1));
+
+        vm.prank(delegate1);
+        registry.reactivateDelegate();
+        assertTrue(registry.isRegisteredDelegate(delegate1));
+    }
+
+    function test_ReactivateRevertsIfNotRegistered() public {
+        vm.prank(delegate1);
+        vm.expectRevert(DelegateRegistry.NotRegisteredDelegate.selector);
+        registry.reactivateDelegate();
+    }
+
+    function test_ReactivateRevertsIfAlreadyActive() public {
+        vm.prank(delegate1);
+        registry.registerDelegate("Alice", "Philosophy", "Interests");
+
+        vm.prank(delegate1);
+        vm.expectRevert(DelegateRegistry.AlreadyRegisteredDelegate.selector);
+        registry.reactivateDelegate();
+    }
+
+    function test_DeactivatedDelegateExistingDelegations() public {
+        // Register and delegate
+        vm.prank(delegate1);
+        registry.registerDelegate("Alice", "Philosophy", "Interests");
+
+        vm.prank(user1);
+        registry.delegate(delegate1, 1000 ether);
+
+        // Deactivate delegate
+        vm.prank(delegate1);
+        registry.deactivateDelegate();
+
+        // Existing delegation should still be undelegatable
+        vm.prank(user1);
+        registry.undelegate(delegate1, 1000 ether);
+
+        assertEq(token.balanceOf(user1), INITIAL_BALANCE);
+    }
+
+    function test_RedelegateToSelf() public {
+        vm.prank(delegate1);
+        registry.registerDelegate("Alice", "Philosophy", "Interests");
+
+        vm.prank(user1);
+        registry.delegate(delegate1, 1000 ether);
+
+        // Redelegate to self should work
+        vm.prank(user1);
+        registry.redelegate(delegate1, delegate1, 500 ether);
+
+        assertEq(registry.getTotalDelegated(delegate1), 1000 ether);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                    GOVERNOR UPDATED EVENT TEST
+    //////////////////////////////////////////////////////////////*/
+
+    function test_SetGovernorEmitsEvent() public {
+        address newGovernor = makeAddr("newGovernor");
+
+        vm.prank(owner);
+        vm.expectEmit(true, true, true, true);
+        emit IDelegateRegistry.GovernorUpdated(address(0), newGovernor);
+        registry.setGovernor(newGovernor);
+    }
 }

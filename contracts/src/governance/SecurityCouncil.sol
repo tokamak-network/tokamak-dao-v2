@@ -29,6 +29,9 @@ contract SecurityCouncil is ISecurityCouncil, ReentrancyGuard {
     error CannotRemoveLastFoundationMember();
     error OnlyDAOCanModifyMembers();
     error ExecutionFailed();
+    error OnlyProposerCanCancel();
+    error ActionExpired();
+    error ActionAlreadyCanceled();
 
     /*//////////////////////////////////////////////////////////////
                                 CONSTANTS
@@ -36,6 +39,9 @@ contract SecurityCouncil is ISecurityCouncil, ReentrancyGuard {
 
     /// @notice Minimum number of members
     uint256 public constant MIN_MEMBERS = 2;
+
+    /// @notice Time-to-live for emergency actions (7 days)
+    uint256 public constant ACTION_TTL = 7 days;
 
     /*//////////////////////////////////////////////////////////////
                                  STATE
@@ -73,6 +79,9 @@ contract SecurityCouncil is ISecurityCouncil, ReentrancyGuard {
 
     /// @notice Mapping to track approvals: actionId => member => approved
     mapping(uint256 => mapping(address => bool)) private _approvals;
+
+    /// @notice Mapping from action ID to the original proposer
+    mapping(uint256 => address) private _actionProposer;
 
     /*//////////////////////////////////////////////////////////////
                               CONSTRUCTOR
@@ -141,6 +150,12 @@ contract SecurityCouncil is ISecurityCouncil, ReentrancyGuard {
 
         _addMember(member, isFoundation);
 
+        uint256 oldThreshold = threshold;
+        threshold = (_members.length * 2 + 2) / 3;
+        if (threshold != oldThreshold) {
+            emit ThresholdUpdated(oldThreshold, threshold);
+        }
+
         emit MemberAdded(member, isFoundation);
     }
 
@@ -157,9 +172,11 @@ contract SecurityCouncil is ISecurityCouncil, ReentrancyGuard {
 
         _removeMember(member);
 
-        // Adjust threshold if needed
-        if (threshold > _members.length) {
-            threshold = _members.length;
+        // Recalculate threshold to maintain 2/3 ratio
+        uint256 oldThreshold = threshold;
+        threshold = (_members.length * 2 + 2) / 3;
+        if (threshold != oldThreshold) {
+            emit ThresholdUpdated(oldThreshold, threshold);
         }
 
         emit MemberRemoved(member);
@@ -202,10 +219,12 @@ contract SecurityCouncil is ISecurityCouncil, ReentrancyGuard {
             createdAt: block.timestamp,
             executedAt: 0,
             executed: false,
+            canceled: false,
             approvers: approvers
         });
 
         _approvals[actionId][msg.sender] = true;
+        _actionProposer[actionId] = msg.sender;
         _pendingActionIds.push(actionId);
 
         emit EmergencyActionProposed(actionId, actionType, target, data, reason, msg.sender);
@@ -217,6 +236,8 @@ contract SecurityCouncil is ISecurityCouncil, ReentrancyGuard {
         EmergencyAction storage action = _actions[actionId];
         if (action.createdAt == 0) revert ActionNotFound();
         if (action.executed) revert ActionAlreadyExecuted();
+        if (action.canceled) revert ActionAlreadyCanceled();
+        if (block.timestamp > action.createdAt + ACTION_TTL) revert ActionExpired();
         if (_approvals[actionId][msg.sender]) revert AlreadyApproved();
 
         _approvals[actionId][msg.sender] = true;
@@ -230,6 +251,8 @@ contract SecurityCouncil is ISecurityCouncil, ReentrancyGuard {
         EmergencyAction storage action = _actions[actionId];
         if (action.createdAt == 0) revert ActionNotFound();
         if (action.executed) revert ActionAlreadyExecuted();
+        if (action.canceled) revert ActionAlreadyCanceled();
+        if (block.timestamp > action.createdAt + ACTION_TTL) revert ActionExpired();
         if (action.approvers.length < threshold) revert ActionNotApproved();
 
         action.executed = true;
@@ -250,12 +273,14 @@ contract SecurityCouncil is ISecurityCouncil, ReentrancyGuard {
         EmergencyAction storage action = _actions[actionId];
         if (action.createdAt == 0) revert ActionNotFound();
         if (action.executed) revert ActionAlreadyExecuted();
+        if (action.canceled) revert ActionAlreadyCanceled();
+        if (msg.sender != _actionProposer[actionId]) revert OnlyProposerCanCancel();
 
         // Remove from pending
         _removePendingAction(actionId);
 
-        // Mark as executed to prevent future use
-        action.executed = true;
+        // Mark as canceled
+        action.canceled = true;
 
         emit EmergencyActionCanceled(actionId);
     }
@@ -284,10 +309,12 @@ contract SecurityCouncil is ISecurityCouncil, ReentrancyGuard {
             createdAt: block.timestamp,
             executedAt: 0,
             executed: false,
+            canceled: false,
             approvers: approvers
         });
 
         _approvals[actionId][msg.sender] = true;
+        _actionProposer[actionId] = msg.sender;
         _pendingActionIds.push(actionId);
 
         emit EmergencyActionProposed(
@@ -313,10 +340,12 @@ contract SecurityCouncil is ISecurityCouncil, ReentrancyGuard {
             createdAt: block.timestamp,
             executedAt: 0,
             executed: false,
+            canceled: false,
             approvers: approvers
         });
 
         _approvals[actionId][msg.sender] = true;
+        _actionProposer[actionId] = msg.sender;
         _pendingActionIds.push(actionId);
 
         emit EmergencyActionProposed(
@@ -342,10 +371,12 @@ contract SecurityCouncil is ISecurityCouncil, ReentrancyGuard {
             createdAt: block.timestamp,
             executedAt: 0,
             executed: false,
+            canceled: false,
             approvers: approvers
         });
 
         _approvals[actionId][msg.sender] = true;
+        _actionProposer[actionId] = msg.sender;
         _pendingActionIds.push(actionId);
 
         emit EmergencyActionProposed(
@@ -446,13 +477,17 @@ contract SecurityCouncil is ISecurityCouncil, ReentrancyGuard {
     /// @param newGovernor New governor address
     function setDAOGovernor(address newGovernor) external onlyDAO {
         if (newGovernor == address(0)) revert ZeroAddress();
+        address oldGovernor = daoGovernor;
         daoGovernor = newGovernor;
+        emit DAOGovernorUpdated(oldGovernor, newGovernor);
     }
 
     /// @notice Update protocol target address
     /// @param newTarget New target address
     function setProtocolTarget(address newTarget) external onlyDAO {
         if (newTarget == address(0)) revert ZeroAddress();
+        address oldTarget = protocolTarget;
         protocolTarget = newTarget;
+        emit ProtocolTargetUpdated(oldTarget, newTarget);
     }
 }

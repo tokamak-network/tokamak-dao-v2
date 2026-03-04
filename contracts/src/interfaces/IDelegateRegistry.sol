@@ -22,7 +22,7 @@ interface IDelegateRegistry {
         address delegate; // The delegate receiving the delegation
         uint256 amount; // Amount of vTON delegated
         uint256 delegatedAt; // When the delegation was made
-        uint256 expiresAt; // When the delegation expires (0 = no expiry)
+        uint256 expiresAt; // Informational only: suggested expiry (0 = no expiry, not enforced on-chain)
     }
 
     /// @notice Emitted when a delegate registers
@@ -38,6 +38,9 @@ interface IDelegateRegistry {
     /// @notice Emitted when a delegate is deactivated
     event DelegateDeactivated(address indexed delegate);
 
+    /// @notice Emitted when a delegate is reactivated
+    event DelegateReactivated(address indexed delegate);
+
     /// @notice Emitted when vTON is delegated
     event Delegated(
         address indexed owner, address indexed delegate, uint256 amount, uint256 expiresAt
@@ -51,6 +54,9 @@ interface IDelegateRegistry {
 
     /// @notice Emitted when vTON is burned from a delegate's total
     event DelegateVTONBurned(address indexed delegate, uint256 amount);
+
+    /// @notice Emitted when the governor address is updated
+    event GovernorUpdated(address oldGovernor, address newGovernor);
 
     /// @notice Register as a delegate
     /// @param profile Identity or pseudonym
@@ -74,6 +80,9 @@ interface IDelegateRegistry {
 
     /// @notice Deactivate as a delegate
     function deactivateDelegate() external;
+
+    /// @notice Reactivate a previously deactivated delegate
+    function reactivateDelegate() external;
 
     /// @notice Delegate vTON to a delegate
     /// @param delegate The delegate address

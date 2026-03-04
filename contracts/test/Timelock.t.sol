@@ -63,7 +63,7 @@ contract TimelockTest is Test {
         assertEq(timelock.governor(), governor);
         assertEq(timelock.securityCouncil(), securityCouncil);
         assertEq(timelock.delay(), DELAY);
-        assertEq(timelock.MINIMUM_DELAY(), 1 hours);
+        assertEq(timelock.MINIMUM_DELAY(), 1 days);
         assertEq(timelock.MAXIMUM_DELAY(), 30 days);
         assertEq(timelock.GRACE_PERIOD(), 14 days);
     }
@@ -75,7 +75,7 @@ contract TimelockTest is Test {
 
     function test_DeploymentRevertsIfDelayTooSmall() public {
         vm.expectRevert(Timelock.InvalidDelay.selector);
-        new Timelock(admin, 1 hours - 1);
+        new Timelock(admin, 1 days - 1);
     }
 
     function test_DeploymentRevertsIfDelayTooLarge() public {
@@ -84,8 +84,8 @@ contract TimelockTest is Test {
     }
 
     function test_DeploymentWithMinimumDelay() public {
-        Timelock t = new Timelock(admin, 1 hours);
-        assertEq(t.delay(), 1 hours);
+        Timelock t = new Timelock(admin, 1 days);
+        assertEq(t.delay(), 1 days);
     }
 
     function test_DeploymentWithMaximumDelay() public {
@@ -192,7 +192,7 @@ contract TimelockTest is Test {
     function test_SetDelayRevertsIfTooSmall() public {
         vm.prank(admin);
         vm.expectRevert(Timelock.InvalidDelay.selector);
-        timelock.setDelay(1 hours - 1);
+        timelock.setDelay(1 days - 1);
     }
 
     function test_SetDelayRevertsIfTooLarge() public {
@@ -202,28 +202,58 @@ contract TimelockTest is Test {
     }
 
     /*//////////////////////////////////////////////////////////////
-                        ADMIN FUNCTIONS - setAdmin
+                    ADMIN FUNCTIONS - 2-step admin transfer
     //////////////////////////////////////////////////////////////*/
 
-    function test_SetAdmin() public {
+    function test_TwoStepAdminTransfer() public {
         address newAdmin = makeAddr("newAdmin");
 
         vm.prank(admin);
-        timelock.setAdmin(newAdmin);
+        timelock.setPendingAdmin(newAdmin);
+        assertEq(timelock.pendingAdmin(), newAdmin);
 
+        vm.prank(newAdmin);
+        timelock.acceptAdmin();
         assertEq(timelock.admin(), newAdmin);
+        assertEq(timelock.pendingAdmin(), address(0));
     }
 
-    function test_SetAdminRevertsIfNotAdmin() public {
+    function test_SetPendingAdminRevertsIfNotAdmin() public {
         vm.prank(alice);
         vm.expectRevert(Timelock.NotAdmin.selector);
-        timelock.setAdmin(alice);
+        timelock.setPendingAdmin(alice);
     }
 
-    function test_SetAdminRevertsIfZeroAddress() public {
+    function test_SetPendingAdminRevertsIfZeroAddress() public {
         vm.prank(admin);
         vm.expectRevert(Timelock.ZeroAddress.selector);
-        timelock.setAdmin(address(0));
+        timelock.setPendingAdmin(address(0));
+    }
+
+    function test_AcceptAdminRevertsIfNotPending() public {
+        address newAdmin = makeAddr("newAdmin");
+        vm.prank(admin);
+        timelock.setPendingAdmin(newAdmin);
+
+        vm.prank(alice);
+        vm.expectRevert(Timelock.NotPendingAdmin.selector);
+        timelock.acceptAdmin();
+    }
+
+    function test_PendingAdminCanBeOverwritten() public {
+        address newAdmin1 = makeAddr("newAdmin1");
+        address newAdmin2 = makeAddr("newAdmin2");
+
+        vm.startPrank(admin);
+        timelock.setPendingAdmin(newAdmin1);
+        timelock.setPendingAdmin(newAdmin2);
+        vm.stopPrank();
+
+        assertEq(timelock.pendingAdmin(), newAdmin2);
+
+        vm.prank(newAdmin2);
+        timelock.acceptAdmin();
+        assertEq(timelock.admin(), newAdmin2);
     }
 
     /*//////////////////////////////////////////////////////////////

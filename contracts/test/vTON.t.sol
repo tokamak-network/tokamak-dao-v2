@@ -139,10 +139,22 @@ contract vTONTest is Test {
         vm.stopPrank();
 
         vm.prank(minter);
+        vm.expectRevert(vTON.AmountTooSmall.selector);
         token.mint(user1, 1000 ether);
+    }
 
-        // Should receive nothing
-        assertEq(token.balanceOf(user1), 0);
+    function test_MintRevertsWhenAdjustedAmountZero() public {
+        vm.startPrank(owner);
+        token.setMinter(minter, true);
+        // Set emission ratio very low so adjustedAmount rounds to 0
+        token.setEmissionRatio(1); // Tiny ratio
+        vm.stopPrank();
+
+        // With ratio = 1/1e18 and halvingRatio = 1e18, adjustedAmount = amount * 1 / 1e18
+        // For amount = 1, adjustedAmount = 0
+        vm.prank(minter);
+        vm.expectRevert(vTON.AmountTooSmall.selector);
+        token.mint(user1, 1);
     }
 
     /*//////////////////////////////////////////////////////////////

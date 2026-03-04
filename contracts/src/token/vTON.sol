@@ -36,6 +36,9 @@ contract vTON is ERC20, ERC20Permit, ERC20Votes, Ownable, IvTON {
     /// @notice Thrown when totalSupply has reached MAX_SUPPLY
     error MaxSupplyReached();
 
+    /// @notice Thrown when adjusted mint amount rounds to zero
+    error AmountTooSmall();
+
     /*//////////////////////////////////////////////////////////////
                             HALVING CONSTANTS
     //////////////////////////////////////////////////////////////*/
@@ -80,7 +83,6 @@ contract vTON is ERC20, ERC20Permit, ERC20Votes, Ownable, IvTON {
         ERC20Permit("Tokamak Network Governance Token")
         Ownable(initialOwner)
     {
-        if (initialOwner == address(0)) revert ZeroAddress();
         emissionRatio = MAX_EMISSION_RATIO; // Start at 100%
     }
 
@@ -102,7 +104,7 @@ contract vTON is ERC20, ERC20Permit, ERC20Votes, Ownable, IvTON {
 
         // Apply halving ratio × emission ratio (dual application)
         uint256 adjustedAmount = (amount * halvingRatio / 1e18) * emissionRatio / 1e18;
-        if (adjustedAmount == 0) return;
+        if (adjustedAmount == 0) revert AmountTooSmall();
 
         // Cap at MAX_SUPPLY
         if (currentSupply + adjustedAmount > MAX_SUPPLY) {

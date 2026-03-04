@@ -25,6 +25,7 @@ contract Timelock is ReentrancyGuard {
     error ExecutionFailed();
     error ZeroAddress();
     error InvalidDelay();
+    error NotPendingAdmin();
 
     /*//////////////////////////////////////////////////////////////
                                  EVENTS
@@ -44,12 +45,16 @@ contract Timelock is ReentrancyGuard {
 
     event SecurityCouncilUpdated(address oldCouncil, address newCouncil);
 
+    event AdminTransferStarted(address indexed currentAdmin, address indexed pendingAdmin);
+
+    event AdminUpdated(address indexed oldAdmin, address indexed newAdmin);
+
     /*//////////////////////////////////////////////////////////////
                                 CONSTANTS
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Minimum delay (1 hour)
-    uint256 public constant MINIMUM_DELAY = 1 hours;
+    /// @notice Minimum delay (1 day)
+    uint256 public constant MINIMUM_DELAY = 1 days;
 
     /// @notice Maximum delay (30 days)
     uint256 public constant MAXIMUM_DELAY = 30 days;
@@ -72,6 +77,9 @@ contract Timelock is ReentrancyGuard {
 
     /// @notice Execution delay in seconds
     uint256 public delay;
+
+    /// @notice Pending admin for 2-step transfer
+    address public pendingAdmin;
 
     /// @notice Queued transactions: hash => queued
     mapping(bytes32 => bool) public queuedTransactions;
@@ -236,11 +244,21 @@ contract Timelock is ReentrancyGuard {
         emit DelayUpdated(oldDelay, newDelay);
     }
 
-    /// @notice Transfer admin to a new address
+    /// @notice Start 2-step admin transfer by setting pending admin
     /// @param newAdmin New admin address
-    function setAdmin(address newAdmin) external onlyAdmin {
+    function setPendingAdmin(address newAdmin) external onlyAdmin {
         if (newAdmin == address(0)) revert ZeroAddress();
-        admin = newAdmin;
+        pendingAdmin = newAdmin;
+        emit AdminTransferStarted(admin, newAdmin);
+    }
+
+    /// @notice Accept admin role (must be called by pending admin)
+    function acceptAdmin() external {
+        if (msg.sender != pendingAdmin) revert NotPendingAdmin();
+        address oldAdmin = admin;
+        admin = pendingAdmin;
+        pendingAdmin = address(0);
+        emit AdminUpdated(oldAdmin, msg.sender);
     }
 
     /*//////////////////////////////////////////////////////////////
