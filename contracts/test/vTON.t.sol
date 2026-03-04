@@ -711,4 +711,77 @@ contract vTONTest is Test {
         assertEq(token.EPOCH_SIZE(), 5_000_000e18);
         assertEq(token.DECAY_RATE(), 75e16);
     }
+
+    /*//////////////////////////////////////////////////////////////
+                        ERC20Permit TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_Permit() public {
+        uint256 ownerPrivateKey = 0xA11CE;
+        address permitOwner = vm.addr(ownerPrivateKey);
+        address spender = user1;
+        uint256 value = 1000 ether;
+        uint256 deadline = block.timestamp + 1 days;
+
+        // Mint tokens to permitOwner
+        vm.prank(owner);
+        token.setMinter(minter, true);
+        vm.prank(minter);
+        token.mint(permitOwner, value);
+
+        // Build permit digest
+        uint256 nonce = token.nonces(permitOwner);
+        bytes32 structHash = keccak256(
+            abi.encode(
+                keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"),
+                permitOwner,
+                spender,
+                value,
+                nonce,
+                deadline
+            )
+        );
+        bytes32 domainSeparator = token.DOMAIN_SEPARATOR();
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerPrivateKey, digest);
+
+        // Execute permit
+        token.permit(permitOwner, spender, value, deadline, v, r, s);
+
+        // Verify allowance was set
+        assertEq(token.allowance(permitOwner, spender), value);
+        assertEq(token.nonces(permitOwner), nonce + 1);
+    }
+
+    function test_PermitInvalidSignatureReverts() public {
+        uint256 ownerPrivateKey = 0xA11CE;
+        address permitOwner = vm.addr(ownerPrivateKey);
+        uint256 wrongPrivateKey = 0xBEEF;
+        address spender = user1;
+        uint256 value = 1000 ether;
+        uint256 deadline = block.timestamp + 1 days;
+
+        // Build permit digest
+        uint256 nonce = token.nonces(permitOwner);
+        bytes32 structHash = keccak256(
+            abi.encode(
+                keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"),
+                permitOwner,
+                spender,
+                value,
+                nonce,
+                deadline
+            )
+        );
+        bytes32 domainSeparator = token.DOMAIN_SEPARATOR();
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
+
+        // Sign with WRONG key
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(wrongPrivateKey, digest);
+
+        // Should revert with invalid signature
+        vm.expectRevert();
+        token.permit(permitOwner, spender, value, deadline, v, r, s);
+    }
 }

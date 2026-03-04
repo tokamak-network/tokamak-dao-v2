@@ -328,6 +328,7 @@ contract SecurityCouncil is ISecurityCouncil, ReentrancyGuard {
         emit EmergencyActionProposed(
             actionId, ActionType.CancelProposal, daoGovernor, data, "Cancel malicious proposal", msg.sender
         );
+        emit EmergencyActionApproved(actionId, msg.sender);
     }
 
     /// @inheritdoc ISecurityCouncil
@@ -359,6 +360,7 @@ contract SecurityCouncil is ISecurityCouncil, ReentrancyGuard {
         emit EmergencyActionProposed(
             actionId, ActionType.PauseProtocol, protocolTarget, data, reason, msg.sender
         );
+        emit EmergencyActionApproved(actionId, msg.sender);
     }
 
     /// @inheritdoc ISecurityCouncil
@@ -390,6 +392,7 @@ contract SecurityCouncil is ISecurityCouncil, ReentrancyGuard {
         emit EmergencyActionProposed(
             actionId, ActionType.UnpauseProtocol, protocolTarget, data, "Unpause protocol", msg.sender
         );
+        emit EmergencyActionApproved(actionId, msg.sender);
     }
 
     /*//////////////////////////////////////////////////////////////

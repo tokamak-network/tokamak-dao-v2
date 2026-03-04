@@ -809,6 +809,33 @@ contract SecurityCouncilTest is Test {
         council.setProtocolTarget(makeAddr("newTarget"));
     }
 
+    /*//////////////////////////////////////////////////////////////
+                CONVENIENCE FUNCTION EVENT TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_CancelProposalEmitsApprovedEvent() public {
+        uint256 someProposalId = 456;
+
+        vm.prank(foundationMember);
+        vm.expectEmit(true, true, true, true);
+        emit ISecurityCouncil.EmergencyActionApproved(0, foundationMember);
+        council.cancelProposal(someProposalId);
+    }
+
+    function test_PauseProtocolEmitsApprovedEvent() public {
+        vm.prank(foundationMember);
+        vm.expectEmit(true, true, true, true);
+        emit ISecurityCouncil.EmergencyActionApproved(0, foundationMember);
+        council.pauseProtocol("Emergency pause");
+    }
+
+    function test_UnpauseProtocolEmitsApprovedEvent() public {
+        vm.prank(foundationMember);
+        vm.expectEmit(true, true, true, true);
+        emit ISecurityCouncil.EmergencyActionApproved(0, foundationMember);
+        council.unpauseProtocol();
+    }
+
     function test_IsActionApprovedAfterMemberRemoval() public {
         // Fix 1 verification: isActionApproved must return false when
         // a removed member's approval is no longer valid
