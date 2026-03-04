@@ -11,7 +11,9 @@ graph LR
 
     subgraph Governance["거버넌스"]
         DCP["📌 DAOCommitteeProxy<br/>단일 진입점 · Storage 보유"]
-        DCV1["DAOCommittee_V1<br/>로직 구현체"]
+        DCP2["DAOCommitteeProxy2<br/>셀렉터 기반 라우터"]
+        IMPL_A["구현체 A<br/>0x9050...1a25"]
+        IMPL_B["구현체 B<br/>0xcb98...7d92"]
         DAM["DAOAgendaManager<br/>안건 · 투표 · 실행"]
         DV["DAOVault<br/>TON/WTON 트레저리"]
     end
@@ -29,19 +31,23 @@ graph LR
 
     USER -->|"approveAndCall · createCandidate"| DCP
     DCO -.->|"직접 설정"| DCP
-    DCP ===|"delegatecall"| DCV1
-    DCV1 --> DAM
-    DCV1 --> DV
-    DCV1 -->|"deploy"| CF
+    DCP ===|"delegatecall"| DCP2
+    DCP2 -->|"셀렉터 매칭"| IMPL_B
+    DCP2 -->|"default"| IMPL_A
+    IMPL_A --> DAM
+    IMPL_A --> DV
+    IMPL_A -->|"deploy"| CF
     CF --> CAND
     CAND -->|"castVote · changeMember"| DCP
     CAND -.->|"totalStaked 조회"| SM
-    DCV1 --> L2R
+    IMPL_A --> L2R
     USER -->|"deposit WTON"| DM
     DM --> SM
 
     style DCP fill:#4A90D9,stroke:#2C5F8A,color:#fff
-    style DCV1 fill:#7B68EE,stroke:#5B48CE,color:#fff
+    style DCP2 fill:#E066FF,stroke:#B040CC,color:#fff
+    style IMPL_A fill:#7B68EE,stroke:#5B48CE,color:#fff
+    style IMPL_B fill:#9370DB,stroke:#7350BB,color:#fff
     style DAM fill:#E8A838,stroke:#C88818,color:#fff
     style DV fill:#50C878,stroke:#30A858,color:#fff
     style CF fill:#FF6B6B,stroke:#DD4B4B,color:#fff
@@ -53,24 +59,35 @@ graph LR
 
 V1은 **Custom Transparent Proxy** 패턴을 사용합니다. EIP-1967이 아닌 일반 storage 변수에 구현체 주소를 저장합니다.
 
-### 2-1. Proxy 호출 흐름
+> **현재 상태 (2025년 이후)**: `DAOCommitteeProxy`의 `_implementation`이 `DAOCommitteeProxy2`로 업그레이드되었습니다. `DAOCommitteeProxy2`는 셀렉터(selector) 기반 멀티 구현체 라우터로, 호출되는 함수에 따라 서로 다른 구현체로 분기합니다.
+
+### 2-1. Proxy 호출 흐름 (현재)
 
 ```mermaid
 sequenceDiagram
     participant User as 사용자
     participant Proxy as DAOCommitteeProxy<br/>0xDD9f...C26
-    participant Impl as DAOCommittee_V1<br/>0xdF2e...815
+    participant Router as DAOCommitteeProxy2<br/>0x9e7f...368c<br/>(셀렉터 라우터)
+    participant ImplA as 구현체 A (default)<br/>0x9050...1a25
+    participant ImplB as 구현체 B (일부 셀렉터)<br/>0xcb98...7d92
 
-    Note over Proxy: Storage 보유<br/>━━━━━━━━━━━━<br/>_implementation<br/>pauseProxy<br/>ton, daoVault, ...<br/>candidates[], members[]<br/>_candidateInfos
+    Note over Proxy: Storage 보유<br/>━━━━━━━━━━━━<br/>_implementation → Proxy2<br/>pauseProxy<br/>ton, daoVault, ...<br/>candidates[], members[]<br/>_candidateInfos
 
     User->>Proxy: castVote(agendaID, vote, comment)
     Note over Proxy: fallback() 실행
     alt pauseProxy == true
         Proxy-->>User: revert
     else pauseProxy == false
-        Proxy->>Impl: delegatecall(calldata)
-        Note over Impl: Proxy의 Storage를<br/>읽고/쓰는 로직 실행
-        Impl-->>Proxy: returndata
+        Proxy->>Router: delegatecall(calldata)
+        Note over Router: msg.sig 기반<br/>구현체 라우팅
+        alt 특정 셀렉터 매칭
+            Router->>ImplB: delegatecall(calldata)
+            ImplB-->>Router: returndata
+        else default (매칭 없음)
+            Router->>ImplA: delegatecall(calldata)
+            ImplA-->>Router: returndata
+        end
+        Router-->>Proxy: returndata
         Proxy-->>User: returndata
     end
 ```
@@ -120,35 +137,47 @@ graph TB
     style DCV1 fill:#7B68EE,stroke:#5B48CE,color:#fff
 ```
 
-### 2-3. Proxy 업그레이드 흐름
+### 2-3. Proxy 업그레이드 이력
 
 ```mermaid
 graph LR
     ADMIN["Admin<br/>(DEFAULT_ADMIN_ROLE)"]
     DCP["DAOCommitteeProxy"]
-    OLD["DAOCommittee<br/>0xd1A3...b8e6<br/>(이전 구현체)"]
-    NEW["DAOCommittee_V1<br/>0xdF2e...815<br/>(새 구현체)"]
+    V0["DAOCommittee<br/>0xd1A3...b8e6<br/>(초기 구현체)"]
+    V1["DAOCommittee_V1<br/>0xdF2e...815<br/>(V1 구현체)"]
+    P2["DAOCommitteeProxy2<br/>0x9e7f...368c<br/>(현재 · 멀티라우터)"]
 
-    ADMIN -->|"upgradeTo(newImpl)"| DCP
-    DCP -.->|"_implementation (이전)"| OLD
-    DCP ==>|"_implementation (현재)"| NEW
+    ADMIN -->|"upgradeTo()"| DCP
+    DCP -.->|"1단계"| V0
+    DCP -.->|"2단계"| V1
+    DCP ==>|"현재 _implementation"| P2
+
+    P2 -->|"default 구현체"| IA["0x9050...1a25"]
+    P2 -->|"일부 셀렉터"| IB["0xcb98...7d92"]
 
     style DCP fill:#4A90D9,stroke:#2C5F8A,color:#fff
-    style OLD fill:#999,stroke:#666,color:#fff
-    style NEW fill:#7B68EE,stroke:#5B48CE,color:#fff
+    style V0 fill:#999,stroke:#666,color:#fff
+    style V1 fill:#999,stroke:#666,color:#fff
+    style P2 fill:#E066FF,stroke:#B040CC,color:#fff
+    style IA fill:#7B68EE,stroke:#5B48CE,color:#fff
+    style IB fill:#9370DB,stroke:#7350BB,color:#fff
     style ADMIN fill:#E8A838,stroke:#C88818,color:#fff
 ```
 
 ### 2-4. 다중 Proxy 구조
 
-V1에는 3개의 Proxy 패턴이 존재합니다:
+V1에는 3개의 Proxy 패턴이 존재합니다. DAOCommittee 측은 2단 delegatecall 구조(Proxy → Proxy2 → 구현체)입니다:
 
 ```mermaid
 graph TB
-    subgraph CommitteeProxy["DAOCommittee Proxy"]
+    subgraph CommitteeProxy["DAOCommittee Proxy (2단 delegatecall)"]
         CP["DAOCommitteeProxy<br/>0xDD9f...C26"]
-        CI["DAOCommittee_V1<br/>0xdF2e...815"]
-        CP -.->|delegatecall| CI
+        CP2["DAOCommitteeProxy2<br/>0x9e7f...368c<br/>(셀렉터 라우터)"]
+        CIA["구현체 A<br/>0x9050...1a25"]
+        CIB["구현체 B<br/>0xcb98...7d92"]
+        CP -.->|"1차 delegatecall"| CP2
+        CP2 -.->|"default"| CIA
+        CP2 -.->|"일부 셀렉터"| CIB
     end
 
     subgraph FactoryProxy["CandidateFactory Proxy"]
@@ -167,14 +196,18 @@ graph TB
     FP -->|"new CandidateProxy()"| CPN
 
     style CP fill:#4A90D9,stroke:#2C5F8A,color:#fff
+    style CP2 fill:#E066FF,stroke:#B040CC,color:#fff
     style FP fill:#FF6B6B,stroke:#DD4B4B,color:#fff
     style CPN fill:#50C878,stroke:#30A858,color:#fff
-    style CI fill:#7B68EE,stroke:#5B48CE,color:#fff
+    style CIA fill:#7B68EE,stroke:#5B48CE,color:#fff
+    style CIB fill:#9370DB,stroke:#7350BB,color:#fff
     style FI fill:#FF9999,stroke:#DD7777,color:#333
     style CII fill:#90EE90,stroke:#60BE60,color:#333
 ```
 
 > **특이사항**: EIP-1967 표준 슬롯이 아닌 일반 `address internal _implementation` 변수를 사용합니다. 이로 인해 Etherscan 등의 도구에서 자동 구현체 감지가 되지 않을 수 있습니다.
+>
+> **DAOCommitteeProxy2**: Solidity v0.8.19로 작성된 셀렉터 기반 멀티 구현체 프록시입니다. `getSelectorImplementation2(bytes4)` 함수로 특정 셀렉터에 매핑된 구현체를 조회할 수 있으며, 매핑되지 않은 셀렉터는 default 구현체(`0x9050...1a25`)로 라우팅됩니다.
 
 ## 3. 상속 구조
 
@@ -266,12 +299,12 @@ sequenceDiagram
     participant User as 사용자
     participant TON as TON Token
     participant DCP as DAOCommitteeProxy
-    participant DC as DAOCommittee_V1
+    participant DC as 구현체 (via Proxy2)
     participant DAM as DAOAgendaManager
 
     User->>TON: approveAndCall(proxy, 100 TON, data)
     TON->>DCP: onApprove(owner, spender, 100 TON, data)
-    DCP->>DC: delegatecall → onApprove()
+    DCP->>DC: delegatecall (Proxy → Proxy2 → 구현체)
 
     Note over DC: data 디코딩:<br/>(targets[], noticePeriod,<br/>votingPeriod, atomicExecute,<br/>functionBytecodes[])
 
@@ -291,13 +324,13 @@ sequenceDiagram
     participant OP as Operator (EOA)
     participant CAND as Candidate Contract
     participant DCP as DAOCommitteeProxy
-    participant DC as DAOCommittee_V1
+    participant DC as 구현체 (via Proxy2)
     participant DAM as DAOAgendaManager
     participant TARGET as Target Contract
 
     OP->>CAND: castVote(agendaID, YES, "comment")
     CAND->>DCP: castVote(agendaID, YES, "comment")
-    DCP->>DC: delegatecall
+    DCP->>DC: delegatecall (Proxy → Proxy2 → 구현체)
 
     Note over DC: 검증: msg.sender가<br/>후보자의 Candidate 컨트랙트인지
 
@@ -312,7 +345,7 @@ sequenceDiagram
     Note right of DC: 실행 단계 (통과 후)
 
     OP->>DCP: executeAgenda(agendaID)
-    DCP->>DC: delegatecall
+    DCP->>DC: delegatecall (Proxy → Proxy2 → 구현체)
     DC->>DAM: canExecuteAgenda(agendaID)?
     DAM-->>DC: true
 
@@ -395,15 +428,22 @@ classDiagram
 | 컨트랙트 | 주소 | 역할 |
 |---------|------|------|
 | **DAOCommitteeProxy** | `0xDD9f0cCc044B0781289Ee318e5971b0139602C26` | 프록시 (진입점) |
-| **DAOCommittee** | `0xd1A3fDDCCD09ceBcFCc7845dDba666B7B8e6D1fb` | 기본 구현체 |
-| **DAOCommittee_V1** | `0xdF2eCda32970DB7dB3428FC12Bc1697098418815` | 최신 구현체 |
+| **DAOCommitteeProxy2** | `0x9e7f54eff4a4d35097e0acb6994a723f1a28368c` | 셀렉터 기반 멀티 구현체 라우터 (현재 `_implementation`) |
+| ↳ 구현체 A (default) | `0x9050af1638f379a018737880ad946cdda9101a25` | Proxy2 default 구현체 |
+| ↳ 구현체 B (일부 셀렉터) | `0xcb9859dc0fbeca68efff2bce289150513fdf7d92` | Proxy2 셀렉터 매칭 구현체 |
+| **DAOCommittee** | `0xd1A3fDDCCD09ceBcFCc7845dDba666B7B8e6D1fb` | 이전 구현체 (초기) |
+| **DAOCommittee_V1** | `0xdF2eCda32970DB7dB3428FC12Bc1697098418815` | 이전 구현체 (V1) |
 | **DAOAgendaManager** | `0xcD4421d082752f363E1687544a09d5112cD4f484` | 안건 관리 |
 | **DAOVault** | `0x2520CD65BAa2cEEe9E6Ad6EBD3F45490C42dd303` | 트레저리 |
 | **CandidateFactory** | `0xc5eb1c5ce7196bdb49ea7500ca18a1b9f1fa3ffb` | 후보자 배포 |
 | **CandidateFactoryProxy** | `0x9fc7100a16407ee24a79c834a56e6eca555a5d7c` | 팩토리 프록시 |
 | **DAOCommitteeOwner** | `0xe070fFD0E25801392108076ed5291fA9524c3f44` | 관리자 (sudo) |
 | **Candidate** (impl) | `0x1a8f59017e0434efc27e89640ac4b7d7d194c0a3` | 후보자 구현체 |
-| **SeigManager** | `0x710936500aC59e8551331871Cbad3D33d5e0D909` | 시뇨리지 |
-| **Layer2Registry** | `0x0b3E174A2170083e770D5d4Cf56774D221b7063e` | L2 등록소 |
+| **SeigManager** | `0x0b55a0f463b6defb81c6063973763951712d0e5f` | 시뇨리지 (온체인 현재값) |
+| **Layer2Registry** | `0x7846c2248a7b4de77e9c2bae7fbb93bfc286837b` | L2 등록소 (온체인 현재값) |
 | **TON** | `0x2be5e8c109e2197D077D13A82dAead6a9b3433C5` | 네이티브 토큰 |
 | **WTON** | `0xc4A11aaf6ea915Ed7Ac194161d2fC9384F15bff2` | Wrapped TON |
+
+> **Storage 값 변경 이력**: `layer2Registry` (slot 4)와 `seigManager` (slot 5)의 값이 원래 배포 시점과 다릅니다. 이는 온체인 업그레이드(agenda 실행)를 통해 변경된 것으로 추정됩니다.
+> - `layer2Registry`: `0x0b3E...063e` → `0x7846...837b`
+> - `seigManager`: `0x7109...0909` → `0x0b55...0e5f`
