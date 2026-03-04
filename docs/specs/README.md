@@ -4,11 +4,17 @@ The vTON DAO Governance Model specification documents are available in the `docs
 
 | Version | Date | Diff |
 |---------|----------|--------|
+| [0.1.3](./0.1.3/spec.md) | 2026-03-03 | [View](https://www.diffchecker.com/W83j3k91/) |
 | [0.1.2](./0.1.2/spec.md) | 2026-02-11 | [View](https://www.diffchecker.com/l6VTe6Mj/) |
 | [0.1.1](./0.1.1/spec.md) | 2026-02-03 | [View](https://www.diffchecker.com/QtLCN05H/) |
 | [0.1.0](./0.1.0/spec.md) | 2026-01-30 |  |
 
 ## Changelog
+
+### 0.1.3 (2026-03-03)
+
+**Removed:**
+- Proportional Burn mechanism (Section 2.5): Removed the optional burn rate feature that allowed proposers to set a vTON burn rate (0–100%) when creating proposals
 
 ### 0.1.2 (2026-02-11)
 
