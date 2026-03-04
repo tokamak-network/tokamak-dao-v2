@@ -134,6 +134,12 @@ interface IDAOGovernor {
     /// @notice Error when parameter value is out of valid range
     error InvalidParameter();
 
+    /// @notice Pause the governor (blocks propose, castVote, execute)
+    function pause() external;
+
+    /// @notice Unpause the governor
+    function unpause() external;
+
     /// @notice Create a new proposal
     /// @param targets Target addresses for calls
     /// @param values ETH values for calls

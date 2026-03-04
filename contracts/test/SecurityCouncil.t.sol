@@ -2,8 +2,20 @@
 pragma solidity ^0.8.24;
 
 import { Test, console } from "forge-std/Test.sol";
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { SecurityCouncil } from "../src/governance/SecurityCouncil.sol";
 import { ISecurityCouncil } from "../src/interfaces/ISecurityCouncil.sol";
+import { DAOGovernor } from "../src/governance/DAOGovernor.sol";
+import { DelegateRegistry } from "../src/governance/DelegateRegistry.sol";
+import { Timelock } from "../src/governance/Timelock.sol";
+import { vTON } from "../src/token/vTON.sol";
+
+/// @notice Mock TON token for SC integration test
+contract MockTONForSC is ERC20 {
+    constructor() ERC20("TON", "TON") {
+        _mint(msg.sender, 1_000_000 ether);
+    }
+}
 
 /// @notice Mock target contract for testing
 contract MockTarget {
@@ -878,5 +890,55 @@ contract SecurityCouncilTest is Test {
         vm.prank(nonMember);
         vm.expectRevert(SecurityCouncil.NotMember.selector);
         council.executeEmergencyAction(actionId);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+            SC → DAOGovernor PAUSE INTEGRATION TEST
+    //////////////////////////////////////////////////////////////*/
+
+    function test_FullPauseProtocolFlow_WithGovernor() public {
+        // Deploy real DAOGovernor as the protocolTarget
+        address scOwner = makeAddr("scOwner");
+
+        vm.startPrank(scOwner);
+        MockTONForSC tonToken = new MockTONForSC();
+        vTON vton = new vTON(scOwner);
+        DelegateRegistry reg = new DelegateRegistry(address(vton), scOwner);
+        Timelock tl = new Timelock(scOwner, 7 days);
+        DAOGovernor gov = new DAOGovernor(
+            address(tonToken), address(vton), address(reg), address(tl), scOwner
+        );
+        vm.stopPrank();
+
+        // Create SecurityCouncil with governor as protocolTarget
+        address[] memory externalMembers = new address[](2);
+        externalMembers[0] = external1;
+        externalMembers[1] = external2;
+
+        SecurityCouncil scWithGov = new SecurityCouncil(
+            foundationMember, externalMembers, address(gov), timelock, address(gov)
+        );
+
+        // Transfer governor ownership to SC so it can call pause()
+        vm.prank(scOwner);
+        gov.transferOwnership(address(scWithGov));
+
+        // SC member proposes pause
+        vm.prank(foundationMember);
+        scWithGov.pauseProtocol("Emergency: vulnerability found");
+
+        uint256[] memory pending = scWithGov.getPendingActions();
+        uint256 actionId = pending[0];
+
+        // Second member approves (reaching threshold 2/3)
+        vm.prank(external1);
+        scWithGov.approveEmergencyAction(actionId);
+
+        // Execute the pause action
+        vm.prank(external1);
+        scWithGov.executeEmergencyAction(actionId);
+
+        // Verify DAOGovernor is paused
+        assertTrue(gov.paused());
     }
 }

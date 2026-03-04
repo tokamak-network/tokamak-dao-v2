@@ -1182,18 +1182,19 @@ contract DAOGovernorTest is Test {
     //////////////////////////////////////////////////////////////*/
 
     function test_DelegationMaturityEnforced() public {
-        // Set maturity period to a small value for testing
+        // Set maturity period to minimum allowed value for testing
+        uint256 maturity = governor.MIN_MATURITY_PERIOD();
         vm.prank(owner);
-        governor.setMaturityPeriod(100);
+        governor.setMaturityPeriod(maturity);
 
         // Register delegate
         vm.prank(delegate1);
         registry.registerDelegate("Delegate1", "Philosophy", "Interests");
 
-        // Roll to block 200 so we have room
-        vm.roll(200);
+        // Roll to block 2*maturity so we have room
+        vm.roll(maturity * 2);
 
-        // Delegate just before proposal creation (at block 200)
+        // Delegate just before proposal creation
         vm.prank(user1);
         registry.delegate(delegate1, 10_000 ether);
         vm.prank(user2);
@@ -1202,10 +1203,10 @@ contract DAOGovernorTest is Test {
         vm.prank(owner);
         registry.setGovernor(address(governor));
 
-        // Create proposal at block 200
-        // snapshot = 200 - 100 = 100
-        // But delegation was made at block 200, which is AFTER snapshot block 100
-        // So voting power at block 100 = 0
+        // Create proposal at current block
+        // snapshot = currentBlock - maturity
+        // But delegation was made at currentBlock, which is AFTER snapshot
+        // So voting power at snapshot = 0
 
         address[] memory targets = new address[](1);
         targets[0] = address(governor);
@@ -1322,8 +1323,8 @@ contract DAOGovernorTest is Test {
 
         // Valid calls should succeed
         governor.setQuorum(500);
-        governor.setVotingDelay(1);
-        governor.setVotingPeriod(1);
+        governor.setVotingDelay(governor.MIN_VOTING_DELAY());
+        governor.setVotingPeriod(governor.MIN_VOTING_PERIOD());
         governor.setGracePeriod(1 days);
         governor.setProposalThreshold(0);
 
@@ -1540,10 +1541,11 @@ contract DAOGovernorTest is Test {
     //////////////////////////////////////////////////////////////*/
 
     function test_SetMaturityPeriodEmitsEvent() public {
+        uint256 minPeriod = governor.MIN_MATURITY_PERIOD();
         vm.prank(owner);
         vm.expectEmit(true, true, true, true);
-        emit IDAOGovernor.MaturityPeriodUpdated(0, 100);
-        governor.setMaturityPeriod(100);
+        emit IDAOGovernor.MaturityPeriodUpdated(0, minPeriod);
+        governor.setMaturityPeriod(minPeriod);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -2427,5 +2429,155 @@ contract DAOGovernorTest is Test {
         assertEq(proposal.forVotes, 5000 ether + 2000 ether);
         assertEq(proposal.againstVotes, 3000 ether);
         assertEq(proposal.abstainVotes, 0);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                    PARAMETER MINIMUM ENFORCEMENT TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_SetVotingDelayBelowMinReverts() public {
+        uint256 belowMin = governor.MIN_VOTING_DELAY() - 1;
+        vm.prank(owner);
+        vm.expectRevert(IDAOGovernor.InvalidParameter.selector);
+        governor.setVotingDelay(belowMin);
+    }
+
+    function test_SetVotingPeriodBelowMinReverts() public {
+        uint256 belowMin = governor.MIN_VOTING_PERIOD() - 1;
+        vm.prank(owner);
+        vm.expectRevert(IDAOGovernor.InvalidParameter.selector);
+        governor.setVotingPeriod(belowMin);
+    }
+
+    function test_SetMaturityPeriodBelowMinReverts() public {
+        // Non-zero value below minimum should revert
+        uint256 belowMin = governor.MIN_MATURITY_PERIOD() - 1;
+        vm.prank(owner);
+        vm.expectRevert(IDAOGovernor.InvalidParameter.selector);
+        governor.setMaturityPeriod(belowMin);
+    }
+
+    function test_SetMaturityPeriodZeroAllowed() public {
+        // 0 is allowed (disables maturity check)
+        vm.prank(owner);
+        governor.setMaturityPeriod(0);
+        assertEq(governor.maturityPeriod(), 0);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                         PAUSABLE TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_PauseBlocksPropose() public {
+        vm.prank(owner);
+        governor.pause();
+
+        address[] memory targets = new address[](1);
+        targets[0] = address(governor);
+        uint256[] memory values = new uint256[](1);
+        bytes[] memory calldatas = new bytes[](1);
+        calldatas[0] = abi.encodeWithSignature("setQuorum(uint256)", 500);
+
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSignature("EnforcedPause()"));
+        governor.propose(targets, values, calldatas, "Test", 0);
+    }
+
+    function test_PauseBlocksCastVote() public {
+        // Create proposal first (before pause)
+        vm.prank(delegate1);
+        registry.registerDelegate("Delegate1", "Philosophy", "Interests");
+
+        vm.prank(user1);
+        registry.delegate(delegate1, 10_000 ether);
+
+        vm.prank(owner);
+        registry.setGovernor(address(governor));
+
+        address[] memory targets = new address[](1);
+        targets[0] = address(governor);
+        uint256[] memory values = new uint256[](1);
+        bytes[] memory calldatas = new bytes[](1);
+        calldatas[0] = abi.encodeWithSignature("setQuorum(uint256)", 500);
+
+        vm.prank(user1);
+        uint256 proposalId = governor.propose(targets, values, calldatas, "Test", 0);
+
+        // Move to voting period
+        vm.roll(block.number + governor.votingDelay() + 1);
+
+        // Pause
+        vm.prank(owner);
+        governor.pause();
+
+        // castVote should revert
+        vm.prank(delegate1);
+        vm.expectRevert(abi.encodeWithSignature("EnforcedPause()"));
+        governor.castVote(proposalId, IDAOGovernor.VoteType.For);
+    }
+
+    function test_PauseBlocksExecute() public {
+        // Setup full lifecycle up to Queued state
+        MockExecutionTarget target = new MockExecutionTarget();
+
+        vm.prank(delegate1);
+        registry.registerDelegate("Delegate1", "Philosophy", "Interests");
+        vm.prank(user1);
+        registry.delegate(delegate1, 10_000 ether);
+        vm.prank(user2);
+        registry.delegate(delegate1, 10_000 ether);
+        vm.prank(owner);
+        registry.setGovernor(address(governor));
+        vm.warp(block.timestamp + 8 days);
+
+        address[] memory targets = new address[](1);
+        targets[0] = address(target);
+        uint256[] memory values = new uint256[](1);
+        bytes[] memory calldatas = new bytes[](1);
+        calldatas[0] = abi.encodeWithSignature("setValue(uint256)", 42);
+
+        vm.prank(user1);
+        uint256 proposalId = governor.propose(targets, values, calldatas, "Test execute", 0);
+
+        vm.roll(block.number + governor.votingDelay() + 1);
+        vm.prank(delegate1);
+        governor.castVote(proposalId, IDAOGovernor.VoteType.For);
+
+        vm.roll(block.number + governor.votingPeriod() + 1);
+        governor.queue(proposalId);
+
+        vm.warp(block.timestamp + 7 days + 1);
+
+        // Pause
+        vm.prank(owner);
+        governor.pause();
+
+        // Execute should revert
+        vm.expectRevert(abi.encodeWithSignature("EnforcedPause()"));
+        governor.execute(proposalId);
+    }
+
+    function test_UnpauseRestoresFunction() public {
+        vm.startPrank(owner);
+        governor.pause();
+        governor.unpause();
+        vm.stopPrank();
+
+        // propose should work after unpause
+        address[] memory targets = new address[](1);
+        targets[0] = address(governor);
+        uint256[] memory values = new uint256[](1);
+        bytes[] memory calldatas = new bytes[](1);
+        calldatas[0] = abi.encodeWithSignature("setQuorum(uint256)", 500);
+
+        vm.prank(user1);
+        uint256 proposalId = governor.propose(targets, values, calldatas, "After unpause", 0);
+        assertTrue(proposalId > 0);
+    }
+
+    function test_OnlyOwnerCanPause() public {
+        vm.prank(user1);
+        vm.expectRevert(abi.encodeWithSelector(bytes4(keccak256("OwnableUnauthorizedAccount(address)")), user1));
+        governor.pause();
     }
 }

@@ -246,6 +246,14 @@ V2: 위임 투표 (Delegation Model)
 
   정족수 = 위임된 총 vTON × 4%
   통과 = FOR > 50% (기권 제외)
+
+  위임 만료 정책 (autoExpiryPeriod):
+  ──────────────────────────────────
+  · DelegateRegistry.autoExpiryPeriod (기본값: 0 = 만료 없음)
+  · 0이 아닌 값 설정 시 위임 생성 시 expiresAt이 기록됨
+  · 온체인 투표력 계산에는 미반영 (만료된 위임도 투표력에 포함)
+  · UI/프론트엔드에서 만료 안내 및 재위임 유도 용도
+  · DAO 거버넌스 제안으로 설정 변경 가능
 ```
 
 ### 3.3 보안 메커니즘 비교
@@ -442,9 +450,11 @@ Phase 1              Phase 2              Phase 3              Phase 4
     externalMembers[],     ← 외부 멤버 2명 (배열)
     daoGovernor,           ← Step 4
     timelock,              ← Step 3
-    protocolTarget         ← 프로토콜 pause/unpause 대상
+    protocolTarget         ← DAOGovernor 주소 (= Step 4)
   )
   → threshold는 자동 계산: ceil(members × 2/3) = 2
+  → protocolTarget = DAOGovernor: pause()/unpause()로
+    제안·투표·실행을 일시정지/재개 (Pausable 상속)
 ```
 
 ### 5.3 Phase 2: 초기화 및 연동
@@ -490,6 +500,24 @@ Phase 1              Phase 2              Phase 3              Phase 4
   │                                                         │
   └─────────────────────────────────────────────────────────┘
 
+  ⚠️ deployer 잔여 권한 기간 (TX6~TX9 이후 ~ Phase 3 완료 전):
+  ═══════════════════════════════════════════════════════════════
+  TX6~TX9로 vTON/DelegateRegistry/DAOGovernor의 소유권은 이전되지만,
+  Timelock의 admin은 Phase 3에서 acceptAdmin()이 실행될 때까지
+  deployer가 유지됩니다.
+
+  deployer가 이 기간 동안 가능한 작업:
+  · timelock.setGovernor() — Governor 주소 변경
+  · timelock.setSecurityCouncil() — SC 주소 변경
+  · timelock.setDelay() — Timelock 지연 시간 변경
+
+  deployer가 불가능한 작업:
+  · timelock.queueTransaction() — Governor만 가능
+  · timelock.executeTransaction() — Governor만 가능
+
+  → 이 기간을 최소화하기 위해 Phase 3 첫 주에 acceptAdmin()
+    제안을 우선 실행하는 것을 권장합니다.
+
   ※ 소유권 이전 대상이 Timelock인 이유:
   ═══════════════════════════════════════
   execute()가 Timelock.executeTransaction()을 통해 실행되므로
@@ -517,6 +545,16 @@ Phase 1              Phase 2              Phase 3              Phase 4
         │                 └──────────────────┘
         │
   DAOGovernor ──queue/execute──▶ Timelock
+
+  Ownable 모델별 이전 방식:
+  ═════════════════════════════
+
+  | 컨트랙트         | Ownable 모델     | 이전 방식                          |
+  |-----------------|-----------------|-----------------------------------|
+  | vTON            | Ownable2Step    | transferOwnership → acceptOwnership (2-step) |
+  | DAOGovernor     | Ownable         | transferOwnership (즉시 이전)       |
+  | DelegateRegistry| Ownable         | transferOwnership (즉시 이전)       |
+  | Timelock        | 자체 구현        | setPendingAdmin → acceptAdmin      |
 ```
 
 ### 5.4 Phase 3: 거버넌스 전환
@@ -1104,25 +1142,25 @@ forge test --fork-url $ETH_MAINNET_RPC --match-contract E2EMigrationTest
 
 ### 9.2 V2 거버넌스 파라미터
 
-| 파라미터 | 값 | 비고 |
-|----------|-----|------|
-| `MAX_SUPPLY` | 100,000,000 vTON | 하드 캡 |
-| `EPOCH_SIZE` | 5,000,000 vTON | 반감기 단위 |
-| `DECAY_RATE` | 0.75 (75%) | 에폭당 감소율 |
-| `emissionRatio` | 100% (초기) | DAO 조정 가능 |
-| `proposalCreationCost` | 10 TON | burn |
-| `proposalThreshold` | 0.25% (25 bp) | 제안 최소 요건 |
-| `quorum` | 4% (400 bp) | 정족수 |
-| `passRate` | >50% (5,000 bp) | 통과 기준 |
-| `votingDelay` | 7,200 blocks (~1일) | 투표 대기 |
-| `votingPeriod` | 50,400 blocks (~7일) | 투표 기간 |
-| `maturityPeriod` | 50,400 blocks (~7일) | 위임 성숙 기간 |
-| `timelockDelay` | 7 days | 실행 지연 |
-| `gracePeriod` | 14 days | 실행 유예 |
-| `MINIMUM_DELAY` | 7 days | Timelock 최소 |
-| `MAXIMUM_DELAY` | 30 days | Timelock 최대 |
-| `SC threshold` | ceil(members × 2/3) | 보안위원회 승인 기준 |
-| `ACTION_TTL` | 7 days | SC 행동 만료 |
+| 파라미터 | 값 | 최소값 | 비고 |
+|----------|-----|--------|------|
+| `MAX_SUPPLY` | 100,000,000 vTON | — | 하드 캡 (상수) |
+| `EPOCH_SIZE` | 5,000,000 vTON | — | 반감기 단위 (상수) |
+| `DECAY_RATE` | 0.75 (75%) | — | 에폭당 감소율 (상수) |
+| `emissionRatio` | 100% (초기) | 0% | DAO 조정 가능 |
+| `proposalCreationCost` | 10 TON | 0 | burn |
+| `proposalThreshold` | 0.25% (25 bp) | 0 (제한 없음) | 제안 최소 요건 |
+| `quorum` | 4% (400 bp) | 1 bp | 정족수 |
+| `passRate` | >50% (5,000 bp) | 1 bp | 통과 기준 |
+| `votingDelay` | 7,200 blocks (~1일) | 1,800 blocks (~6시간) | 투표 대기 |
+| `votingPeriod` | 50,400 blocks (~7일) | 7,200 blocks (~1일) | 투표 기간 |
+| `maturityPeriod` | 50,400 blocks (~7일) | 7,200 blocks (~1일) 또는 0 | 위임 성숙 기간 (0=비활성) |
+| `timelockDelay` | 7 days | 7 days | 실행 지연 |
+| `gracePeriod` | 14 days | 1 day | 실행 유예 |
+| `MINIMUM_DELAY` | 7 days | — | Timelock 최소 (상수) |
+| `MAXIMUM_DELAY` | 30 days | — | Timelock 최대 (상수) |
+| `SC threshold` | ceil(members × 2/3) | — | 보안위원회 승인 기준 |
+| `ACTION_TTL` | 7 days | — | SC 행동 만료 (상수) |
 
 ### 9.3 V1 거버넌스 현황 (마이그레이션 시점 참조)
 
@@ -1146,3 +1184,4 @@ forge test --fork-url $ETH_MAINNET_RPC --match-contract E2EMigrationTest
 |------|------|------|
 | 2026-03-04 | 0.1.0 | 초안 작성 |
 | 2026-03-04 | 0.2.0 | 생성자 시그니처, 소유권 이전 대상, MINIMUM_DELAY 수정 |
+| 2026-03-04 | 0.3.0 | protocolTarget 명시, Ownable 구분표, deployer 잔여 권한, autoExpiryPeriod, 파라미터 최소값 추가 |

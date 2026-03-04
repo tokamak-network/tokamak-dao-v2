@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -19,7 +20,7 @@ import { Timelock } from "./Timelock.sol";
 ///      - 4% quorum of total delegated vTON
 ///      - Simple majority pass rate
 ///      - 7-day timelock before execution
-contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
+contract DAOGovernor is IDAOGovernor, Ownable, Pausable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     /*//////////////////////////////////////////////////////////////
@@ -85,6 +86,15 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
 
     /// @notice Default maturity period (7 days in blocks, ~12s/block)
     uint256 public constant DEFAULT_MATURITY_PERIOD = 50_400;
+
+    /// @notice Minimum voting delay (~6 hours in blocks, ~12s/block)
+    uint256 public constant MIN_VOTING_DELAY = 1_800;
+
+    /// @notice Minimum voting period (~1 day in blocks, ~12s/block)
+    uint256 public constant MIN_VOTING_PERIOD = 7_200;
+
+    /// @notice Minimum maturity period (~1 day in blocks, ~12s/block)
+    uint256 public constant MIN_MATURITY_PERIOD = 7_200;
 
     /*//////////////////////////////////////////////////////////////
                                  STATE
@@ -203,7 +213,7 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
         bytes[] calldata calldatas,
         string calldata description,
         uint16 burnRate
-    ) external override nonReentrant returns (uint256 proposalId) {
+    ) external override whenNotPaused nonReentrant returns (uint256 proposalId) {
         if (targets.length == 0) revert InvalidProposal();
         if (targets.length != values.length || targets.length != calldatas.length) {
             revert ArrayLengthMismatch();
@@ -268,7 +278,7 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
     }
 
     /// @inheritdoc IDAOGovernor
-    function castVote(uint256 proposalId, VoteType support) external override {
+    function castVote(uint256 proposalId, VoteType support) external override whenNotPaused {
         _castVote(proposalId, support, "");
     }
 
@@ -277,7 +287,7 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
         uint256 proposalId,
         VoteType support,
         string calldata reason
-    ) external override {
+    ) external override whenNotPaused {
         _castVote(proposalId, support, reason);
     }
 
@@ -307,7 +317,7 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
     }
 
     /// @inheritdoc IDAOGovernor
-    function execute(uint256 proposalId) external payable override nonReentrant {
+    function execute(uint256 proposalId) external payable override whenNotPaused nonReentrant {
         ProposalState currentState = state(proposalId);
         if (currentState != ProposalState.Queued) revert ProposalNotQueued();
 
@@ -494,10 +504,20 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
         emit ProposalCostUpdated(oldCost, newCost);
     }
 
+    /// @inheritdoc IDAOGovernor
+    function pause() external override onlyOwner {
+        _pause();
+    }
+
+    /// @inheritdoc IDAOGovernor
+    function unpause() external override onlyOwner {
+        _unpause();
+    }
+
     /// @notice Set voting delay
     /// @param newDelay New delay in blocks
     function setVotingDelay(uint256 newDelay) external onlyOwner {
-        if (newDelay == 0) revert IDAOGovernor.InvalidParameter();
+        if (newDelay < MIN_VOTING_DELAY) revert IDAOGovernor.InvalidParameter();
         uint256 oldDelay = votingDelay;
         votingDelay = newDelay;
         emit VotingDelayUpdated(oldDelay, newDelay);
@@ -506,7 +526,7 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
     /// @notice Set voting period
     /// @param newPeriod New period in blocks
     function setVotingPeriod(uint256 newPeriod) external onlyOwner {
-        if (newPeriod == 0) revert IDAOGovernor.InvalidParameter();
+        if (newPeriod < MIN_VOTING_PERIOD) revert IDAOGovernor.InvalidParameter();
         uint256 oldPeriod = votingPeriod;
         votingPeriod = newPeriod;
         emit VotingPeriodUpdated(oldPeriod, newPeriod);
@@ -546,8 +566,9 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
     }
 
     /// @notice Set maturity period
-    /// @param newPeriod New period in blocks
+    /// @param newPeriod New period in blocks (0 to disable, otherwise >= MIN_MATURITY_PERIOD)
     function setMaturityPeriod(uint256 newPeriod) external onlyOwner {
+        if (newPeriod != 0 && newPeriod < MIN_MATURITY_PERIOD) revert IDAOGovernor.InvalidParameter();
         uint256 oldPeriod = maturityPeriod;
         maturityPeriod = newPeriod;
         emit MaturityPeriodUpdated(oldPeriod, newPeriod);
