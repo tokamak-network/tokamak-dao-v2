@@ -12,7 +12,7 @@ import { IDelegateRegistry } from "../interfaces/IDelegateRegistry.sol";
 /// @title DAOGovernor - vTON DAO Governance
 /// @notice Main governance contract for Tokamak Network DAO
 /// @dev Implements vTON DAO Governance Model:
-///      - Proposal creation requires burning 100 TON
+///      - Proposal creation requires burning 10 TON
 ///      - Snapshot-based voting power (7-day delegation requirement)
 ///      - 7-day on-chain voting period
 ///      - 4% quorum of total delegated vTON
@@ -52,7 +52,7 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
                                 CONSTANTS
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Default proposal creation cost (100 TON)
+    /// @notice Default proposal creation cost (10 TON)
     uint256 public constant DEFAULT_PROPOSAL_COST = 10 ether;
 
     /// @notice Default quorum (4% = 400 basis points)
@@ -307,7 +307,7 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
     }
 
     /// @inheritdoc IDAOGovernor
-    /// @dev Proposer can always cancel their own proposal (except executed/canceled)
+    /// @dev Proposer can cancel their own proposal only in Pending or Active states
     ///      Guardian can cancel proposals in non-final states (Pending, Active, Succeeded, Queued)
     ///      Guardian cannot cancel Defeated or Expired proposals (already final states)
     function cancel(uint256 proposalId) external override {
@@ -323,9 +323,17 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
             revert IDAOGovernor.NotAuthorizedToCancel();
         }
 
+        ProposalState currentState = state(proposalId);
+
+        // Proposer can only cancel in Pending or Active states
+        if (isProposer && !isGuardian) {
+            if (currentState != ProposalState.Pending && currentState != ProposalState.Active) {
+                revert IDAOGovernor.InvalidProposalState();
+            }
+        }
+
         // Guardian cannot cancel final states (Defeated, Expired)
         if (isGuardian && !isProposer) {
-            ProposalState currentState = state(proposalId);
             if (currentState == ProposalState.Defeated || currentState == ProposalState.Expired) {
                 revert IDAOGovernor.InvalidProposalState();
             }
@@ -364,7 +372,7 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
 
         // Voting ended - check results
         uint256 totalVotes = proposal.forVotes + proposal.againstVotes + proposal.abstainVotes;
-        uint256 totalDelegated = vTON.totalSupply(); // Simplified: use total supply as proxy
+        uint256 totalDelegated = delegateRegistry.totalDelegatedAll();
         uint256 requiredQuorum = (totalDelegated * quorum) / BASIS_POINTS;
 
         if (totalVotes < requiredQuorum) {
@@ -546,15 +554,13 @@ contract DAOGovernor is IDAOGovernor, Ownable, ReentrancyGuard {
         _hasVoted[proposalId][msg.sender] = true;
         _voteReceipts[proposalId][msg.sender] = VoteReceipt({ support: support, weight: weight });
 
-        // Update vote counts
+        // Update vote counts (For=0, Against=1, Abstain=2)
         if (support == VoteType.For) {
             proposal.forVotes += weight;
         } else if (support == VoteType.Against) {
             proposal.againstVotes += weight;
-        } else if (support == VoteType.Abstain) {
-            proposal.abstainVotes += weight;
         } else {
-            revert InvalidVoteType();
+            proposal.abstainVotes += weight;
         }
 
         emit VoteCast(msg.sender, proposalId, support, weight, reason);

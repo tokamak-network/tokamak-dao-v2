@@ -9,6 +9,15 @@ import { DAOGovernor } from "../src/governance/DAOGovernor.sol";
 import { Timelock } from "../src/governance/Timelock.sol";
 import { IDAOGovernor } from "../src/interfaces/IDAOGovernor.sol";
 
+/// @notice Mock execution target for testing proposal execution
+contract MockExecutionTarget {
+    uint256 public value;
+
+    function setValue(uint256 _value) external {
+        value = _value;
+    }
+}
+
 /// @notice Mock TON token for testing
 contract MockTON is ERC20 {
     constructor() ERC20("Tokamak Network Token", "TON") {
@@ -615,7 +624,7 @@ contract DAOGovernorTest is Test {
         governor.cancel(proposalId);
     }
 
-    function test_ProposerCanStillCancelDefeatedProposal() public {
+    function test_ProposerCannotCancelDefeatedProposal() public {
         address guardian = makeAddr("guardian");
 
         vm.prank(owner);
@@ -635,11 +644,10 @@ contract DAOGovernorTest is Test {
         vm.roll(block.number + governor.votingDelay() + governor.votingPeriod() + 1);
         assertEq(uint256(governor.state(proposalId)), uint256(IDAOGovernor.ProposalState.Defeated));
 
-        // Proposer can still cancel even if Defeated
+        // Proposer cannot cancel Defeated proposal (only Pending/Active)
         vm.prank(user1);
+        vm.expectRevert(IDAOGovernor.InvalidProposalState.selector);
         governor.cancel(proposalId);
-
-        assertEq(uint256(governor.state(proposalId)), uint256(IDAOGovernor.ProposalState.Canceled));
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -830,5 +838,289 @@ contract DAOGovernorTest is Test {
 
         vm.prank(delegate1);
         governor.castVote(proposalId, IDAOGovernor.VoteType.For);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                    PROPOSAL FULL LIFECYCLE TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_ProposalFullLifecycle() public {
+        // Deploy mock execution target
+        MockExecutionTarget target = new MockExecutionTarget();
+        assertEq(target.value(), 0);
+
+        // Register delegate and delegate 10k vTON from user1 and user2
+        vm.prank(delegate1);
+        registry.registerDelegate("Delegate1", "Philosophy", "Interests");
+
+        vm.prank(user1);
+        registry.delegate(delegate1, 10_000 ether);
+
+        vm.prank(user2);
+        registry.delegate(delegate1, 10_000 ether);
+
+        // Set governor on registry (for burn compatibility)
+        vm.prank(owner);
+        registry.setGovernor(address(governor));
+
+        // Wait for delegation period (7+ days)
+        vm.warp(block.timestamp + 8 days);
+
+        // Create proposal: target.setValue(42)
+        address[] memory targets = new address[](1);
+        targets[0] = address(target);
+        uint256[] memory values = new uint256[](1);
+        values[0] = 0;
+        bytes[] memory calldatas = new bytes[](1);
+        calldatas[0] = abi.encodeWithSignature("setValue(uint256)", 42);
+
+        vm.prank(user1);
+        uint256 proposalId = governor.propose(targets, values, calldatas, "Set value to 42", 0);
+
+        // Verify Pending state
+        assertEq(uint256(governor.state(proposalId)), uint256(IDAOGovernor.ProposalState.Pending));
+
+        // Roll to voting period, verify Active
+        vm.roll(block.number + governor.votingDelay() + 1);
+        assertEq(uint256(governor.state(proposalId)), uint256(IDAOGovernor.ProposalState.Active));
+
+        // Cast For vote
+        vm.prank(delegate1);
+        governor.castVote(proposalId, IDAOGovernor.VoteType.For);
+
+        // Roll past voting period, verify Succeeded
+        vm.roll(block.number + governor.votingPeriod() + 1);
+        assertEq(uint256(governor.state(proposalId)), uint256(IDAOGovernor.ProposalState.Succeeded));
+
+        // Queue, verify Queued
+        governor.queue(proposalId);
+        assertEq(uint256(governor.state(proposalId)), uint256(IDAOGovernor.ProposalState.Queued));
+
+        // Warp past timelock delay (7 days), execute
+        vm.warp(block.timestamp + 7 days + 1);
+        governor.execute(proposalId);
+
+        // Verify Executed state and effect
+        assertEq(uint256(governor.state(proposalId)), uint256(IDAOGovernor.ProposalState.Executed));
+        assertEq(target.value(), 42);
+    }
+
+    function test_ExecuteRevertsBeforeTimelock() public {
+        // Deploy mock execution target
+        MockExecutionTarget target = new MockExecutionTarget();
+
+        // Setup delegate with voting power
+        vm.prank(delegate1);
+        registry.registerDelegate("Delegate1", "Philosophy", "Interests");
+
+        vm.prank(user1);
+        registry.delegate(delegate1, 10_000 ether);
+
+        vm.prank(user2);
+        registry.delegate(delegate1, 10_000 ether);
+
+        vm.prank(owner);
+        registry.setGovernor(address(governor));
+
+        vm.warp(block.timestamp + 8 days);
+
+        // Create proposal
+        address[] memory targets = new address[](1);
+        targets[0] = address(target);
+        uint256[] memory values = new uint256[](1);
+        values[0] = 0;
+        bytes[] memory calldatas = new bytes[](1);
+        calldatas[0] = abi.encodeWithSignature("setValue(uint256)", 42);
+
+        vm.prank(user1);
+        uint256 proposalId = governor.propose(targets, values, calldatas, "Set value to 42", 0);
+
+        // Move to voting, vote, move past voting, queue
+        vm.roll(block.number + governor.votingDelay() + 1);
+        vm.prank(delegate1);
+        governor.castVote(proposalId, IDAOGovernor.VoteType.For);
+        vm.roll(block.number + governor.votingPeriod() + 1);
+        governor.queue(proposalId);
+
+        assertEq(uint256(governor.state(proposalId)), uint256(IDAOGovernor.ProposalState.Queued));
+
+        // Try to execute before timelock delay expires
+        vm.expectRevert(DAOGovernor.TimelockNotReady.selector);
+        governor.execute(proposalId);
+    }
+
+    function test_ExecuteRevertsAfterGracePeriod() public {
+        // Deploy mock execution target
+        MockExecutionTarget target = new MockExecutionTarget();
+
+        // Setup delegate with voting power
+        vm.prank(delegate1);
+        registry.registerDelegate("Delegate1", "Philosophy", "Interests");
+
+        vm.prank(user1);
+        registry.delegate(delegate1, 10_000 ether);
+
+        vm.prank(user2);
+        registry.delegate(delegate1, 10_000 ether);
+
+        vm.prank(owner);
+        registry.setGovernor(address(governor));
+
+        vm.warp(block.timestamp + 8 days);
+
+        // Create proposal
+        address[] memory targets = new address[](1);
+        targets[0] = address(target);
+        uint256[] memory values = new uint256[](1);
+        values[0] = 0;
+        bytes[] memory calldatas = new bytes[](1);
+        calldatas[0] = abi.encodeWithSignature("setValue(uint256)", 42);
+
+        vm.prank(user1);
+        uint256 proposalId = governor.propose(targets, values, calldatas, "Set value to 42", 0);
+
+        // Move to voting, vote, move past voting, queue
+        vm.roll(block.number + governor.votingDelay() + 1);
+        vm.prank(delegate1);
+        governor.castVote(proposalId, IDAOGovernor.VoteType.For);
+        vm.roll(block.number + governor.votingPeriod() + 1);
+        governor.queue(proposalId);
+
+        // Warp past timelock + grace period (7 days + 14 days + 1)
+        vm.warp(block.timestamp + 7 days + 14 days + 1);
+
+        // State should be Expired
+        assertEq(uint256(governor.state(proposalId)), uint256(IDAOGovernor.ProposalState.Expired));
+
+        // Trying to execute should fail (state is not Queued)
+        vm.expectRevert(DAOGovernor.ProposalNotQueued.selector);
+        governor.execute(proposalId);
+    }
+
+    function test_DefeatedByVotes() public {
+        // Register delegate1 and delegate2
+        address delegate2 = makeAddr("delegate2");
+
+        vm.prank(delegate1);
+        registry.registerDelegate("Delegate1", "Philosophy", "Interests");
+
+        vm.prank(delegate2);
+        registry.registerDelegate("Delegate2", "Philosophy2", "Interests2");
+
+        // Delegate 10k from user1 to delegate1, 10k from user2 to delegate2
+        vm.prank(user1);
+        registry.delegate(delegate1, 10_000 ether);
+
+        vm.prank(user2);
+        registry.delegate(delegate2, 10_000 ether);
+
+        vm.prank(owner);
+        registry.setGovernor(address(governor));
+
+        // Wait for delegation period
+        vm.warp(block.timestamp + 8 days);
+
+        // Create proposal with 0 burn rate
+        address[] memory targets = new address[](1);
+        targets[0] = address(governor);
+        uint256[] memory values = new uint256[](1);
+        values[0] = 0;
+        bytes[] memory calldatas = new bytes[](1);
+        calldatas[0] = abi.encodeWithSignature("setQuorum(uint256)", 500);
+
+        vm.prank(user1);
+        uint256 proposalId = governor.propose(targets, values, calldatas, "Test defeated", 0);
+
+        // Roll to voting period
+        vm.roll(block.number + governor.votingDelay() + 1);
+
+        // delegate1 votes For, delegate2 votes Against (equal votes)
+        vm.prank(delegate1);
+        governor.castVote(proposalId, IDAOGovernor.VoteType.For);
+
+        vm.prank(delegate2);
+        governor.castVote(proposalId, IDAOGovernor.VoteType.Against);
+
+        // Roll past voting period
+        vm.roll(block.number + governor.votingPeriod() + 1);
+
+        // Should be Defeated: forPercentage = 50% which is NOT > passRate 50%
+        assertEq(uint256(governor.state(proposalId)), uint256(IDAOGovernor.ProposalState.Defeated));
+    }
+
+    function test_DoubleVotePrevention() public {
+        // Register delegate and delegate vTON
+        vm.prank(delegate1);
+        registry.registerDelegate("Delegate1", "Philosophy", "Interests");
+
+        vm.prank(user1);
+        registry.delegate(delegate1, 10_000 ether);
+
+        vm.prank(user2);
+        registry.delegate(delegate1, 10_000 ether);
+
+        vm.prank(owner);
+        registry.setGovernor(address(governor));
+
+        vm.warp(block.timestamp + 8 days);
+
+        // Create proposal
+        address[] memory targets = new address[](1);
+        targets[0] = address(governor);
+        uint256[] memory values = new uint256[](1);
+        values[0] = 0;
+        bytes[] memory calldatas = new bytes[](1);
+        calldatas[0] = abi.encodeWithSignature("setQuorum(uint256)", 500);
+
+        vm.prank(user1);
+        uint256 proposalId = governor.propose(targets, values, calldatas, "Test double vote", 0);
+
+        // Roll to voting period
+        vm.roll(block.number + governor.votingDelay() + 1);
+
+        // Vote once For
+        vm.prank(delegate1);
+        governor.castVote(proposalId, IDAOGovernor.VoteType.For);
+
+        // Try to vote again
+        vm.prank(delegate1);
+        vm.expectRevert(DAOGovernor.AlreadyVoted.selector);
+        governor.castVote(proposalId, IDAOGovernor.VoteType.Against);
+    }
+
+    function test_InsufficientProposalThreshold() public {
+        // Set proposal threshold to a high value (50% = 5000 basis points)
+        vm.prank(owner);
+        governor.setProposalThreshold(5000);
+
+        // user2 has 100_000 ether vTON but no delegation and the threshold requires
+        // 50% of totalSupply which is 200_000 ether, so 100_000 ether (= 50%) is not enough
+        // because the check is userPower < requiredBalance (strictly less than)
+        // Actually: totalSupply = 200_000 ether, 50% = 100_000 ether, user2 has exactly 100_000
+        // So user2 would just barely pass (100_000 >= 100_000). Let's use user2 who doesn't
+        // have TON approved. Instead, let's give TON to user2 and use a threshold that's too high.
+
+        // Give user2 some TON for proposal creation
+        vm.prank(owner);
+        ton.transfer(user2, 100 ether);
+        vm.prank(user2);
+        ton.approve(address(governor), type(uint256).max);
+
+        // Set threshold to 5001 basis points (50.01%)
+        // Required: 200_000 ether * 5001 / 10_000 = 100_020 ether
+        // user2 has 100_000 ether vTON balance + 0 delegated = 100_000 ether (insufficient)
+        vm.prank(owner);
+        governor.setProposalThreshold(5001);
+
+        address[] memory targets = new address[](1);
+        targets[0] = address(governor);
+        uint256[] memory values = new uint256[](1);
+        values[0] = 0;
+        bytes[] memory calldatas = new bytes[](1);
+        calldatas[0] = abi.encodeWithSignature("setQuorum(uint256)", 500);
+
+        vm.prank(user2);
+        vm.expectRevert(DAOGovernor.InsufficientVTON.selector);
+        governor.propose(targets, values, calldatas, "Threshold test", 0);
     }
 }

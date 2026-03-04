@@ -2,7 +2,6 @@
 pragma solidity ^0.8.24;
 
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 
 import { ISecurityCouncil } from "../interfaces/ISecurityCouncil.sol";
 
@@ -13,7 +12,7 @@ import { ISecurityCouncil } from "../interfaces/ISecurityCouncil.sol";
 ///      - Threshold: 2/3 (67%)
 ///      - Powers: Cancel proposals, emergency upgrades, protocol pause
 ///      - All actions must be disclosed to community afterward
-contract SecurityCouncil is ISecurityCouncil, ReentrancyGuard, Pausable {
+contract SecurityCouncil is ISecurityCouncil, ReentrancyGuard {
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
@@ -239,16 +238,9 @@ contract SecurityCouncil is ISecurityCouncil, ReentrancyGuard, Pausable {
         // Remove from pending
         _removePendingAction(actionId);
 
-        // Execute based on action type
-        if (action.actionType == ActionType.PauseProtocol) {
-            _pause();
-        } else if (action.actionType == ActionType.UnpauseProtocol) {
-            _unpause();
-        } else {
-            // Execute custom action
-            (bool success,) = action.target.call(action.data);
-            if (!success) revert ExecutionFailed();
-        }
+        // Execute action on target
+        (bool success,) = action.target.call(action.data);
+        if (!success) revert ExecutionFailed();
 
         emit EmergencyActionExecuted(actionId, msg.sender);
     }

@@ -305,4 +305,77 @@ contract SecurityCouncilTest is Test {
         // Now approved
         assertTrue(council.isActionApproved(actionId));
     }
+
+    /*//////////////////////////////////////////////////////////////
+                        FULL FLOW TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_FullPauseProtocolFlow() public {
+        // foundationMember proposes pause
+        vm.prank(foundationMember);
+        council.pauseProtocol("Emergency");
+
+        uint256[] memory pending = council.getPendingActions();
+        uint256 actionId = pending[0];
+
+        // external1 approves the action
+        vm.prank(external1);
+        council.approveEmergencyAction(actionId);
+
+        // external2 executes the action
+        vm.prank(external2);
+        council.executeEmergencyAction(actionId);
+
+        // Verify target is paused
+        assertTrue(target.paused());
+    }
+
+    function test_FullUnpauseFlow() public {
+        // First pause the target directly
+        target.pause();
+        assertTrue(target.paused());
+
+        // foundationMember proposes unpause
+        vm.prank(foundationMember);
+        council.unpauseProtocol();
+
+        uint256[] memory pending = council.getPendingActions();
+        uint256 actionId = pending[0];
+
+        // external1 approves
+        vm.prank(external1);
+        council.approveEmergencyAction(actionId);
+
+        // foundationMember executes
+        vm.prank(foundationMember);
+        council.executeEmergencyAction(actionId);
+
+        // Verify target is unpaused
+        assertFalse(target.paused());
+    }
+
+    function test_CancelProposalFullFlow() public {
+        uint256 someProposalId = 123;
+
+        // foundationMember proposes cancel
+        vm.prank(foundationMember);
+        council.cancelProposal(someProposalId);
+
+        uint256[] memory pending = council.getPendingActions();
+        uint256 actionId = pending[0];
+
+        // Verify the action was created correctly
+        ISecurityCouncil.EmergencyAction memory action = council.getEmergencyAction(actionId);
+        assertEq(uint256(action.actionType), uint256(ISecurityCouncil.ActionType.CancelProposal));
+        assertEq(action.target, daoGovernor);
+        assertEq(action.data, abi.encodeWithSignature("cancel(uint256)", someProposalId));
+        assertFalse(action.executed);
+
+        // external1 approves
+        vm.prank(external1);
+        council.approveEmergencyAction(actionId);
+
+        // Verify the action is approved (don't execute)
+        assertTrue(council.isActionApproved(actionId));
+    }
 }

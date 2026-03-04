@@ -61,6 +61,12 @@ contract DelegateRegistry is IDelegateRegistry, Ownable, ReentrancyGuard {
     /// @notice Historical voting power checkpoints for each delegate
     mapping(address => Checkpoints.Trace208) private _votingPowerCheckpoints;
 
+    /// @notice Total vTON burned from each delegate via burnFromDelegate
+    mapping(address => uint256) private _totalBurnedFromDelegate;
+
+    /// @notice Total vTON delegated across all delegates
+    uint256 private _totalDelegatedAll;
+
     /// @notice List of all registered delegate addresses
     address[] private _delegateList;
 
@@ -160,6 +166,7 @@ contract DelegateRegistry is IDelegateRegistry, Ownable, ReentrancyGuard {
         // Update totals
         _totalDelegated[delegateAddr] += amount;
         _totalDelegatedBy[msg.sender] += amount;
+        _totalDelegatedAll += amount;
 
         // Update voting power checkpoint
         _updateVotingPowerCheckpoint(delegateAddr);
@@ -175,6 +182,18 @@ contract DelegateRegistry is IDelegateRegistry, Ownable, ReentrancyGuard {
         DelegationInfo storage delegation = _delegations[msg.sender][delegateAddr];
         if (delegation.amount < amount) revert InsufficientDelegation();
 
+        // Calculate proportional return accounting for burns
+        uint256 totalBurned = _totalBurnedFromDelegate[delegateAddr];
+        uint256 totalDel = _totalDelegated[delegateAddr];
+        uint256 actualReturn = amount;
+        uint256 burnShare = 0;
+
+        if (totalBurned > 0) {
+            // proportionalReturn = amount * totalDelegated / (totalDelegated + totalBurned)
+            actualReturn = (amount * totalDel) / (totalDel + totalBurned);
+            burnShare = amount - actualReturn;
+        }
+
         // Update delegation info
         delegation.amount -= amount;
         if (delegation.amount == 0) {
@@ -182,14 +201,20 @@ contract DelegateRegistry is IDelegateRegistry, Ownable, ReentrancyGuard {
         }
 
         // Update totals
-        _totalDelegated[delegateAddr] -= amount;
+        _totalDelegated[delegateAddr] -= actualReturn;
         _totalDelegatedBy[msg.sender] -= amount;
+        _totalDelegatedAll -= actualReturn;
+
+        // Absorb burn share
+        if (burnShare > 0) {
+            _totalBurnedFromDelegate[delegateAddr] -= burnShare;
+        }
 
         // Update voting power checkpoint
         _updateVotingPowerCheckpoint(delegateAddr);
 
-        // Return vTON to owner
-        vTON.safeTransfer(msg.sender, amount);
+        // Return proportional vTON to owner
+        vTON.safeTransfer(msg.sender, actualReturn);
 
         emit Undelegated(msg.sender, delegateAddr, amount);
     }
@@ -209,29 +234,47 @@ contract DelegateRegistry is IDelegateRegistry, Ownable, ReentrancyGuard {
         DelegationInfo storage fromDelegation = _delegations[msg.sender][fromDelegate];
         if (fromDelegation.amount < amount) revert InsufficientDelegation();
 
+        // Calculate proportional amount from "from" delegate accounting for burns
+        uint256 totalBurned = _totalBurnedFromDelegate[fromDelegate];
+        uint256 totalDel = _totalDelegated[fromDelegate];
+        uint256 proportionalAmount = amount;
+        uint256 burnShare = 0;
+
+        if (totalBurned > 0) {
+            proportionalAmount = (amount * totalDel) / (totalDel + totalBurned);
+            burnShare = amount - proportionalAmount;
+        }
+
         // Update from delegation
         fromDelegation.amount -= amount;
         if (fromDelegation.amount == 0) {
             delete _delegations[msg.sender][fromDelegate];
         }
-        _totalDelegated[fromDelegate] -= amount;
+        _totalDelegated[fromDelegate] -= proportionalAmount;
 
-        // Update to delegation
+        // Absorb burn share from "from" side
+        if (burnShare > 0) {
+            _totalBurnedFromDelegate[fromDelegate] -= burnShare;
+        }
+
+        // Update to delegation (credit the proportional amount)
         DelegationInfo storage toDelegation = _delegations[msg.sender][toDelegate];
         toDelegation.delegate = toDelegate;
-        toDelegation.amount += amount;
+        toDelegation.amount += proportionalAmount;
         toDelegation.delegatedAt = block.timestamp;
         if (autoExpiryPeriod > 0) {
             toDelegation.expiresAt = block.timestamp + autoExpiryPeriod;
         }
-        _totalDelegated[toDelegate] += amount;
+        _totalDelegated[toDelegate] += proportionalAmount;
+
+        // _totalDelegatedAll unchanged (proportionalAmount moved from one to another)
 
         // Update voting power checkpoints
         _updateVotingPowerCheckpoint(fromDelegate);
         _updateVotingPowerCheckpoint(toDelegate);
 
         emit Undelegated(msg.sender, fromDelegate, amount);
-        emit Delegated(msg.sender, toDelegate, amount, toDelegation.expiresAt);
+        emit Delegated(msg.sender, toDelegate, proportionalAmount, toDelegation.expiresAt);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -266,10 +309,10 @@ contract DelegateRegistry is IDelegateRegistry, Ownable, ReentrancyGuard {
     /// @inheritdoc IDelegateRegistry
     function getVotingPower(
         address delegateAddr,
-        uint256, /* blockNumber */
+        uint256 blockNumber,
         uint256 /* snapshotBlock */
     ) external view override returns (uint256) {
-        return _totalDelegated[delegateAddr];
+        return uint256(_votingPowerCheckpoints[delegateAddr].upperLookupRecent(uint48(blockNumber)));
     }
 
     /// @notice Get all registered delegates
@@ -283,6 +326,16 @@ contract DelegateRegistry is IDelegateRegistry, Ownable, ReentrancyGuard {
     /// @return Total amount delegated
     function getTotalDelegatedBy(address owner) external view returns (uint256) {
         return _totalDelegatedBy[owner];
+    }
+
+    /// @inheritdoc IDelegateRegistry
+    function getTotalBurnedFromDelegate(address delegateAddr) external view override returns (uint256) {
+        return _totalBurnedFromDelegate[delegateAddr];
+    }
+
+    /// @inheritdoc IDelegateRegistry
+    function totalDelegatedAll() external view override returns (uint256) {
+        return _totalDelegatedAll;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -310,6 +363,8 @@ contract DelegateRegistry is IDelegateRegistry, Ownable, ReentrancyGuard {
         if (_totalDelegated[delegateAddr] < amount) revert InsufficientDelegation();
 
         _totalDelegated[delegateAddr] -= amount;
+        _totalBurnedFromDelegate[delegateAddr] += amount;
+        _totalDelegatedAll -= amount;
         _updateVotingPowerCheckpoint(delegateAddr);
 
         // Send to 0xdead for permanent burn (address(0) would revert in ERC20)

@@ -146,4 +146,13 @@ interface IDelegateRegistry {
     /// @notice Get the governor address
     /// @return The governor contract address
     function governor() external view returns (address);
+
+    /// @notice Get total vTON burned from a delegate
+    /// @param delegate The delegate address
+    /// @return Total burned amount
+    function getTotalBurnedFromDelegate(address delegate) external view returns (uint256);
+
+    /// @notice Get total vTON delegated across all delegates
+    /// @return Total delegated amount
+    function totalDelegatedAll() external view returns (uint256);
 }

@@ -251,10 +251,11 @@ contract vTONTest is Test {
         vm.prank(user1);
         token.delegate(user1);
 
-        uint256 blockBefore = block.number;
+        // Roll forward first so the delegation block is strictly in the past
         vm.roll(block.number + 10);
+        uint256 pastBlock = block.number - 5;
 
-        assertEq(token.getPastVotes(user1, blockBefore), 1000 ether);
+        assertEq(token.getPastVotes(user1, pastBlock), 1000 ether);
     }
 
     /*//////////////////////////////////////////////////////////////

@@ -284,4 +284,159 @@ contract DelegateRegistryTest is Test {
 
         assertEq(registry.getTotalDelegated(delegate1), amount);
     }
+
+    /*//////////////////////////////////////////////////////////////
+                       VOTING POWER SNAPSHOT TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_GetVotingPowerAtSnapshot() public {
+        // Register delegate1
+        vm.prank(delegate1);
+        registry.registerDelegate("Alice", "Philosophy", "Interests");
+
+        // Roll to a known block for the first delegation
+        vm.roll(100);
+
+        // user1 delegates 1000 ether to delegate1 at block 100
+        vm.prank(user1);
+        registry.delegate(delegate1, 1000 ether);
+
+        // Roll forward 10 blocks to block 110
+        vm.roll(110);
+
+        // user1 delegates another 500 ether at block 110
+        vm.prank(user1);
+        registry.delegate(delegate1, 500 ether);
+
+        // Roll to block 120 so we can query past blocks
+        vm.roll(120);
+
+        // Verify getVotingPower at block 100 returns 1000 ether (not 1500)
+        assertEq(registry.getVotingPower(delegate1, 100, 0), 1000 ether);
+
+        // Verify getVotingPower at block 110 returns 1500 ether
+        assertEq(registry.getVotingPower(delegate1, 110, 0), 1500 ether);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                         BURN & UNDELEGATE TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_UndelegateAfterBurn() public {
+        // Register delegate1
+        vm.prank(delegate1);
+        registry.registerDelegate("Alice", "Philosophy", "Interests");
+
+        // Set governor to this test contract
+        vm.prank(owner);
+        registry.setGovernor(address(this));
+
+        // user1 delegates 1000 ether
+        vm.prank(user1);
+        registry.delegate(delegate1, 1000 ether);
+
+        // Burn 200 ether from delegate1 (as governor)
+        registry.burnFromDelegate(delegate1, 200 ether);
+
+        // Now totalDelegated = 800, totalBurned = 200
+        assertEq(registry.getTotalDelegated(delegate1), 800 ether);
+        assertEq(registry.getTotalBurnedFromDelegate(delegate1), 200 ether);
+
+        uint256 user1BalanceBefore = token.balanceOf(user1);
+
+        // user1 undelegates 1000 ether (their full delegation amount)
+        // actualReturn = 1000 * 800 / (800 + 200) = 800
+        vm.prank(user1);
+        registry.undelegate(delegate1, 1000 ether);
+
+        // Verify user1 received 800 ether (not 1000)
+        assertEq(token.balanceOf(user1) - user1BalanceBefore, 800 ether);
+
+        // Verify totalDelegated is 0
+        assertEq(registry.getTotalDelegated(delegate1), 0);
+
+        // Verify totalBurned is 0
+        assertEq(registry.getTotalBurnedFromDelegate(delegate1), 0);
+    }
+
+    function test_MultipleBurnsThenUndelegate() public {
+        // Register delegate1
+        vm.prank(delegate1);
+        registry.registerDelegate("Alice", "Philosophy", "Interests");
+
+        // Set governor to this test contract
+        vm.prank(owner);
+        registry.setGovernor(address(this));
+
+        // user1 delegates 500 ether, user2 delegates 500 ether (total 1000)
+        vm.prank(user1);
+        registry.delegate(delegate1, 500 ether);
+
+        vm.prank(user2);
+        registry.delegate(delegate1, 500 ether);
+
+        assertEq(registry.getTotalDelegated(delegate1), 1000 ether);
+
+        // Burn 100 from delegate1 -> totalDelegated=900, burned=100
+        registry.burnFromDelegate(delegate1, 100 ether);
+        assertEq(registry.getTotalDelegated(delegate1), 900 ether);
+        assertEq(registry.getTotalBurnedFromDelegate(delegate1), 100 ether);
+
+        // Burn 100 more -> totalDelegated=800, burned=200
+        registry.burnFromDelegate(delegate1, 100 ether);
+        assertEq(registry.getTotalDelegated(delegate1), 800 ether);
+        assertEq(registry.getTotalBurnedFromDelegate(delegate1), 200 ether);
+
+        // user1 undelegates 500: actualReturn = 500 * 800 / (800+200) = 400
+        uint256 user1BalanceBefore = token.balanceOf(user1);
+        vm.prank(user1);
+        registry.undelegate(delegate1, 500 ether);
+
+        // Verify user1 got 400 ether back
+        assertEq(token.balanceOf(user1) - user1BalanceBefore, 400 ether);
+
+        // totalDelegated should be 400, burned should be 100 (200 - 100)
+        assertEq(registry.getTotalDelegated(delegate1), 400 ether);
+        assertEq(registry.getTotalBurnedFromDelegate(delegate1), 100 ether);
+
+        // user2 undelegates 500: actualReturn = 500 * 400 / (400+100) = 400
+        uint256 user2BalanceBefore = token.balanceOf(user2);
+        vm.prank(user2);
+        registry.undelegate(delegate1, 500 ether);
+
+        // Verify user2 got 400 ether back
+        assertEq(token.balanceOf(user2) - user2BalanceBefore, 400 ether);
+
+        // totalDelegated=0, burned=0
+        assertEq(registry.getTotalDelegated(delegate1), 0);
+        assertEq(registry.getTotalBurnedFromDelegate(delegate1), 0);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                       TOTAL DELEGATED ALL TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_TotalDelegatedAll() public {
+        // Register delegate1 and delegate2
+        vm.prank(delegate1);
+        registry.registerDelegate("Alice", "Philosophy1", "Interests1");
+
+        vm.prank(delegate2);
+        registry.registerDelegate("Bob", "Philosophy2", "Interests2");
+
+        // user1 delegates 1000 to delegate1
+        vm.prank(user1);
+        registry.delegate(delegate1, 1000 ether);
+        assertEq(registry.totalDelegatedAll(), 1000 ether);
+
+        // user2 delegates 2000 to delegate2
+        vm.prank(user2);
+        registry.delegate(delegate2, 2000 ether);
+        assertEq(registry.totalDelegatedAll(), 3000 ether);
+
+        // user1 undelegates 500 from delegate1
+        vm.prank(user1);
+        registry.undelegate(delegate1, 500 ether);
+        assertEq(registry.totalDelegatedAll(), 2500 ether);
+    }
 }

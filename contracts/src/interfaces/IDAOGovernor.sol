@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 /// @title IDAOGovernor Interface
 /// @notice Interface for the DAO Governor contract
 /// @dev Implements the vTON DAO governance model with:
-///      - Proposal creation with TON burn (100 TON)
+///      - Proposal creation with TON burn (10 TON)
 ///      - Snapshot-based voting power
 ///      - 7-day on-chain voting period
 ///      - 4% quorum requirement
@@ -26,9 +26,9 @@ interface IDAOGovernor {
 
     /// @notice Vote type enum
     enum VoteType {
-        Against, // No vote
-        For, // Yes vote
-        Abstain // Abstain (counts for quorum but not pass rate)
+        For, // Yes vote (0)
+        Against, // No vote (1)
+        Abstain // Abstain (counts for quorum but not pass rate) (2)
 
     }
 
