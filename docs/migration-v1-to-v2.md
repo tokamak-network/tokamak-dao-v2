@@ -667,6 +667,32 @@ V1 비활성화 절차
 │        SecurityCouncil의 cancel 권한 동작 확인                    │
 │  테스트: 악의적 제안 시뮬레이션 + SC cancel 검증                    │
 │                                                                  │
+│  🔴 CR-04: SC 자기방어 우회 경로 (Timelock 직접 취소)              │
+│  ──────────────────────────────────────────────                  │
+│  위험: DAOGovernor.cancel()의 자기방어 체크                       │
+│        ("guardian은 자신을 target으로 하는 제안 취소 불가")가       │
+│        Timelock 레벨에서는 적용되지 않음                           │
+│  우회 경로:                                                      │
+│    ① Timelock.cancelTransaction() 직접 호출                      │
+│      → SC가 Timelock의 securityCouncil 역할이므로                │
+│        Governor를 거치지 않고 직접 트랜잭션 취소 가능               │
+│    ② Timelock.cancelTransactionByHash() 직접 호출                │
+│      → txHash만 알면 동일하게 직접 취소 가능                       │
+│    ③ Custom emergency action → Timelock.cancelTransaction()      │
+│      → SC의 긴급 행동으로 Timelock.cancelTransaction() 호출       │
+│  영향: SC 교체/제거 제안이 Timelock에 큐잉된 후,                   │
+│        SC가 Timelock 직접 취소로 자기방어 체크를 우회하여           │
+│        해당 트랜잭션을 취소할 수 있음                               │
+│  해결 방안:                                                      │
+│    · Timelock에 transactionTarget 매핑 추가                      │
+│      (txHash → target 주소 기록)                                 │
+│    · cancelTransaction에 자기방어 체크 추가                       │
+│      (caller == SC일 때 target이 SC 자신이면 revert)             │
+│  테스트:                                                         │
+│    · SC 교체 제안 큐잉 → Timelock 직접 취소 시도 → revert 확인    │
+│    · SC 교체 제안 큐잉 → 긴급 행동 경유 취소 시도 → revert 확인    │
+│    · 일반 제안에 대한 SC의 Timelock 직접 취소 → 성공 확인          │
+│                                                                  │
 │  🟠 HI-01: vTON 초기 배분 조작                                   │
 │  ────────────────────────────                                    │
 │  위험: 에어드롭/민팅 시 불공정 배분                                 │
@@ -681,12 +707,7 @@ V1 비활성화 절차
 │        위임 해제 시 비례 반환 정확성                                │
 │  테스트: maturity 직전/직후 위임 → 투표 가능 여부                   │
 │                                                                  │
-│  🟠 HI-03: SecurityCouncil 자기 방어 메커니즘                     │
-│  ────────────────────────────────────────                        │
-│  위험: SC를 대상으로 하는 악의적 제안을 SC가 취소 불가               │
-│  검증: proposalGuardian이 자신을 target으로 하는                  │
-│        제안을 cancel할 수 없는 로직 확인                           │
-│  테스트: SC 교체 제안 시 SC의 cancel 시도 → 실패 확인              │
+│  🟠 HI-03: (CR-04로 승격됨 — 아래 참조)                          │
 │                                                                  │
 │  🟡 ME-01: Vote Burn 비례 계산                                   │
 │  ────────────────────────────                                    │
@@ -1195,3 +1216,4 @@ forge test --fork-url $ETH_MAINNET_RPC --match-contract E2EMigrationTest
 | 2026-03-04 | 0.2.0 | 생성자 시그니처, 소유권 이전 대상, MINIMUM_DELAY 수정 |
 | 2026-03-04 | 0.3.0 | protocolTarget 명시, Ownable 구분표, deployer 잔여 권한, autoExpiryPeriod, 파라미터 최소값 추가 |
 | 2026-03-05 | 0.4.0 | pauseGuardian 추가 (SC가 Timelock 경유 없이 즉시 pause/unpause 가능), Phase 2 TX 추가, 소유권 다이어그램 업데이트 |
+| 2026-03-05 | 0.1.4 | SC 자기방어 우회 경로 문서화 (Timelock 직접 취소 우회, CR-04 추가) |
