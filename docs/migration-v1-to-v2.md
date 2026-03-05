@@ -394,7 +394,8 @@ Phase 1              Phase 2              Phase 3              Phase 4
 │  ① vTON 배포       │  ⑤ 민터 설정        │  ⑨ 첫 제안 생성     │  ⑫ V1 pause
 │  ② DelegateReg배포 │  ⑥ vTON 초기 배분   │  ⑩ 투표 + 실행 검증  │  ⑬ 관리권한 이전
 │  ③ Timelock 배포   │  ⑦ 위임자 등록      │  ⑪ 모니터링         │  ⑭ 문서화
-│  ④ Governor 배포   │  ⑧ 소유권 이전      │                    │
+│  ④ Governor 배포   │  ⑧ 가디언 설정      │                    │
+│                    │  ⑨ 소유권 이전      │                    │
 │  ④' SC 배포        │                    │                    │
 │                    │                    │                    │
 ```
@@ -481,28 +482,32 @@ Phase 1              Phase 2              Phase 3              Phase 4
   │  TX5: governor.setProposalGuardian(securityCouncil)      │
   │       → Governor에 제안 가디언 설정                       │
   │                                                         │
-  │  TX6: delegateRegistry.transferOwnership(timelock)       │
+  │  TX6: governor.setPauseGuardian(securityCouncil)         │
+  │       → Governor에 일시정지 가디언 설정                    │
+  │       ※ SC가 ownership 없이도 pause/unpause 가능         │
+  │                                                         │
+  │  TX7: delegateRegistry.transferOwnership(timelock)       │
   │       → DelegateRegistry 소유권을 Timelock으로 이전       │
   │                                                         │
-  │  TX7: governor.transferOwnership(timelock)               │
+  │  TX8: governor.transferOwnership(timelock)               │
   │       → DAOGovernor 소유권을 Timelock으로 이전            │
   │                                                         │
-  │  TX8: vTON.transferOwnership(timelock)                   │
+  │  TX9: vTON.transferOwnership(timelock)                   │
   │       → vTON 소유권을 Timelock으로 이전                   │
   │       ※ Ownable2Step: 이 TX는 pending 상태 시작일 뿐     │
   │         Phase 3에서 governance 제안으로 acceptOwnership() │
   │         실행 필요                                         │
   │                                                         │
-  │  TX9: timelock.setPendingAdmin(timelock)                 │
-  │       → Timelock 자체 관리 설정 (자기참조)                 │
-  │       ※ Phase 3에서 governance 제안으로 acceptAdmin()     │
-  │         실행 필요                                         │
+  │  TX10: timelock.setPendingAdmin(timelock)                │
+  │        → Timelock 자체 관리 설정 (자기참조)                │
+  │        ※ Phase 3에서 governance 제안으로 acceptAdmin()    │
+  │          실행 필요                                        │
   │                                                         │
   └─────────────────────────────────────────────────────────┘
 
-  ⚠️ deployer 잔여 권한 기간 (TX6~TX9 이후 ~ Phase 3 완료 전):
+  ⚠️ deployer 잔여 권한 기간 (TX7~TX10 이후 ~ Phase 3 완료 전):
   ═══════════════════════════════════════════════════════════════
-  TX6~TX9로 vTON/DelegateRegistry/DAOGovernor의 소유권은 이전되지만,
+  TX7~TX10으로 vTON/DelegateRegistry/DAOGovernor의 소유권은 이전되지만,
   Timelock의 admin은 Phase 3에서 acceptAdmin()이 실행될 때까지
   deployer가 유지됩니다.
 
@@ -539,12 +544,16 @@ Phase 1              Phase 2              Phase 3              Phase 4
   │ admin=self│──owner──▶ DelegateRegistry
   │           │──owner──▶ DAOGovernor
   └─────┬─────┘
-        │                 ┌──────────────────┐
-        │◀────cancel──────│ SecurityCouncil  │
-        │                 │ (proposalGuardian)│
-        │                 └──────────────────┘
-        │
+        │                 ┌───────────────────────┐
+        │◀────cancel──────│  SecurityCouncil      │
+        │                 │  (proposalGuardian)    │
+        │                 │  (pauseGuardian)       │
+        │                 └───────────────────────┘
+        │                         │
   DAOGovernor ──queue/execute──▶ Timelock
+        ▲
+        │ pause/unpause (via pauseGuardian)
+        └──── SecurityCouncil
 
   Ownable 모델별 이전 방식:
   ═════════════════════════════
@@ -813,7 +822,7 @@ V1 비활성화 절차
 │          ╱    (Foundry invariant)        ╲· 랜덤 입력 검증        │
 │         ╱────────────────────────────────╲                      │
 │                                                                  │
-│  현재 테스트: 321 tests (5,835 lines)                            │
+│  현재 테스트: 350 tests                                          │
 │  목표 커버리지: 95%+                                             │
 └──────────────────────────────────────────────────────────────────┘
 ```
@@ -957,7 +966,7 @@ SecurityCouncil
 │  ─────────────────────────────────────                           │
 │  Mainnet Fork 위에서:                                            │
 │  1. V2 컨트랙트 전체 배포                                        │
-│  2. 연동 TX 실행 (TX1~TX9)                                      │
+│  2. 연동 TX 실행 (TX1~TX10)                                     │
 │  3. V1 참여자 → V2 위임자 등록                                   │
 │  4. vTON 배분 → 위임 → 제안 → 투표 → 실행                       │
 │  5. V1 pause → V2 단독 운영 확인                                │
@@ -1185,3 +1194,4 @@ forge test --fork-url $ETH_MAINNET_RPC --match-contract E2EMigrationTest
 | 2026-03-04 | 0.1.0 | 초안 작성 |
 | 2026-03-04 | 0.2.0 | 생성자 시그니처, 소유권 이전 대상, MINIMUM_DELAY 수정 |
 | 2026-03-04 | 0.3.0 | protocolTarget 명시, Ownable 구분표, deployer 잔여 권한, autoExpiryPeriod, 파라미터 최소값 추가 |
+| 2026-03-05 | 0.4.0 | pauseGuardian 추가 (SC가 Timelock 경유 없이 즉시 pause/unpause 가능), Phase 2 TX 추가, 소유권 다이어그램 업데이트 |

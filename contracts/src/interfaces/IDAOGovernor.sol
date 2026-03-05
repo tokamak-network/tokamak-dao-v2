@@ -98,6 +98,9 @@ interface IDAOGovernor {
     /// @notice Emitted when proposal guardian is updated
     event ProposalGuardianSet(address oldGuardian, address newGuardian);
 
+    /// @notice Emitted when pause guardian is updated
+    event PauseGuardianSet(address oldGuardian, address newGuardian);
+
     /// @notice Emitted when proposal threshold is updated
     event ProposalThresholdUpdated(uint256 oldThreshold, uint256 newThreshold);
 
@@ -133,6 +136,9 @@ interface IDAOGovernor {
 
     /// @notice Error when parameter value is out of valid range
     error InvalidParameter();
+
+    /// @notice Error when caller is not authorized to pause/unpause
+    error NotAuthorizedToPause();
 
     /// @notice Pause the governor (blocks propose, castVote, execute)
     function pause() external;
@@ -245,6 +251,14 @@ interface IDAOGovernor {
     /// @notice Set the proposal guardian
     /// @param newGuardian The new guardian address (or address(0) to disable)
     function setProposalGuardian(address newGuardian) external;
+
+    /// @notice Get the pause guardian address
+    /// @return The guardian address (can pause/unpause the governor)
+    function pauseGuardian() external view returns (address);
+
+    /// @notice Set the pause guardian
+    /// @param newGuardian The new guardian address (or address(0) to disable)
+    function setPauseGuardian(address newGuardian) external;
 
     /// @notice Get the proposal threshold in basis points
     /// @return Threshold in basis points (25 = 0.25% of total vTON supply)

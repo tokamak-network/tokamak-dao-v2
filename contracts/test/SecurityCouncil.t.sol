@@ -897,16 +897,16 @@ contract SecurityCouncilTest is Test {
     //////////////////////////////////////////////////////////////*/
 
     function test_FullPauseProtocolFlow_WithGovernor() public {
-        // Deploy real DAOGovernor as the protocolTarget
-        address scOwner = makeAddr("scOwner");
+        // Production model: ownership → Timelock, pauseGuardian → SC
+        address deployer = makeAddr("deployer");
 
-        vm.startPrank(scOwner);
+        vm.startPrank(deployer);
         MockTONForSC tonToken = new MockTONForSC();
-        vTON vton = new vTON(scOwner);
-        DelegateRegistry reg = new DelegateRegistry(address(vton), scOwner);
-        Timelock tl = new Timelock(scOwner, 7 days);
+        vTON vton = new vTON(deployer);
+        DelegateRegistry reg = new DelegateRegistry(address(vton), deployer);
+        Timelock tl = new Timelock(deployer, 7 days);
         DAOGovernor gov = new DAOGovernor(
-            address(tonToken), address(vton), address(reg), address(tl), scOwner
+            address(tonToken), address(vton), address(reg), address(tl), deployer
         );
         vm.stopPrank();
 
@@ -916,12 +916,14 @@ contract SecurityCouncilTest is Test {
         externalMembers[1] = external2;
 
         SecurityCouncil scWithGov = new SecurityCouncil(
-            foundationMember, externalMembers, address(gov), timelock, address(gov)
+            foundationMember, externalMembers, address(gov), address(tl), address(gov)
         );
 
-        // Transfer governor ownership to SC so it can call pause()
-        vm.prank(scOwner);
-        gov.transferOwnership(address(scWithGov));
+        // Production setup: ownership → Timelock, pauseGuardian → SC
+        vm.startPrank(deployer);
+        gov.setPauseGuardian(address(scWithGov));
+        gov.transferOwnership(address(tl));
+        vm.stopPrank();
 
         // SC member proposes pause
         vm.prank(foundationMember);
@@ -940,5 +942,65 @@ contract SecurityCouncilTest is Test {
 
         // Verify DAOGovernor is paused
         assertTrue(gov.paused());
+    }
+
+    function test_FullUnpauseProtocolFlow_WithGovernor() public {
+        // Production model: ownership → Timelock, pauseGuardian → SC
+        address deployer = makeAddr("deployer");
+
+        vm.startPrank(deployer);
+        MockTONForSC tonToken = new MockTONForSC();
+        vTON vton = new vTON(deployer);
+        DelegateRegistry reg = new DelegateRegistry(address(vton), deployer);
+        Timelock tl = new Timelock(deployer, 7 days);
+        DAOGovernor gov = new DAOGovernor(
+            address(tonToken), address(vton), address(reg), address(tl), deployer
+        );
+        vm.stopPrank();
+
+        // Create SecurityCouncil with governor as protocolTarget
+        address[] memory externalMembers = new address[](2);
+        externalMembers[0] = external1;
+        externalMembers[1] = external2;
+
+        SecurityCouncil scWithGov = new SecurityCouncil(
+            foundationMember, externalMembers, address(gov), address(tl), address(gov)
+        );
+
+        // Production setup: ownership → Timelock, pauseGuardian → SC
+        vm.startPrank(deployer);
+        gov.setPauseGuardian(address(scWithGov));
+        gov.transferOwnership(address(tl));
+        vm.stopPrank();
+
+        // First pause the governor via SC
+        vm.prank(foundationMember);
+        scWithGov.pauseProtocol("Emergency: vulnerability found");
+
+        uint256[] memory pending = scWithGov.getPendingActions();
+        uint256 pauseActionId = pending[0];
+
+        vm.prank(external1);
+        scWithGov.approveEmergencyAction(pauseActionId);
+
+        vm.prank(external1);
+        scWithGov.executeEmergencyAction(pauseActionId);
+        assertTrue(gov.paused());
+
+        // Now unpause via SC convenience function
+        vm.prank(foundationMember);
+        scWithGov.unpauseProtocol();
+
+        pending = scWithGov.getPendingActions();
+        uint256 unpauseActionId = pending[0];
+
+        vm.prank(external2);
+        scWithGov.approveEmergencyAction(unpauseActionId);
+
+        vm.prank(external2);
+        scWithGov.executeEmergencyAction(unpauseActionId);
+
+        // Verify DAOGovernor is unpaused
+        assertFalse(gov.paused());
     }
 }

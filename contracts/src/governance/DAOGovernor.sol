@@ -115,6 +115,9 @@ contract DAOGovernor is IDAOGovernor, Ownable, Pausable, ReentrancyGuard {
     /// @notice The proposal guardian (can cancel proposals in non-final states)
     address public override proposalGuardian;
 
+    /// @notice The pause guardian (can pause/unpause the governor)
+    address public override pauseGuardian;
+
     /// @notice Proposal creation cost in TON
     uint256 public override proposalCreationCost;
 
@@ -505,12 +508,18 @@ contract DAOGovernor is IDAOGovernor, Ownable, Pausable, ReentrancyGuard {
     }
 
     /// @inheritdoc IDAOGovernor
-    function pause() external override onlyOwner {
+    function pause() external override {
+        if (msg.sender != owner() && !(msg.sender == pauseGuardian && pauseGuardian != address(0))) {
+            revert IDAOGovernor.NotAuthorizedToPause();
+        }
         _pause();
     }
 
     /// @inheritdoc IDAOGovernor
-    function unpause() external override onlyOwner {
+    function unpause() external override {
+        if (msg.sender != owner() && !(msg.sender == pauseGuardian && pauseGuardian != address(0))) {
+            revert IDAOGovernor.NotAuthorizedToPause();
+        }
         _unpause();
     }
 
@@ -546,6 +555,13 @@ contract DAOGovernor is IDAOGovernor, Ownable, Pausable, ReentrancyGuard {
         address oldGuardian = proposalGuardian;
         proposalGuardian = newGuardian;
         emit ProposalGuardianSet(oldGuardian, newGuardian);
+    }
+
+    /// @inheritdoc IDAOGovernor
+    function setPauseGuardian(address newGuardian) external override onlyOwner {
+        address oldGuardian = pauseGuardian;
+        pauseGuardian = newGuardian;
+        emit PauseGuardianSet(oldGuardian, newGuardian);
     }
 
     /// @inheritdoc IDAOGovernor

@@ -2577,7 +2577,108 @@ contract DAOGovernorTest is Test {
 
     function test_OnlyOwnerCanPause() public {
         vm.prank(user1);
+        vm.expectRevert(IDAOGovernor.NotAuthorizedToPause.selector);
+        governor.pause();
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        PAUSE GUARDIAN TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_SetPauseGuardian() public {
+        address guardian = makeAddr("pauseGuardian");
+        vm.prank(owner);
+        governor.setPauseGuardian(guardian);
+        assertEq(governor.pauseGuardian(), guardian);
+    }
+
+    function test_SetPauseGuardianEmitsEvent() public {
+        address guardian = makeAddr("pauseGuardian");
+        vm.prank(owner);
+        vm.expectEmit(true, true, false, false);
+        emit IDAOGovernor.PauseGuardianSet(address(0), guardian);
+        governor.setPauseGuardian(guardian);
+    }
+
+    function test_SetPauseGuardianOnlyOwner() public {
+        vm.prank(user1);
         vm.expectRevert(abi.encodeWithSelector(bytes4(keccak256("OwnableUnauthorizedAccount(address)")), user1));
+        governor.setPauseGuardian(user1);
+    }
+
+    function test_PauseGuardianCanPause() public {
+        address guardian = makeAddr("pauseGuardian");
+        vm.prank(owner);
+        governor.setPauseGuardian(guardian);
+
+        vm.prank(guardian);
+        governor.pause();
+        assertTrue(governor.paused());
+    }
+
+    function test_PauseGuardianCanUnpause() public {
+        address guardian = makeAddr("pauseGuardian");
+        vm.prank(owner);
+        governor.setPauseGuardian(guardian);
+
+        vm.prank(guardian);
+        governor.pause();
+
+        vm.prank(guardian);
+        governor.unpause();
+        assertFalse(governor.paused());
+    }
+
+    function test_OwnerCanStillPause() public {
+        address guardian = makeAddr("pauseGuardian");
+        vm.prank(owner);
+        governor.setPauseGuardian(guardian);
+
+        // Owner should still be able to pause even with guardian set
+        vm.prank(owner);
+        governor.pause();
+        assertTrue(governor.paused());
+
+        vm.prank(owner);
+        governor.unpause();
+        assertFalse(governor.paused());
+    }
+
+    function test_NonGuardianNonOwnerCannotPause() public {
+        address guardian = makeAddr("pauseGuardian");
+        vm.prank(owner);
+        governor.setPauseGuardian(guardian);
+
+        vm.prank(user1);
+        vm.expectRevert(IDAOGovernor.NotAuthorizedToPause.selector);
+        governor.pause();
+    }
+
+    function test_ZeroAddressPauseGuardianCannotPause() public {
+        // pauseGuardian is address(0) by default
+        assertEq(governor.pauseGuardian(), address(0));
+
+        // Even address(0) shouldn't be able to pause via guardian path
+        // (only owner can)
+        vm.prank(user1);
+        vm.expectRevert(IDAOGovernor.NotAuthorizedToPause.selector);
+        governor.pause();
+    }
+
+    function test_SetPauseGuardianToZeroDisablesPauseGuardian() public {
+        address guardian = makeAddr("pauseGuardian");
+        vm.startPrank(owner);
+        governor.setPauseGuardian(guardian);
+        assertEq(governor.pauseGuardian(), guardian);
+
+        // Disable by setting to address(0)
+        governor.setPauseGuardian(address(0));
+        assertEq(governor.pauseGuardian(), address(0));
+        vm.stopPrank();
+
+        // Former guardian can no longer pause
+        vm.prank(guardian);
+        vm.expectRevert(IDAOGovernor.NotAuthorizedToPause.selector);
         governor.pause();
     }
 }

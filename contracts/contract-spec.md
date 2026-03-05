@@ -124,6 +124,7 @@ event DelegateVTONBurned(address indexed delegate, uint256 amount);
 | `gracePeriod` | `uint256` | `14 days` | 유예 기간 (초) |
 | `passRate` | `uint256` | `5000` | 통과율 (basis points, 5000 = 50%, >50% 필요) |
 | `MAX_BURN_RATE` | `uint16` | `10000` | 최대 소각률 (basis points, 10000 = 100%) |
+| `pauseGuardian` | `address` | `address(0)` | 일시정지 가디언 (owner 외에 pause/unpause 가능) |
 
 **Enums**:
 ```solidity
@@ -153,7 +154,7 @@ enum VoteType {
 | `castVoteWithReason` | `proposalId: uint256, support: uint8, reason: string` | `uint256` | 사유 포함 투표 |
 | `queue` | `proposalId: uint256` | - | 타임락 큐에 추가 |
 | `execute` | `proposalId: uint256` | - | 제안 실행 |
-| `cancel` | `proposalId: uint256` | - | 제안 취소 (제안자만) |
+| `cancel` | `proposalId: uint256` | - | 제안 취소 (제안자 또는 proposalGuardian) |
 | `state` | `proposalId: uint256` | `ProposalState` | 제안 상태 조회 |
 | `getProposal` | `proposalId: uint256` | `Proposal` | 제안 상세 조회 |
 | `hasVoted` | `proposalId: uint256, account: address` | `bool` | 투표 여부 확인 |
@@ -162,6 +163,9 @@ enum VoteType {
 | `setTimelockDelay` | `newDelay: uint256` | - | 타임락 지연 설정 (owner only) |
 | `setGracePeriod` | `newPeriod: uint256` | - | 유예 기간 설정 (owner only) |
 | `setPassRate` | `newRate: uint256` | - | 통과율 설정 (owner only, basis points) |
+| `pause` | - | - | 프로토콜 일시정지 (owner 또는 pauseGuardian) |
+| `unpause` | - | - | 프로토콜 재개 (owner 또는 pauseGuardian) |
+| `setPauseGuardian` | `newGuardian: address` | - | 일시정지 가디언 설정 (owner only, address(0)으로 비활성화) |
 
 **이벤트**:
 ```solidity
@@ -183,6 +187,7 @@ event ProposalQueued(uint256 proposalId, uint256 eta);
 event ProposalExecuted(uint256 proposalId);
 event ProposalCanceled(uint256 proposalId);
 event ProposalThresholdUpdated(uint256 oldThreshold, uint256 newThreshold);
+event PauseGuardianSet(address oldGuardian, address newGuardian);
 ```
 
 ---
