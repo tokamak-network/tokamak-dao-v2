@@ -94,41 +94,36 @@ contract SecurityCouncilTest is Test {
                          EMERGENCY ACTIONS
     //////////////////////////////////////////////////////////////*/
 
-    function test_ProposeEmergencyAction() public {
-        bytes memory data = abi.encodeWithSignature("setValue(uint256)", 42);
-
+    function test_PauseProtocolProposal() public {
         vm.prank(foundationMember);
-        uint256 actionId = council.proposeEmergencyAction(
-            ISecurityCouncil.ActionType.Custom, address(target), data, "Set value to 42"
-        );
+        council.pauseProtocol("Emergency pause");
+
+        uint256[] memory pending = council.getPendingActions();
+        uint256 actionId = pending[0];
 
         ISecurityCouncil.EmergencyAction memory action = council.getEmergencyAction(actionId);
         assertEq(action.id, actionId);
-        assertEq(uint256(action.actionType), uint256(ISecurityCouncil.ActionType.Custom));
+        assertEq(uint256(action.actionType), uint256(ISecurityCouncil.ActionType.PauseProtocol));
         assertEq(action.target, address(target));
-        assertEq(action.reason, "Set value to 42");
+        assertEq(action.reason, "Emergency pause");
         assertFalse(action.executed);
         assertEq(action.approvers.length, 1);
     }
 
-    function test_ProposeEmergencyActionRevertsIfNotMember() public {
+    function test_PauseProtocolRevertsIfNotMember() public {
         address nonMember = makeAddr("nonMember");
-        bytes memory data = abi.encodeWithSignature("setValue(uint256)", 42);
 
         vm.prank(nonMember);
         vm.expectRevert(SecurityCouncil.NotMember.selector);
-        council.proposeEmergencyAction(
-            ISecurityCouncil.ActionType.Custom, address(target), data, "Test"
-        );
+        council.pauseProtocol("Test");
     }
 
     function test_ApproveEmergencyAction() public {
-        bytes memory data = abi.encodeWithSignature("setValue(uint256)", 42);
-
         vm.prank(foundationMember);
-        uint256 actionId = council.proposeEmergencyAction(
-            ISecurityCouncil.ActionType.Custom, address(target), data, "Test"
-        );
+        council.pauseProtocol("Test");
+
+        uint256[] memory pending = council.getPendingActions();
+        uint256 actionId = pending[0];
 
         vm.prank(external1);
         council.approveEmergencyAction(actionId);
@@ -139,12 +134,11 @@ contract SecurityCouncilTest is Test {
     }
 
     function test_ApproveEmergencyActionRevertsIfAlreadyApproved() public {
-        bytes memory data = abi.encodeWithSignature("setValue(uint256)", 42);
-
         vm.prank(foundationMember);
-        uint256 actionId = council.proposeEmergencyAction(
-            ISecurityCouncil.ActionType.Custom, address(target), data, "Test"
-        );
+        council.pauseProtocol("Test");
+
+        uint256[] memory pending = council.getPendingActions();
+        uint256 actionId = pending[0];
 
         vm.prank(foundationMember);
         vm.expectRevert(SecurityCouncil.AlreadyApproved.selector);
@@ -152,12 +146,11 @@ contract SecurityCouncilTest is Test {
     }
 
     function test_ExecuteEmergencyAction() public {
-        bytes memory data = abi.encodeWithSignature("setValue(uint256)", 42);
-
         vm.prank(foundationMember);
-        uint256 actionId = council.proposeEmergencyAction(
-            ISecurityCouncil.ActionType.Custom, address(target), data, "Test"
-        );
+        council.pauseProtocol("Test");
+
+        uint256[] memory pending = council.getPendingActions();
+        uint256 actionId = pending[0];
 
         vm.prank(external1);
         council.approveEmergencyAction(actionId);
@@ -165,19 +158,18 @@ contract SecurityCouncilTest is Test {
         vm.prank(external2);
         council.executeEmergencyAction(actionId);
 
-        assertEq(target.value(), 42);
+        assertTrue(target.paused());
 
         ISecurityCouncil.EmergencyAction memory action = council.getEmergencyAction(actionId);
         assertTrue(action.executed);
     }
 
     function test_ExecuteEmergencyActionRevertsIfNotApproved() public {
-        bytes memory data = abi.encodeWithSignature("setValue(uint256)", 42);
-
         vm.prank(foundationMember);
-        uint256 actionId = council.proposeEmergencyAction(
-            ISecurityCouncil.ActionType.Custom, address(target), data, "Test"
-        );
+        council.pauseProtocol("Test");
+
+        uint256[] memory pending = council.getPendingActions();
+        uint256 actionId = pending[0];
 
         // Only 1 approval, need 2
         vm.prank(external1);
@@ -186,12 +178,11 @@ contract SecurityCouncilTest is Test {
     }
 
     function test_CancelEmergencyAction() public {
-        bytes memory data = abi.encodeWithSignature("setValue(uint256)", 42);
-
         vm.prank(foundationMember);
-        uint256 actionId = council.proposeEmergencyAction(
-            ISecurityCouncil.ActionType.Custom, address(target), data, "Test"
-        );
+        council.pauseProtocol("Test");
+
+        uint256[] memory pending = council.getPendingActions();
+        uint256 actionId = pending[0];
 
         vm.prank(foundationMember);
         council.cancelEmergencyAction(actionId);
@@ -284,29 +275,22 @@ contract SecurityCouncilTest is Test {
     //////////////////////////////////////////////////////////////*/
 
     function test_GetPendingActions() public {
-        bytes memory data = abi.encodeWithSignature("setValue(uint256)", 42);
-
         vm.prank(foundationMember);
-        council.proposeEmergencyAction(
-            ISecurityCouncil.ActionType.Custom, address(target), data, "Test1"
-        );
+        council.pauseProtocol("Test1");
 
         vm.prank(external1);
-        council.proposeEmergencyAction(
-            ISecurityCouncil.ActionType.Custom, address(target), data, "Test2"
-        );
+        council.pauseProtocol("Test2");
 
         uint256[] memory pending = council.getPendingActions();
         assertEq(pending.length, 2);
     }
 
     function test_IsActionApproved() public {
-        bytes memory data = abi.encodeWithSignature("setValue(uint256)", 42);
-
         vm.prank(foundationMember);
-        uint256 actionId = council.proposeEmergencyAction(
-            ISecurityCouncil.ActionType.Custom, address(target), data, "Test"
-        );
+        council.pauseProtocol("Test");
+
+        uint256[] memory pending = council.getPendingActions();
+        uint256 actionId = pending[0];
 
         // Only 1 approval
         assertFalse(council.isActionApproved(actionId));
@@ -427,12 +411,11 @@ contract SecurityCouncilTest is Test {
     //////////////////////////////////////////////////////////////*/
 
     function test_CancelEmergencyActionOnlyProposer() public {
-        bytes memory data = abi.encodeWithSignature("setValue(uint256)", 42);
-
         vm.prank(foundationMember);
-        uint256 actionId = council.proposeEmergencyAction(
-            ISecurityCouncil.ActionType.Custom, address(target), data, "Test"
-        );
+        council.pauseProtocol("Test");
+
+        uint256[] memory pending = council.getPendingActions();
+        uint256 actionId = pending[0];
 
         // external1 (non-proposer) tries to cancel -> should revert
         vm.prank(external1);
@@ -453,12 +436,11 @@ contract SecurityCouncilTest is Test {
     //////////////////////////////////////////////////////////////*/
 
     function test_EmergencyActionExpiry() public {
-        bytes memory data = abi.encodeWithSignature("setValue(uint256)", 42);
-
         vm.prank(foundationMember);
-        uint256 actionId = council.proposeEmergencyAction(
-            ISecurityCouncil.ActionType.Custom, address(target), data, "Test"
-        );
+        council.pauseProtocol("Test");
+
+        uint256[] memory pending = council.getPendingActions();
+        uint256 actionId = pending[0];
 
         // Warp past TTL
         vm.warp(block.timestamp + 7 days + 1);
@@ -470,12 +452,11 @@ contract SecurityCouncilTest is Test {
     }
 
     function test_ExecuteEmergencyActionExpiry() public {
-        bytes memory data = abi.encodeWithSignature("setValue(uint256)", 42);
-
         vm.prank(foundationMember);
-        uint256 actionId = council.proposeEmergencyAction(
-            ISecurityCouncil.ActionType.Custom, address(target), data, "Test"
-        );
+        council.pauseProtocol("Test");
+
+        uint256[] memory pending = council.getPendingActions();
+        uint256 actionId = pending[0];
 
         // Approve within TTL
         vm.prank(external1);
@@ -495,12 +476,11 @@ contract SecurityCouncilTest is Test {
     //////////////////////////////////////////////////////////////*/
 
     function test_CanceledActionState() public {
-        bytes memory data = abi.encodeWithSignature("setValue(uint256)", 42);
-
         vm.prank(foundationMember);
-        uint256 actionId = council.proposeEmergencyAction(
-            ISecurityCouncil.ActionType.Custom, address(target), data, "Test"
-        );
+        council.pauseProtocol("Test");
+
+        uint256[] memory pending = council.getPendingActions();
+        uint256 actionId = pending[0];
 
         vm.prank(foundationMember);
         council.cancelEmergencyAction(actionId);
@@ -601,13 +581,15 @@ contract SecurityCouncilTest is Test {
     //////////////////////////////////////////////////////////////*/
 
     function test_ExecuteEmergencyActionRevertsOnExecutionFailed() public {
-        // Call a function that doesn't exist on the target → execution will fail
-        bytes memory data = abi.encodeWithSignature("nonexistentFunction()");
+        // Set protocolTarget to a contract without pause() → execution will fail
+        vm.prank(daoGovernor);
+        council.setProtocolTarget(address(council));
 
         vm.prank(foundationMember);
-        uint256 actionId = council.proposeEmergencyAction(
-            ISecurityCouncil.ActionType.Custom, address(target), data, "Will fail"
-        );
+        council.pauseProtocol("Will fail");
+
+        uint256[] memory pending = council.getPendingActions();
+        uint256 actionId = pending[0];
 
         vm.prank(external1);
         council.approveEmergencyAction(actionId);
@@ -660,13 +642,11 @@ contract SecurityCouncilTest is Test {
 
     function test_StaleApprovalAfterMemberRemoval() public {
         // M-2 verification: approvals from removed members don't count
-        bytes memory data = abi.encodeWithSignature("setValue(uint256)", 42);
-
-        // foundationMember proposes
         vm.prank(foundationMember);
-        uint256 actionId = council.proposeEmergencyAction(
-            ISecurityCouncil.ActionType.Custom, address(target), data, "Test"
-        );
+        council.pauseProtocol("Test");
+
+        uint256[] memory pending = council.getPendingActions();
+        uint256 actionId = pending[0];
 
         // external1 approves (2 approvals now: foundationMember + external1)
         vm.prank(external1);
@@ -690,13 +670,12 @@ contract SecurityCouncilTest is Test {
         council.addMember(external3, false);
         assertEq(council.threshold(), 3);
 
-        bytes memory data = abi.encodeWithSignature("setValue(uint256)", 42);
-
-        // foundationMember proposes (1 approval)
+        // foundationMember proposes pause (1 approval)
         vm.prank(foundationMember);
-        uint256 actionId = council.proposeEmergencyAction(
-            ISecurityCouncil.ActionType.Custom, address(target), data, "Test"
-        );
+        council.pauseProtocol("Test");
+
+        uint256[] memory pending = council.getPendingActions();
+        uint256 actionId = pending[0];
 
         // external1 approves (2 approvals)
         vm.prank(external1);
@@ -714,16 +693,15 @@ contract SecurityCouncilTest is Test {
         // Should still execute since 2 valid approvals >= threshold 2
         vm.prank(foundationMember);
         council.executeEmergencyAction(actionId);
-        assertEq(target.value(), 42);
+        assertTrue(target.paused());
     }
 
     function test_CancelAlreadyExecutedAction() public {
-        bytes memory data = abi.encodeWithSignature("setValue(uint256)", 42);
-
         vm.prank(foundationMember);
-        uint256 actionId = council.proposeEmergencyAction(
-            ISecurityCouncil.ActionType.Custom, address(target), data, "Test"
-        );
+        council.pauseProtocol("Test");
+
+        uint256[] memory pending = council.getPendingActions();
+        uint256 actionId = pending[0];
 
         vm.prank(external1);
         council.approveEmergencyAction(actionId);
@@ -738,12 +716,11 @@ contract SecurityCouncilTest is Test {
     }
 
     function test_ApproveAlreadyExecutedAction() public {
-        bytes memory data = abi.encodeWithSignature("setValue(uint256)", 42);
-
         vm.prank(foundationMember);
-        uint256 actionId = council.proposeEmergencyAction(
-            ISecurityCouncil.ActionType.Custom, address(target), data, "Test"
-        );
+        council.pauseProtocol("Test");
+
+        uint256[] memory pending = council.getPendingActions();
+        uint256 actionId = pending[0];
 
         vm.prank(external1);
         council.approveEmergencyAction(actionId);
@@ -758,12 +735,11 @@ contract SecurityCouncilTest is Test {
     }
 
     function test_NonMemberCannotCancelAction() public {
-        bytes memory data = abi.encodeWithSignature("setValue(uint256)", 42);
-
         vm.prank(foundationMember);
-        uint256 actionId = council.proposeEmergencyAction(
-            ISecurityCouncil.ActionType.Custom, address(target), data, "Test"
-        );
+        council.pauseProtocol("Test");
+
+        uint256[] memory pending = council.getPendingActions();
+        uint256 actionId = pending[0];
 
         address nonMember = makeAddr("nonMember");
         vm.prank(nonMember);
@@ -851,13 +827,11 @@ contract SecurityCouncilTest is Test {
     function test_IsActionApprovedAfterMemberRemoval() public {
         // Fix 1 verification: isActionApproved must return false when
         // a removed member's approval is no longer valid
-        bytes memory data = abi.encodeWithSignature("setValue(uint256)", 42);
-
-        // foundationMember proposes (1 approval)
         vm.prank(foundationMember);
-        uint256 actionId = council.proposeEmergencyAction(
-            ISecurityCouncil.ActionType.Custom, address(target), data, "Test"
-        );
+        council.pauseProtocol("Test");
+
+        uint256[] memory pending = council.getPendingActions();
+        uint256 actionId = pending[0];
 
         // external1 approves (2 approvals — meets threshold of 2)
         vm.prank(external1);
@@ -876,12 +850,11 @@ contract SecurityCouncilTest is Test {
     }
 
     function test_ExecuteEmergencyActionByNonMemberReverts() public {
-        bytes memory data = abi.encodeWithSignature("setValue(uint256)", 42);
-
         vm.prank(foundationMember);
-        uint256 actionId = council.proposeEmergencyAction(
-            ISecurityCouncil.ActionType.Custom, address(target), data, "Test"
-        );
+        council.pauseProtocol("Test");
+
+        uint256[] memory pending = council.getPendingActions();
+        uint256 actionId = pending[0];
 
         vm.prank(external1);
         council.approveEmergencyAction(actionId);

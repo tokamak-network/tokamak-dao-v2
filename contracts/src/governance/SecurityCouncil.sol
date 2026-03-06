@@ -7,10 +7,11 @@ import { ISecurityCouncil } from "../interfaces/ISecurityCouncil.sol";
 
 /// @title SecurityCouncil - Emergency Response Multi-sig
 /// @notice Multi-signature contract for emergency governance actions
-/// @dev Implements vTON DAO Governance Model Security Council:
+/// @dev Implements vTON DAO Governance Model Security Council (Veto-Only):
 ///      - Initial: 3 members (1 foundation + 2 external)
 ///      - Threshold: 2/3 (67%)
-///      - Powers: Cancel proposals, emergency upgrades, protocol pause
+///      - Powers: Cancel proposals, protocol pause/unpause
+///      - No arbitrary execution allowed
 ///      - All actions must be disclosed to community afterward
 contract SecurityCouncil is ISecurityCouncil, ReentrancyGuard {
     /*//////////////////////////////////////////////////////////////
@@ -201,39 +202,6 @@ contract SecurityCouncil is ISecurityCouncil, ReentrancyGuard {
     /*//////////////////////////////////////////////////////////////
                          EMERGENCY ACTIONS
     //////////////////////////////////////////////////////////////*/
-
-    /// @inheritdoc ISecurityCouncil
-    function proposeEmergencyAction(
-        ActionType actionType,
-        address target,
-        bytes calldata data,
-        string calldata reason
-    ) external override onlyMember returns (uint256 actionId) {
-        actionId = _actionCount++;
-
-        address[] memory approvers = new address[](1);
-        approvers[0] = msg.sender;
-
-        _actions[actionId] = EmergencyAction({
-            id: actionId,
-            actionType: actionType,
-            target: target,
-            data: data,
-            reason: reason,
-            createdAt: block.timestamp,
-            executedAt: 0,
-            executed: false,
-            canceled: false,
-            approvers: approvers
-        });
-
-        _approvals[actionId][msg.sender] = true;
-        _actionProposer[actionId] = msg.sender;
-        _pendingActionIds.push(actionId);
-
-        emit EmergencyActionProposed(actionId, actionType, target, data, reason, msg.sender);
-        emit EmergencyActionApproved(actionId, msg.sender);
-    }
 
     /// @inheritdoc ISecurityCouncil
     function approveEmergencyAction(uint256 actionId) external override onlyMember {

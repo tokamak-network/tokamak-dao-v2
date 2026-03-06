@@ -3,10 +3,10 @@ pragma solidity ^0.8.24;
 
 /// @title ISecurityCouncil Interface
 /// @notice Interface for the Security Council multi-sig contract
-/// @dev Security Council can bypass governance for emergency actions:
+/// @dev Security Council operates under a Veto-Only principle:
 ///      - Cancel malicious proposals in timelock
-///      - Emergency contract upgrades
-///      - Protocol pause
+///      - Protocol pause/unpause
+///      No arbitrary execution allowed.
 ///      Initial configuration: 3 members (1 foundation + 2 external), 2/3 threshold
 interface ISecurityCouncil {
     /// @notice Member information
@@ -16,13 +16,11 @@ interface ISecurityCouncil {
         uint256 addedAt;
     }
 
-    /// @notice Emergency action types
+    /// @notice Emergency action types (Veto-Only: cancel, pause, unpause)
     enum ActionType {
         CancelProposal, // 0: Cancel a proposal in timelock
         PauseProtocol, // 1: Pause protocol functions
-        UnpauseProtocol, // 2: Unpause protocol functions
-        EmergencyUpgrade, // 3: Emergency contract upgrade
-        Custom // 4: Custom action
+        UnpauseProtocol // 2: Unpause protocol functions
     }
 
     /// @notice Emergency action structure
@@ -88,19 +86,6 @@ interface ISecurityCouncil {
     /// @param newThreshold New threshold (must be <= member count)
     /// @dev Only callable via DAO governance
     function setThreshold(uint256 newThreshold) external;
-
-    /// @notice Propose an emergency action
-    /// @param actionType The type of emergency action
-    /// @param target The target address
-    /// @param data The calldata to execute
-    /// @param reason The reason for the emergency action
-    /// @return actionId The emergency action ID
-    function proposeEmergencyAction(
-        ActionType actionType,
-        address target,
-        bytes calldata data,
-        string calldata reason
-    ) external returns (uint256 actionId);
 
     /// @notice Approve an emergency action
     /// @param actionId The action ID to approve
