@@ -138,8 +138,8 @@ DAOAgendaManager ──────────────┘
 CandidateFactory ──────────────────────▶ (위임자 등록/관리)
 Candidate (개별 프록시)                    · Candidate 대체
 
-DAOVault ──────────────────────────────▶ Timelock
-                                         (재무 + 실행 지연 통합)
+DAOVault ──────────────────────────────▶ DAOVault
+                                         (owner: Timelock으로 이전, 금고 역할 유지)
 
 (없음) ────────────────────────────────▶ SecurityCouncil
                                          (비상 대응 신규)
@@ -605,20 +605,24 @@ Phase 1              Phase 2              Phase 3              Phase 4
 V1 비활성화 절차
 ═════════════════
 
-  Step 1: V1 DAOCommitteeProxy 일시정지
-  ──────────────────────────────────────
-  Gnosis Safe → pauseProxy = true
-  → 모든 V1 거버넌스 기능 정지
+  Step 1: DAOVault 소유권 이전
+  ────────────────────────────
+  DAOVault.transferOwnership(Timelock)
+  (자금 이동 없이 소유권만 이전)
+  ⚠️ DAOCommitteeProxy 정지 전에 실행 필수
+     (정지 후에는 DAOCommitteeProxy를 통한 호출 불가)
 
   Step 2: 관리 권한 이전
   ──────────────────────
   V1에서 관리하던 프로토콜 권한을
   V2 Timelock 주소로 변경
 
-  Step 3: DAOVault 자금 마이그레이션
-  ─────────────────────────────────
-  V1 DAOVault → V2 Timelock
-  (V2 거버넌스 제안으로 실행)
+  Step 3: V1 DAOCommitteeProxy 일시정지
+  ──────────────────────────────────────
+  Gnosis Safe → pauseProxy = true
+  → 모든 V1 거버넌스 기능 정지
+  ⚠️ Step 1, 2 완료 후 마지막에 실행
+     (정지 후에는 V1을 통한 권한 이전 불가)
 
   Step 4: 완료 문서화
   ──────────────────
@@ -992,12 +996,12 @@ SecurityCouncil
 │  3. 2/3 승인 → 실행 → 제안 취소 성공                             │
 │  4. Timelock 내 TX 취소 확인                                     │
 │                                                                  │
-│  E2E-05: DAOVault 자금 마이그레이션                               │
-│  ──────────────────────────────                                  │
-│  1. V1 DAOVault 잔액 확인                                        │
-│  2. V2 거버넌스 제안으로 자금 이전                                │
+│  E2E-05: DAOVault 소유권 이전 + 거버넌스 인출                     │
+│  ────────────────────────────────────────                        │
+│  1. DAOVault 소유권 Timelock 이전 확인                            │
+│  2. 거버넌스 제안으로 DAOVault.claimTON() 호출                    │
 │  3. Timelock 통한 실행                                           │
-│  4. 잔액 이동 완료 확인                                          │
+│  4. 정상 인출 확인                                               │
 │                                                                  │
 └──────────────────────────────────────────────────────────────────┘
 ```
@@ -1121,8 +1125,8 @@ forge test --fork-url $ETH_MAINNET_RPC --match-contract E2EMigrationTest
 
 3. 자금 안전
    ────────
-   V1 DAOVault 자금은 Phase 4까지 이동하지 않음
-   → V2에 문제 발생해도 V1 자금 안전
+   DAOVault 자금은 이동하지 않음 (소유권만 Timelock으로 이전)
+   → V2에 문제 발생해도 DAOVault 자금 안전
 
 4. 점진적 이전
    ──────────
