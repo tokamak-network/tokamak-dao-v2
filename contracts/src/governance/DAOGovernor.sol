@@ -581,8 +581,10 @@ contract DAOGovernor is IDAOGovernor, Ownable, Pausable, ReentrancyGuard {
 
     /// @notice Set grace period
     /// @param newPeriod New period in seconds
+    /// @dev Must be >= Timelock.GRACE_PERIOD to prevent state divergence
     function setGracePeriod(uint256 newPeriod) external onlyOwner {
-        if (newPeriod < 1 days) revert IDAOGovernor.InvalidParameter();
+        uint256 timelockGrace = Timelock(payable(timelock)).GRACE_PERIOD();
+        if (newPeriod < timelockGrace) revert IDAOGovernor.InvalidParameter();
         uint256 oldPeriod = gracePeriod;
         gracePeriod = newPeriod;
         emit GracePeriodUpdated(oldPeriod, newPeriod);

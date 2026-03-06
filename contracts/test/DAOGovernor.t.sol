@@ -1308,9 +1308,9 @@ contract DAOGovernorTest is Test {
         vm.expectRevert(IDAOGovernor.InvalidParameter.selector);
         governor.setVotingPeriod(0);
 
-        // setGracePeriod: value >= 1 days
+        // setGracePeriod: value >= Timelock.GRACE_PERIOD (14 days)
         vm.expectRevert(IDAOGovernor.InvalidParameter.selector);
-        governor.setGracePeriod(1 days - 1);
+        governor.setGracePeriod(14 days - 1);
 
         // setProposalThreshold: value <= BASIS_POINTS (0 is allowed = no restriction)
         vm.expectRevert(IDAOGovernor.InvalidParameter.selector);
@@ -1320,7 +1320,7 @@ contract DAOGovernorTest is Test {
         governor.setQuorum(500);
         governor.setVotingDelay(governor.MIN_VOTING_DELAY());
         governor.setVotingPeriod(governor.MIN_VOTING_PERIOD());
-        governor.setGracePeriod(1 days);
+        governor.setGracePeriod(14 days);
         governor.setProposalThreshold(0);
 
         vm.stopPrank();
