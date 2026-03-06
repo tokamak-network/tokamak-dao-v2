@@ -225,7 +225,7 @@ contract SecurityCouncilTest is Test {
     function test_AddMember() public {
         address newMember = makeAddr("newMember");
 
-        vm.prank(daoGovernor);
+        vm.prank(timelock);
         council.addMember(newMember, false);
 
         assertTrue(council.isMember(newMember));
@@ -241,7 +241,7 @@ contract SecurityCouncilTest is Test {
     }
 
     function test_RemoveMember() public {
-        vm.prank(daoGovernor);
+        vm.prank(timelock);
         council.removeMember(external2);
 
         assertFalse(council.isMember(external2));
@@ -249,7 +249,7 @@ contract SecurityCouncilTest is Test {
     }
 
     function test_RemoveMemberRevertsIfTooFewMembers() public {
-        vm.startPrank(daoGovernor);
+        vm.startPrank(timelock);
         council.removeMember(external2);
 
         vm.expectRevert(SecurityCouncil.NotEnoughMembers.selector);
@@ -258,14 +258,14 @@ contract SecurityCouncilTest is Test {
     }
 
     function test_SetThreshold() public {
-        vm.prank(daoGovernor);
+        vm.prank(timelock);
         council.setThreshold(3);
 
         assertEq(council.threshold(), 3);
     }
 
     function test_SetThresholdRevertsIfInvalid() public {
-        vm.prank(daoGovernor);
+        vm.prank(timelock);
         vm.expectRevert(SecurityCouncil.InvalidThreshold.selector);
         council.setThreshold(4); // More than member count
     }
@@ -386,7 +386,7 @@ contract SecurityCouncilTest is Test {
         // Start: 3 members, threshold = 2
         assertEq(council.threshold(), 2);
 
-        vm.prank(daoGovernor);
+        vm.prank(timelock);
         council.addMember(newMember, false);
 
         // 4 members: threshold = (4*2+2)/3 = 10/3 = 3
@@ -398,7 +398,7 @@ contract SecurityCouncilTest is Test {
         // Start: 3 members, threshold = 2
         assertEq(council.threshold(), 2);
 
-        vm.prank(daoGovernor);
+        vm.prank(timelock);
         council.removeMember(external2);
 
         // 2 members: threshold = (2*2+2)/3 = 6/3 = 2
@@ -502,7 +502,7 @@ contract SecurityCouncilTest is Test {
     function test_EmitDAOGovernorUpdatedEvent() public {
         address newGovernor = makeAddr("newGovernor");
 
-        vm.prank(daoGovernor);
+        vm.prank(timelock);
         vm.expectEmit(true, true, true, true);
         emit ISecurityCouncil.DAOGovernorUpdated(daoGovernor, newGovernor);
         council.setDAOGovernor(newGovernor);
@@ -511,7 +511,7 @@ contract SecurityCouncilTest is Test {
     function test_EmitProtocolTargetUpdatedEvent() public {
         address newTarget = makeAddr("newTarget");
 
-        vm.prank(daoGovernor);
+        vm.prank(timelock);
         vm.expectEmit(true, true, true, true);
         emit ISecurityCouncil.ProtocolTargetUpdated(address(target), newTarget);
         council.setProtocolTarget(newTarget);
@@ -523,7 +523,7 @@ contract SecurityCouncilTest is Test {
 
     function test_RemoveLastFoundationMemberReverts() public {
         // There is 1 foundation member. Removing it should revert.
-        vm.prank(daoGovernor);
+        vm.prank(timelock);
         vm.expectRevert(SecurityCouncil.CannotRemoveLastFoundationMember.selector);
         council.removeMember(foundationMember);
     }
@@ -533,7 +533,7 @@ contract SecurityCouncilTest is Test {
     //////////////////////////////////////////////////////////////*/
 
     function test_AddDuplicateMemberReverts() public {
-        vm.prank(daoGovernor);
+        vm.prank(timelock);
         vm.expectRevert(SecurityCouncil.AlreadyMember.selector);
         council.addMember(external1, false);
     }
@@ -565,13 +565,13 @@ contract SecurityCouncilTest is Test {
     //////////////////////////////////////////////////////////////*/
 
     function test_SetDAOGovernorRevertsOnZeroAddress() public {
-        vm.prank(daoGovernor);
+        vm.prank(timelock);
         vm.expectRevert(SecurityCouncil.ZeroAddress.selector);
         council.setDAOGovernor(address(0));
     }
 
     function test_SetProtocolTargetRevertsOnZeroAddress() public {
-        vm.prank(daoGovernor);
+        vm.prank(timelock);
         vm.expectRevert(SecurityCouncil.ZeroAddress.selector);
         council.setProtocolTarget(address(0));
     }
@@ -582,7 +582,7 @@ contract SecurityCouncilTest is Test {
 
     function test_ExecuteEmergencyActionRevertsOnExecutionFailed() public {
         // Set protocolTarget to a contract without pause() → execution will fail
-        vm.prank(daoGovernor);
+        vm.prank(timelock);
         council.setProtocolTarget(address(council));
 
         vm.prank(foundationMember);
@@ -653,7 +653,7 @@ contract SecurityCouncilTest is Test {
         council.approveEmergencyAction(actionId);
 
         // Remove external1 via DAO
-        vm.prank(daoGovernor);
+        vm.prank(timelock);
         council.removeMember(external1);
 
         // Now try to execute — foundationMember's approval is valid, external1's is stale
@@ -666,7 +666,7 @@ contract SecurityCouncilTest is Test {
     function test_ThresholdDropDoesNotEnableStaleExecution() public {
         // Add a 4th member to make threshold = 3
         address external3 = makeAddr("external3");
-        vm.prank(daoGovernor);
+        vm.prank(timelock);
         council.addMember(external3, false);
         assertEq(council.threshold(), 3);
 
@@ -686,7 +686,7 @@ contract SecurityCouncilTest is Test {
         council.approveEmergencyAction(actionId);
 
         // Remove external3 (valid approvals drop to 2, threshold for 3 members = 2)
-        vm.prank(daoGovernor);
+        vm.prank(timelock);
         council.removeMember(external3);
         assertEq(council.threshold(), 2);
 
@@ -761,7 +761,7 @@ contract SecurityCouncilTest is Test {
     function test_SetThresholdBelowMinimumReverts() public {
         // 3 members, minimum threshold = ceil(3 * 2/3) = 2
         // Setting to 1 should revert
-        vm.prank(daoGovernor);
+        vm.prank(timelock);
         vm.expectRevert(SecurityCouncil.InvalidThreshold.selector);
         council.setThreshold(1);
     }
@@ -841,7 +841,7 @@ contract SecurityCouncilTest is Test {
         assertTrue(council.isActionApproved(actionId));
 
         // Remove external1 via DAO
-        vm.prank(daoGovernor);
+        vm.prank(timelock);
         council.removeMember(external1);
 
         // isActionApproved should now return false:

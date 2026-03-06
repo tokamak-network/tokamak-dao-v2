@@ -139,7 +139,7 @@ contract SecurityCouncil is ISecurityCouncil, ReentrancyGuard {
     }
 
     modifier onlyDAO() {
-        if (msg.sender != daoGovernor) revert OnlyDAOCanModifyMembers();
+        if (msg.sender != timelockAddress) revert OnlyDAOCanModifyMembers();
         _;
     }
 
