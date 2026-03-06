@@ -1232,7 +1232,7 @@ contract DAOGovernorTest is Test {
                 SC SELF-DEFENSE RESTRICTION TESTS (H4)
     //////////////////////////////////////////////////////////////*/
 
-    function test_SCCannotCancelSCProposals() public {
+    function test_GuardianCanCancelSCTargetingProposals() public {
         address guardian = makeAddr("guardian");
 
         vm.prank(owner);
@@ -1249,13 +1249,8 @@ contract DAOGovernorTest is Test {
         vm.prank(user1);
         uint256 proposalId = governor.propose(targets, values, calldatas, "SC targeting proposal", 0);
 
-        // Guardian tries to cancel — should revert with CannotCancelSCProposal
+        // Guardian can cancel SC-targeting proposals (no self-defense restriction)
         vm.prank(guardian);
-        vm.expectRevert(IDAOGovernor.CannotCancelSCProposal.selector);
-        governor.cancel(proposalId);
-
-        // Proposer can still cancel
-        vm.prank(user1);
         governor.cancel(proposalId);
 
         assertEq(uint256(governor.state(proposalId)), uint256(IDAOGovernor.ProposalState.Canceled));
@@ -1999,7 +1994,7 @@ contract DAOGovernorTest is Test {
         governor.propose(targets, values, calldatas, "Mismatch test", 0);
     }
 
-    function test_GuardianSelfDefenseMultipleTargets() public {
+    function test_GuardianCanCancelMultipleTargetsIncludingSC() public {
         address guardian = makeAddr("guardian");
         vm.prank(owner);
         governor.setProposalGuardian(guardian);
@@ -2017,10 +2012,11 @@ contract DAOGovernorTest is Test {
         vm.prank(user1);
         uint256 proposalId = governor.propose(targets, values, calldatas, "Multi-target SC", 0);
 
-        // Guardian should not be able to cancel (SC self-defense)
+        // Guardian can cancel even proposals targeting SC (no self-defense restriction)
         vm.prank(guardian);
-        vm.expectRevert(IDAOGovernor.CannotCancelSCProposal.selector);
         governor.cancel(proposalId);
+
+        assertEq(uint256(governor.state(proposalId)), uint256(IDAOGovernor.ProposalState.Canceled));
     }
 
     function test_QuorumSnapshotPerProposal() public {

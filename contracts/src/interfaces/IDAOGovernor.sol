@@ -131,9 +131,6 @@ interface IDAOGovernor {
     /// @notice Error when burn rate exceeds maximum (100%)
     error InvalidBurnRate();
 
-    /// @notice Error when guardian tries to cancel a proposal targeting the guardian address
-    error CannotCancelSCProposal();
-
     /// @notice Error when parameter value is out of valid range
     error InvalidParameter();
 

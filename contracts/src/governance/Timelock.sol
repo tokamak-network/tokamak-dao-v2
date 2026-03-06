@@ -177,7 +177,7 @@ contract Timelock is ReentrancyGuard {
         emit TransactionExecuted(txHash, target, value, data);
     }
 
-    /// @notice Cancel a queued transaction (Security Council only)
+    /// @notice Cancel a queued transaction (Governor only)
     /// @param target Target address
     /// @param value ETH value
     /// @param data Calldata
@@ -187,20 +187,9 @@ contract Timelock is ReentrancyGuard {
         uint256 value,
         bytes calldata data,
         uint256 eta
-    ) external onlySecurityCouncil {
+    ) external onlyGovernor {
         bytes32 txHash = keccak256(abi.encode(target, value, data, eta));
 
-        if (!queuedTransactions[txHash]) revert TransactionNotQueued();
-        if (canceledTransactions[txHash]) revert TransactionAlreadyCanceled();
-
-        canceledTransactions[txHash] = true;
-
-        emit TransactionCanceled(txHash);
-    }
-
-    /// @notice Cancel a transaction by hash (Security Council only)
-    /// @param txHash The transaction hash
-    function cancelTransactionByHash(bytes32 txHash) external onlySecurityCouncil {
         if (!queuedTransactions[txHash]) revert TransactionNotQueued();
         if (canceledTransactions[txHash]) revert TransactionAlreadyCanceled();
 

@@ -345,6 +345,7 @@ contract DAOGovernor is IDAOGovernor, Ownable, Pausable, ReentrancyGuard {
     /// @dev Proposer can cancel their own proposal only in Pending or Active states
     ///      Guardian can cancel proposals in non-final states (Pending, Active, Succeeded, Queued)
     ///      Guardian cannot cancel Defeated or Expired proposals (already final states)
+    ///      If proposal is Queued, also cancels the corresponding Timelock transactions
     function cancel(uint256 proposalId) external override {
         Proposal storage proposal = _proposals[proposalId];
         if (proposal.snapshotBlock == 0) revert ProposalNotFound();
@@ -370,13 +371,19 @@ contract DAOGovernor is IDAOGovernor, Ownable, Pausable, ReentrancyGuard {
             if (currentState == ProposalState.Defeated || currentState == ProposalState.Expired) {
                 revert IDAOGovernor.InvalidProposalState();
             }
-            // Guardian cannot cancel proposals that target the guardian address (SC self-defense)
-            for (uint256 i = 0; i < proposal.targets.length; i++) {
-                if (proposal.targets[i] == proposalGuardian) revert IDAOGovernor.CannotCancelSCProposal();
-            }
         }
 
         proposal.canceled = true;
+
+        // If proposal was Queued, also cancel Timelock transactions
+        if (currentState == ProposalState.Queued) {
+            uint256 eta = _proposalEta[proposalId];
+            for (uint256 i = 0; i < proposal.targets.length; i++) {
+                Timelock(payable(timelock)).cancelTransaction(
+                    proposal.targets[i], proposal.values[i], proposal.calldatas[i], eta
+                );
+            }
+        }
 
         emit ProposalCanceled(proposalId);
     }

@@ -433,8 +433,9 @@ contract TimelockTest is Test {
         uint256 eta = timelock.transactionEta(txHash);
 
         // Cancel the transaction
-        vm.prank(securityCouncil);
-        timelock.cancelTransactionByHash(txHash);
+        uint256 cancelEta = timelock.transactionEta(txHash);
+        vm.prank(governor);
+        timelock.cancelTransaction(address(target), 0, data, cancelEta);
 
         // Warp to eta
         vm.warp(eta);
@@ -470,7 +471,7 @@ contract TimelockTest is Test {
 
         uint256 eta = timelock.transactionEta(txHash);
 
-        vm.prank(securityCouncil);
+        vm.prank(governor);
         timelock.cancelTransaction(address(target), 0, data, eta);
 
         assertTrue(timelock.canceledTransactions(txHash));
@@ -484,13 +485,13 @@ contract TimelockTest is Test {
 
         uint256 eta = timelock.transactionEta(txHash);
 
-        vm.prank(securityCouncil);
+        vm.prank(governor);
         vm.expectEmit(true, true, true, true);
         emit Timelock.TransactionCanceled(txHash);
         timelock.cancelTransaction(address(target), 0, data, eta);
     }
 
-    function test_CancelTransactionRevertsIfNotSecurityCouncil() public {
+    function test_CancelTransactionRevertsIfNotGovernor() public {
         bytes memory data = abi.encodeWithSignature("setValue(uint256)", 42);
 
         vm.prank(governor);
@@ -499,7 +500,7 @@ contract TimelockTest is Test {
         uint256 eta = timelock.transactionEta(txHash);
 
         vm.prank(alice);
-        vm.expectRevert(Timelock.NotSecurityCouncil.selector);
+        vm.expectRevert(Timelock.NotGovernor.selector);
         timelock.cancelTransaction(address(target), 0, data, eta);
     }
 
@@ -507,56 +508,9 @@ contract TimelockTest is Test {
         bytes memory data = abi.encodeWithSignature("setValue(uint256)", 42);
         uint256 eta = block.timestamp + DELAY;
 
-        vm.prank(securityCouncil);
+        vm.prank(governor);
         vm.expectRevert(Timelock.TransactionNotQueued.selector);
         timelock.cancelTransaction(address(target), 0, data, eta);
-    }
-
-    /*//////////////////////////////////////////////////////////////
-                      CANCEL TRANSACTION BY HASH
-    //////////////////////////////////////////////////////////////*/
-
-    function test_CancelTransactionByHash() public {
-        bytes memory data = abi.encodeWithSignature("setValue(uint256)", 42);
-
-        vm.prank(governor);
-        bytes32 txHash = timelock.queueTransaction(address(target), 0, data);
-
-        vm.prank(securityCouncil);
-        timelock.cancelTransactionByHash(txHash);
-
-        assertTrue(timelock.canceledTransactions(txHash));
-    }
-
-    function test_CancelTransactionByHashEmitsEvent() public {
-        bytes memory data = abi.encodeWithSignature("setValue(uint256)", 42);
-
-        vm.prank(governor);
-        bytes32 txHash = timelock.queueTransaction(address(target), 0, data);
-
-        vm.prank(securityCouncil);
-        vm.expectEmit(true, true, true, true);
-        emit Timelock.TransactionCanceled(txHash);
-        timelock.cancelTransactionByHash(txHash);
-    }
-
-    function test_CancelTransactionByHashRevertsIfNotSecurityCouncil() public {
-        bytes memory data = abi.encodeWithSignature("setValue(uint256)", 42);
-
-        vm.prank(governor);
-        bytes32 txHash = timelock.queueTransaction(address(target), 0, data);
-
-        vm.prank(alice);
-        vm.expectRevert(Timelock.NotSecurityCouncil.selector);
-        timelock.cancelTransactionByHash(txHash);
-    }
-
-    function test_CancelTransactionByHashRevertsIfNotQueued() public {
-        bytes32 fakeHash = keccak256("fake");
-
-        vm.prank(securityCouncil);
-        vm.expectRevert(Timelock.TransactionNotQueued.selector);
-        timelock.cancelTransactionByHash(fakeHash);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -654,8 +608,9 @@ contract TimelockTest is Test {
         vm.prank(governor);
         bytes32 txHash = timelock.queueTransaction(address(target), 0, data);
 
-        vm.prank(securityCouncil);
-        timelock.cancelTransactionByHash(txHash);
+        uint256 eta = timelock.transactionEta(txHash);
+        vm.prank(governor);
+        timelock.cancelTransaction(address(target), 0, data, eta);
 
         assertFalse(timelock.isQueued(txHash));
     }
@@ -712,8 +667,8 @@ contract TimelockTest is Test {
 
         uint256 eta = timelock.transactionEta(txHash);
 
-        vm.prank(securityCouncil);
-        timelock.cancelTransactionByHash(txHash);
+        vm.prank(governor);
+        timelock.cancelTransaction(address(target), 0, data, eta);
 
         vm.warp(eta);
         assertFalse(timelock.isReady(txHash));
@@ -757,29 +712,13 @@ contract TimelockTest is Test {
         uint256 eta = timelock.transactionEta(txHash);
 
         // First cancel succeeds
-        vm.prank(securityCouncil);
-        timelock.cancelTransaction(address(target), 0, data, eta);
-
-        // Second cancel should revert
-        vm.prank(securityCouncil);
-        vm.expectRevert(Timelock.TransactionAlreadyCanceled.selector);
-        timelock.cancelTransaction(address(target), 0, data, eta);
-    }
-
-    function test_DoubleCancelByHashReverts() public {
-        bytes memory data = abi.encodeWithSignature("setValue(uint256)", 42);
-
         vm.prank(governor);
-        bytes32 txHash = timelock.queueTransaction(address(target), 0, data);
-
-        // First cancel succeeds
-        vm.prank(securityCouncil);
-        timelock.cancelTransactionByHash(txHash);
+        timelock.cancelTransaction(address(target), 0, data, eta);
 
         // Second cancel should revert
-        vm.prank(securityCouncil);
+        vm.prank(governor);
         vm.expectRevert(Timelock.TransactionAlreadyCanceled.selector);
-        timelock.cancelTransactionByHash(txHash);
+        timelock.cancelTransaction(address(target), 0, data, eta);
     }
 
     function test_DoubleExecutionPrevention() public {
@@ -876,21 +815,4 @@ contract TimelockTest is Test {
         assertFalse(timelock.isReady(txHash));
     }
 
-    function test_CancelByParamsThenByHashReverts() public {
-        bytes memory data = abi.encodeWithSignature("setValue(uint256)", 42);
-
-        vm.prank(governor);
-        bytes32 txHash = timelock.queueTransaction(address(target), 0, data);
-
-        uint256 eta = timelock.transactionEta(txHash);
-
-        // Cancel by params
-        vm.prank(securityCouncil);
-        timelock.cancelTransaction(address(target), 0, data, eta);
-
-        // Cancel by hash should revert (already canceled)
-        vm.prank(securityCouncil);
-        vm.expectRevert(Timelock.TransactionAlreadyCanceled.selector);
-        timelock.cancelTransactionByHash(txHash);
-    }
 }
