@@ -63,27 +63,7 @@ Minimal Impact: Changes should only touch what's necessary. Avoid introducing bu
 
 ## Design System Rules
 
-When writing web components:
-1. Always check existing components in `src/components/ui/` first
-2. Reuse existing components whenever available
-3. Create new components in `src/components/ui/` if not available
-4. Follow existing patterns (CVA, forwardRef, TypeScript) when creating components
-
-### Existing Components
-- Button, IconButton
-- Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter
-- Input, Textarea, Label, HelperText
-- Badge
-- Avatar
-- Progress
-- Navigation, Sidebar
-- StatCard, DelegateCard, ProposalCard
-
-### Component Creation Rules
-- Use TypeScript + forwardRef pattern
-- Define variants with class-variance-authority (CVA)
-- Use CSS variables (design tokens), no hardcoding
-- Add JSDoc comments
+- **Design specification**: See `docs/design-spec.md` (required reading for frontend design work)
 
 ## Code Style
 - TypeScript strict mode
