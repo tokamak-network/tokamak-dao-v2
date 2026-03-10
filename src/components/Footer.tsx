@@ -1,77 +1,113 @@
 "use client";
 
-import { useChainId } from "wagmi";
-import { Badge } from "@/components/ui/badge";
-import { formatAddress } from "@/lib/utils";
-import { getContractAddresses, areContractsDeployed } from "@/constants/contracts";
-import { SANDBOX_CHAIN_ID } from "@/config/wagmi";
-const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+import Image from "next/image";
+import Link from "next/link";
 
-/**
- * Footer Component
- * Displays contract addresses
- */
+const footerColumns = [
+  {
+    title: "Developer",
+    links: [
+      { label: "Documents", href: "https://docs.tokamak.network", external: true },
+      { label: "Github", href: "https://github.com/tokamak-network", external: true },
+      { label: "Grant", href: "https://tokamak.notion.site/Tokamak-Network-Grant-Program-f2384b458ea341a0987c7e73a909aa21", external: true },
+    ],
+  },
+  {
+    title: "Features",
+    links: [
+      { label: "Rollup Hub", href: "https://rolluphub.tokamak.network/", external: true },
+      { label: "Staking", href: "https://simple.staking.tokamak.network/", external: true },
+      { label: "DAO", href: "/proposals" },
+    ],
+  },
+  {
+    title: "About",
+    links: [
+      { label: "Team", href: "https://tokamaknetwork.com/about/team", external: true },
+      { label: "Price Dashboard", href: "https://price.tokamak.network", external: true },
+      { label: "Partners", href: "https://tokamaknetwork.com/about/partners", external: true },
+      { label: "Insight", href: "https://tokamaknetwork.com/about/insight", external: true },
+    ],
+  },
+  {
+    title: "Social",
+    links: [
+      { label: "Medium", href: "https://medium.com/tokamak-network", external: true },
+      { label: "X (Twitter)", href: "https://twitter.com/tokamak_network", external: true },
+      { label: "Discord", href: "https://discord.com/invite/J4chV2zuAK", external: true },
+      { label: "Telegram (EN)", href: "https://t.me/tokamak_network", external: true },
+      { label: "LinkedIn", href: "https://www.linkedin.com/company/tokamaknetwork/", external: true },
+    ],
+  },
+];
+
 export function Footer() {
-  const chainId = useChainId();
-  const addresses = getContractAddresses(chainId);
-  const isDeployed = areContractsDeployed(chainId);
-
-  const contracts = [
-    { name: "vTON", address: addresses.vton },
-    { name: "Registry", address: addresses.delegateRegistry },
-    { name: "Governor", address: addresses.daoGovernor },
-    { name: "Council", address: addresses.securityCouncil },
-    { name: "Timelock", address: addresses.timelock },
-  ];
-
-  const networkName = chainId === SANDBOX_CHAIN_ID
-    ? "Sandbox"
-    : chainId === 1
-      ? "Mainnet"
-      : chainId === 11155111
-        ? "Sepolia"
-        : chainId === 1337
-          ? "Localhost"
-          : `Chain ${chainId}`;
-
-  const handleCopy = async (address: string) => {
-    if (address === ZERO_ADDRESS) return;
-    try {
-      await navigator.clipboard.writeText(address);
-    } catch (err) {
-      console.error("Failed to copy:", err);
-    }
-  };
-
   return (
-    <footer className="border-t border-[var(--border-secondary)] bg-[var(--surface-primary)] mt-auto">
-      <div className="container mx-auto px-4 py-4 max-w-7xl">
-        <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-[var(--text-tertiary)]">
-          <Badge
-            variant={isDeployed ? "success" : "warning"}
-            size="sm"
-          >
-            {networkName}
-          </Badge>
-          {contracts.map((contract) => {
-            const isZero = contract.address === ZERO_ADDRESS;
-            return (
-              <span key={contract.name} className="flex items-center gap-1">
-                <span>{contract.name}:</span>
-                {isZero ? (
-                  <span className="font-mono">-</span>
-                ) : (
-                  <button
-                    onClick={() => handleCopy(contract.address)}
-                    className="font-mono text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
-                    title={`Click to copy: ${contract.address}`}
-                  >
-                    {formatAddress(contract.address, 4)}
-                  </button>
-                )}
-              </span>
-            );
-          })}
+    <footer className="bg-[var(--bg-primary)] mt-auto">
+      <div className="mx-auto max-w-[1280px] px-6 lg:px-10">
+        {/* Subtle divider */}
+        <div className="h-px bg-[var(--border-secondary)]" />
+
+        <div className="py-12 lg:py-14">
+          {/* Logo + Link columns on same row */}
+          <div className="flex flex-col lg:flex-row lg:items-start gap-10 lg:gap-0">
+            {/* Logo - aligned to left */}
+            <div className="flex-shrink-0 lg:w-[280px]">
+              <Link href="/" className="inline-flex items-center gap-2.5">
+                <Image
+                  src="/tokamak-logo.svg"
+                  alt="Tokamak Network"
+                  width={32}
+                  height={22}
+                  className="h-6 w-auto"
+                />
+                <span className="text-base font-semibold text-[var(--text-primary)] tracking-tight">
+                  Tokamak Network
+                </span>
+              </Link>
+            </div>
+
+            {/* Link columns - fill remaining space, right-aligned text */}
+            <div className="flex-1 grid grid-cols-2 sm:grid-cols-4 gap-8 lg:gap-12">
+              {footerColumns.map((column) => (
+                <div key={column.title} className="lg:text-right">
+                  <p className="text-lg font-semibold text-[var(--text-primary)] mb-3">
+                    {column.title}
+                  </p>
+                  <ul className="space-y-2">
+                    {column.links.map((link) => (
+                      <li key={link.label}>
+                        {link.external ? (
+                          <a
+                            href={link.href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[13px] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors"
+                          >
+                            {link.label}
+                          </a>
+                        ) : (
+                          <Link
+                            href={link.href}
+                            className="text-[13px] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors"
+                          >
+                            {link.label}
+                          </Link>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Copyright */}
+          <div className="mt-10 lg:mt-12">
+            <p className="text-xs text-[var(--text-quaternary)]">
+              &copy; {new Date().getFullYear()} Tokamak Network | All Rights Reserved.
+            </p>
+          </div>
         </div>
       </div>
     </footer>

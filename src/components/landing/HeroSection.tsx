@@ -1,9 +1,72 @@
 "use client";
 
-import Image from "next/image";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, ArrowDown } from "phosphor-react";
+
+const SPEECH_BUBBLES = [
+  "Hey! I'm here to help you navigate Tokamak DAO.",
+  "Proposals, voting, delegation — governance happens right here.",
+  "Curious about something? Click me anytime!",
+];
+
+const INTERVAL_MS = 4000;
+
+function SpeechBubble({ className }: { className?: string }) {
+  const [index, setIndex] = useState(0);
+  const [visible, setVisible] = useState(true);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setVisible(false);
+      setTimeout(() => {
+        setIndex((prev) => (prev + 1) % SPEECH_BUBBLES.length);
+        setVisible(true);
+      }, 300);
+    }, INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, []);
+
+  return (
+    <div
+      className={`mb-4 min-h-[3.5rem] flex items-center justify-center transition-opacity duration-300 ${visible ? "opacity-100" : "opacity-0"} ${className ?? ""}`}
+    >
+      <div className="speech-bubble">
+        {SPEECH_BUBBLES[index]}
+      </div>
+    </div>
+  );
+}
+
+function CharacterVideo({ className }: { className?: string }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  const handleTimeUpdate = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    // 끝나기 0.1초 전에 처음으로 되감아서 끊김 방지
+    if (video.duration - video.currentTime < 0.1) {
+      video.currentTime = 0;
+      video.play();
+    }
+  }, []);
+
+  return (
+    <video
+      ref={videoRef}
+      autoPlay
+      loop
+      muted
+      playsInline
+      onTimeUpdate={handleTimeUpdate}
+      className={className}
+    >
+      <source src="/character-video.webm" type="video/webm" />
+      <source src="/character-video.mp4" type="video/mp4" />
+    </video>
+  );
+}
 
 export function HeroSection() {
   return (
@@ -28,18 +91,9 @@ export function HeroSection() {
         <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-20">
           {/* Mobile: character first */}
           <div className="lg:hidden flex flex-col items-center">
-            <div className="relative">
-              <div className="speech-bubble mb-4 animate-fade-down">
-                Hi! I&apos;m your Tokamak DAO guide
-              </div>
-              <Image
-                src="/character.png"
-                alt="Tokamak DAO Guide Character"
-                width={240}
-                height={240}
-                priority
-                className="w-48 h-48 sm:w-60 sm:h-60 object-contain animate-fade-up"
-              />
+            <div className="relative pt-16 w-48 sm:w-60">
+              <SpeechBubble className="animate-fade-down absolute -top-2 left-1/2 -translate-x-1/2 whitespace-nowrap" />
+              <CharacterVideo className="w-48 h-48 sm:w-60 sm:h-60 object-cover animate-fade-up" />
             </div>
           </div>
 
@@ -75,20 +129,11 @@ export function HeroSection() {
 
           {/* Right: Character (desktop) */}
           <div className="hidden lg:flex flex-1 justify-center">
-            <div className="relative">
-              <div className="speech-bubble mb-4 animate-fade-down">
-                Hi! I&apos;m your Tokamak DAO guide
-              </div>
+            <div className="relative pt-16 w-80 xl:w-96">
+              <SpeechBubble className="animate-fade-down absolute -top-2 left-1/2 -translate-x-1/2 whitespace-nowrap" />
               {/* Glow behind character */}
               <div className="absolute inset-0 top-12 bg-[var(--color-primary-500)] opacity-[0.08] blur-[60px] rounded-full" />
-              <Image
-                src="/character.png"
-                alt="Tokamak DAO Guide Character"
-                width={360}
-                height={360}
-                priority
-                className="relative w-72 h-72 xl:w-80 xl:h-80 object-contain animate-fade-up"
-              />
+              <CharacterVideo className="relative w-80 h-80 xl:w-96 xl:h-96 object-cover animate-fade-up" />
             </div>
           </div>
         </div>
