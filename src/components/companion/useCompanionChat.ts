@@ -13,9 +13,15 @@ export function useCompanionChat() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const streamGenRef = useRef(0);
 
   const sendMessage = useCallback(
     async (content: string, screenContext: ScreenContext) => {
+      // Abort any existing stream before starting a new one
+      abortRef.current?.abort();
+
+      const gen = ++streamGenRef.current;
+
       setError(null);
 
       const userMessage: CompanionMessage = {
@@ -138,8 +144,11 @@ export function useCompanionChat() {
           return prev;
         });
       } finally {
-        setIsStreaming(false);
-        abortRef.current = null;
+        // Only update streaming state if this is still the latest stream
+        if (streamGenRef.current === gen) {
+          setIsStreaming(false);
+          abortRef.current = null;
+        }
       }
     },
     [messages]

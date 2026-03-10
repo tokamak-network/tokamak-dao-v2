@@ -11,20 +11,28 @@ import { cn } from "@/lib/utils";
 const Navigation = React.forwardRef<
   HTMLElement,
   React.HTMLAttributes<HTMLElement>
->(({ className, ...props }, ref) => (
+>(({ className, children, ...props }, ref) => (
   <nav
     ref={ref}
     className={cn(
       "relative z-[var(--z-sticky)]",
-      "flex items-center justify-between",
-      "h-[var(--nav-height)] px-[var(--space-4)] lg:px-[var(--space-6)]",
       "bg-[var(--nav-bg)]",
       "border-b border-[var(--nav-border)]",
       className
     )}
     aria-label="Main navigation"
     {...props}
-  />
+  >
+    <div
+      className={cn(
+        "mx-auto max-w-7xl",
+        "flex items-center justify-between",
+        "h-[var(--nav-height)] px-[var(--space-4)] lg:px-[var(--space-6)]",
+      )}
+    >
+      {children}
+    </div>
+  </nav>
 ));
 Navigation.displayName = "Navigation";
 

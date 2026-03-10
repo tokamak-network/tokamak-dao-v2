@@ -2,6 +2,8 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { useAccount, useChainId, usePublicClient } from "wagmi";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -80,6 +82,94 @@ function AgentActionList({
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+const DESCRIPTION_PLACEHOLDER = `Provide a detailed description of your proposal. You can use Markdown for formatting.
+
+## Summary
+Brief overview of the proposal
+
+## Motivation
+Why is this proposal needed?
+
+## Specification
+Technical details of the changes
+
+## Risks
+Potential risks and mitigations`;
+
+function DescriptionEditor({
+  description,
+  setDescription,
+}: {
+  description: string;
+  setDescription: (v: string) => void;
+}) {
+  const [tab, setTab] = React.useState<"write" | "preview">("write");
+
+  return (
+    <div className="space-y-2">
+      <Label htmlFor="description" required>
+        Description
+      </Label>
+      <div className="rounded-lg border border-[var(--border-primary)] overflow-hidden">
+        {/* Tab bar */}
+        <div className="flex border-b border-[var(--border-primary)] bg-[var(--bg-secondary)]">
+          <button
+            type="button"
+            onClick={() => setTab("write")}
+            className={cn(
+              "px-4 py-2 text-sm font-medium transition-colors",
+              tab === "write"
+                ? "text-[var(--text-primary)] border-b-2 border-[var(--accent-primary)] bg-[var(--bg-primary)]"
+                : "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
+            )}
+          >
+            Write
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab("preview")}
+            className={cn(
+              "px-4 py-2 text-sm font-medium transition-colors",
+              tab === "preview"
+                ? "text-[var(--text-primary)] border-b-2 border-[var(--accent-primary)] bg-[var(--bg-primary)]"
+                : "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]"
+            )}
+          >
+            Preview
+          </button>
+        </div>
+
+        {/* Content */}
+        {tab === "write" ? (
+          <Textarea
+            id="description"
+            placeholder={DESCRIPTION_PLACEHOLDER}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={12}
+            className="border-0 rounded-none focus:ring-0"
+          />
+        ) : (
+          <div className="min-h-[288px] p-4">
+            {description.trim() ? (
+              <div className="proposal-prose max-w-none break-words overflow-hidden">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {description}
+                </ReactMarkdown>
+              </div>
+            ) : (
+              <p className="text-[var(--text-tertiary)] text-sm italic">
+                Nothing to preview
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+      <HelperText>Markdown formatting is supported</HelperText>
     </div>
   );
 }
@@ -407,33 +497,10 @@ export function CreateProposalForm({ className }: CreateProposalFormProps) {
           </div>
 
           {/* Description */}
-          <div className="space-y-2">
-            <Label htmlFor="description" required>
-              Description
-            </Label>
-            <Textarea
-              id="description"
-              placeholder="Provide a detailed description of your proposal. You can use Markdown for formatting.
-
-## Summary
-Brief overview of the proposal
-
-## Motivation
-Why is this proposal needed?
-
-## Specification
-Technical details of the changes
-
-## Risks
-Potential risks and mitigations"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={12}
-            />
-            <HelperText>
-              {"Markdown formatting is supported"}
-            </HelperText>
-          </div>
+          <DescriptionEditor
+            description={description}
+            setDescription={setDescription}
+          />
 
           {/* Vote Burn Rate */}
           <div className="space-y-2">

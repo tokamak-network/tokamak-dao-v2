@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from "react";
+import React, { createContext, useContext, useState, useCallback, useRef, useMemo } from "react";
 import type { CompanionMessage, ScreenContext } from "@/lib/companion/types";
 import type { ExtractedProposal } from "@/lib/companion/proposal-data";
 import { useScreenContext } from "./useScreenContext";
@@ -35,9 +35,6 @@ export function CompanionProvider({ children }: { children: React.ReactNode }) {
   const screenContext = useScreenContext();
   const { messages, isStreaming, error, sendMessage: rawSendMessage, clearMessages, abort } =
     useCompanionChat();
-  const prevRouteRef = useRef<string | null>(null);
-  const greetedRoutesRef = useRef<Set<string>>(new Set());
-  const isGreetingRef = useRef(false);
 
   const lastAssistantMessage = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -62,39 +59,6 @@ export function CompanionProvider({ children }: { children: React.ReactNode }) {
   const registerApplyProposal = useCallback((handler: (data: ExtractedProposal) => void) => {
     applyProposalRef.current = handler;
   }, []);
-
-  // Auto-greet on route change (first visit only)
-  useEffect(() => {
-    const currentRoute = screenContext.route;
-
-    if (prevRouteRef.current === null) {
-      prevRouteRef.current = currentRoute;
-      return;
-    }
-
-    if (prevRouteRef.current === currentRoute || isGreetingRef.current) {
-      return;
-    }
-
-    prevRouteRef.current = currentRoute;
-
-    // Pages with specialized mode (e.g. forum_proposal) — show nudge bubble
-    // instead of auto-expanding or sending a generic greeting
-    if (screenContext.mode) {
-      return;
-    }
-
-    if (!greetedRoutesRef.current.has(currentRoute) && currentRoute !== "/") {
-      greetedRoutesRef.current.add(currentRoute);
-      isGreetingRef.current = true;
-      rawSendMessage(
-        `I just navigated to the ${screenContext.pageTitle} page. Give me a brief overview of what I can do here.`,
-        screenContext
-      ).finally(() => {
-        isGreetingRef.current = false;
-      });
-    }
-  }, [screenContext, rawSendMessage]);
 
   return (
     <CompanionContext.Provider

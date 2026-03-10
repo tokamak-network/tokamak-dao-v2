@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { ArrowRight, ArrowDown } from "phosphor-react";
 
 export function HeroSection() {
   return (
@@ -63,9 +64,7 @@ export function HeroSection() {
               <Button variant="primary" size="xl" asChild className="relative shadow-lg shadow-[var(--color-primary-500)]/20 hover:shadow-xl hover:shadow-[var(--color-primary-500)]/30">
                 <Link href="/proposals">
                   Enter Governance
-                  <svg className="w-5 h-5 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-                  </svg>
+                  <ArrowRight size={20} weight="bold" className="ml-1" />
                 </Link>
               </Button>
               <Button variant="secondary" size="xl" asChild>
@@ -98,9 +97,7 @@ export function HeroSection() {
       {/* Scroll indicator */}
       <div className="absolute bottom-8 left-1/2 -translate-x-1/2 hidden lg:flex flex-col items-center gap-2 text-[var(--text-tertiary)] animate-pulse-soft">
         <span className="text-xs tracking-widest uppercase">Scroll</span>
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-        </svg>
+        <ArrowDown size={16} weight="bold" />
       </div>
     </section>
   );

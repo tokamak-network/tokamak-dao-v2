@@ -4,6 +4,7 @@ import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { cn } from "@/lib/utils";
 import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import {
   Navigation,
@@ -15,10 +16,9 @@ import {
   NavigationMenuButton,
 } from "@/components/ui/navigation";
 import { MobileNav } from "@/components/ui/mobile-nav";
-import { Footer } from "@/components/Footer";
 import { ThemeToggle } from "@/providers/ThemeProvider";
 import { SandboxBanner } from "@/components/sandbox";
-import { CompanionProvider, CompanionBar } from "@/components/companion";
+import { CompanionProvider, CompanionBar, useCompanion } from "@/components/companion";
 
 
 // Navigation icons
@@ -62,12 +62,28 @@ export default function AppLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const pathname = usePathname();
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
-
   return (
     <CompanionProvider>
-    <div className="flex flex-col min-h-screen bg-[var(--bg-primary)]">
+      <AppLayoutInner>{children}</AppLayoutInner>
+    </CompanionProvider>
+  );
+}
+
+function AppLayoutInner({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const { isExpanded } = useCompanion();
+
+  const showCompanion = pathname !== "/";
+
+  return (
+    <div
+      className={cn(
+        "flex flex-col min-h-screen bg-[var(--bg-primary)]",
+        "transition-[margin] duration-[var(--duration-slow)] ease-[var(--ease-default)]",
+        showCompanion && isExpanded && "lg:mr-[400px]"
+      )}
+    >
       <Navigation>
         <div className="flex items-center gap-2">
           <NavigationMenuButton
@@ -162,9 +178,8 @@ export default function AppLayout({
         </main>
       )}
 
-      {pathname !== "/" && <Footer />}
-      {pathname !== "/" && <CompanionBar />}
+
+      {showCompanion && <CompanionBar />}
     </div>
-    </CompanionProvider>
   );
 }

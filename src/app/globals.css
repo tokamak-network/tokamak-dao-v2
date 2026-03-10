@@ -30,8 +30,8 @@
   --color-border: var(--border-primary);
 
   /* Fonts */
-  --font-sans: "DM Sans", var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "Source Code Pro", var(--font-geist-mono), ui-monospace, monospace;
+  --font-sans: var(--font-geist-pixel-square), "DM Sans", var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-pixel-square), "Source Code Pro", var(--font-geist-mono), ui-monospace, monospace;
 }
 
 /* ============================================
@@ -52,7 +52,7 @@ html {
 body {
   background: var(--bg-primary);
   color: var(--text-primary);
-  font-family: "DM Sans", var(--font-sans, ui-sans-serif, system-ui, sans-serif);
+  font-family: var(--font-geist-pixel-square), "DM Sans", var(--font-sans, ui-sans-serif, system-ui, sans-serif);
   font-size: var(--font-size-base);
   line-height: var(--line-height-normal);
   -webkit-font-smoothing: antialiased;
@@ -138,7 +138,7 @@ small {
 }
 
 code, pre, kbd, samp {
-  font-family: "Source Code Pro", var(--font-mono);
+  font-family: var(--font-geist-pixel-square), "Source Code Pro", var(--font-mono);
 }
 
 code {
@@ -509,7 +509,7 @@ a:not([class]):hover {
 /* Code */
 .proposal-prose code {
   color: var(--prose-code);
-  font-family: "Source Code Pro", var(--font-mono);
+  font-family: var(--font-geist-pixel-square), "Source Code Pro", var(--font-mono);
   font-size: 0.875em;
   background: var(--bg-tertiary);
   padding: var(--space-0-5) var(--space-1-5);

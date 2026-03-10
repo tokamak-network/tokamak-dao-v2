@@ -504,4 +504,5 @@
   --companion-bar-height: 3.5rem;
   --companion-expanded-height: 50vh;
   --companion-expanded-height-mobile: 80vh;
+  --companion-panel-width: 400px;
 }
