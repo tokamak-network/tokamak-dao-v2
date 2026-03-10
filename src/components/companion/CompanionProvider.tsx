@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useCallback, useRef, useMemo } from "react";
+import React, { createContext, useContext, useState, useCallback, useRef, useMemo, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import type { CompanionMessage, ScreenContext, ProposalContextData } from "@/lib/companion/types";
 import type { ExtractedProposal } from "@/lib/companion/proposal-data";
@@ -54,6 +54,17 @@ export function CompanionProvider({ children }: { children: React.ReactNode }) {
     rawClearMessages();
     setModeOverride(null);
   }, [rawClearMessages]);
+
+  // Reset and close companion when navigating to a different page
+  const prevPathnameRef = useRef(pathname);
+  useEffect(() => {
+    if (prevPathnameRef.current !== pathname) {
+      prevPathnameRef.current = pathname;
+      clearMessages();
+      setIsExpanded(false);
+      setProposalContext(null);
+    }
+  }, [pathname, clearMessages]);
 
   const lastAssistantMessage = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
