@@ -16,7 +16,7 @@ import {
   NavigationMenuButton,
 } from "@/components/ui/navigation";
 import { MobileNav } from "@/components/ui/mobile-nav";
-import { ThemeToggle } from "@/providers/ThemeProvider";
+
 import { SandboxBanner } from "@/components/sandbox";
 import { CompanionProvider, CompanionBar, CompanionInline, useCompanion } from "@/components/companion";
 import { Footer } from "@/components/Footer";
@@ -137,7 +137,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
 
         <NavigationActions>
           {/* <SandboxButton /> */}
-          <ThemeToggle />
+
           <ConnectWalletButton />
         </NavigationActions>
       </Navigation>
