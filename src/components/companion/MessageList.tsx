@@ -34,11 +34,7 @@ export function MessageList({ messages, isStreaming }: MessageListProps) {
       {messages.map((msg) => (
         <MessageBubble key={msg.id} message={msg} />
       ))}
-      {isStreaming && (
-        <div className="flex items-center gap-1 pl-12 text-[var(--text-tertiary)]">
-          <span className="animate-pulse text-xs">Thinking...</span>
-        </div>
-      )}
+      {/* Typing indicator is now shown inside the message bubble itself */}
       <div ref={bottomRef} />
     </div>
   );

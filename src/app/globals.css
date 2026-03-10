@@ -577,13 +577,42 @@ a:not([class]):hover {
   }
 }
 
-/* Companion markdown prose (compact) */
+/* Companion markdown prose (chat-optimized) */
 .prose-companion {
-  line-height: 1.5;
+  line-height: 1.6;
+  font-size: inherit;
 }
 
+/* --- Headings: same size as body, distinguished by weight & color --- */
+.prose-companion h1,
+.prose-companion h2,
+.prose-companion h3,
+.prose-companion h4,
+.prose-companion h5,
+.prose-companion h6 {
+  font-size: 1em;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0.75em 0 0.25em;
+  line-height: 1.4;
+}
+
+.prose-companion h1:first-child,
+.prose-companion h2:first-child,
+.prose-companion h3:first-child {
+  margin-top: 0;
+}
+
+/* h1/h2 get a subtle bottom border to separate sections */
+.prose-companion h1,
+.prose-companion h2 {
+  padding-bottom: 0.25em;
+  border-bottom: 1px solid var(--border-secondary, rgba(255,255,255,0.08));
+}
+
+/* --- Paragraphs --- */
 .prose-companion p {
-  margin: 0.25em 0;
+  margin: 0.35em 0;
 }
 
 .prose-companion p:first-child {
@@ -594,44 +623,96 @@ a:not([class]):hover {
   margin-bottom: 0;
 }
 
+/* --- Lists --- */
 .prose-companion ul,
 .prose-companion ol {
-  margin: 0.25em 0;
+  margin: 0.35em 0;
   padding-left: 1.25em;
 }
 
 .prose-companion li {
-  margin: 0.125em 0;
+  margin: 0.15em 0;
 }
 
+.prose-companion li::marker {
+  color: var(--text-tertiary);
+}
+
+/* --- Inline code --- */
 .prose-companion code {
   font-size: 0.85em;
-  padding: 0.125em 0.375em;
+  padding: 0.15em 0.4em;
   border-radius: var(--radius-sm);
-  background: var(--surface-tertiary);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--accent-primary, #60a5fa);
+  font-weight: 500;
 }
 
+/* --- Code blocks --- */
 .prose-companion pre {
   margin: 0.5em 0;
-  padding: 0.5em;
+  padding: 0.625em 0.75em;
   border-radius: var(--radius-md);
-  background: var(--surface-tertiary);
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--border-secondary, rgba(255,255,255,0.06));
   overflow-x: auto;
   font-size: 0.8em;
+  line-height: 1.5;
 }
 
 .prose-companion pre code {
   padding: 0;
   background: none;
+  color: inherit;
+  font-weight: normal;
 }
 
+/* --- Emphasis --- */
 .prose-companion strong {
   font-weight: 600;
+  color: var(--text-primary);
 }
 
+/* --- Links --- */
 .prose-companion a {
   color: var(--text-brand);
   text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* --- Blockquotes --- */
+.prose-companion blockquote {
+  margin: 0.5em 0;
+  padding: 0.25em 0 0.25em 0.75em;
+  border-left: 2px solid var(--border-secondary, rgba(255,255,255,0.12));
+  color: var(--text-secondary);
+}
+
+/* --- Horizontal rules --- */
+.prose-companion hr {
+  margin: 0.75em 0;
+  border: none;
+  border-top: 1px solid var(--border-secondary, rgba(255,255,255,0.08));
+}
+
+/* --- Tables --- */
+.prose-companion table {
+  margin: 0.5em 0;
+  width: 100%;
+  font-size: 0.85em;
+  border-collapse: collapse;
+}
+
+.prose-companion th,
+.prose-companion td {
+  padding: 0.3em 0.5em;
+  border: 1px solid var(--border-secondary, rgba(255,255,255,0.08));
+  text-align: left;
+}
+
+.prose-companion th {
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.04);
 }
 
 /* ============================================
@@ -644,10 +725,10 @@ a:not([class]):hover {
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-xl, 16px);
   padding: var(--space-4) var(--space-5);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-base);
   color: var(--text-primary);
-  max-width: 280px;
-  margin-inline: auto;
+  width: max-content;
+  max-width: none;
   box-shadow: var(--shadow-sm);
 }
 

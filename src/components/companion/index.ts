@@ -1,5 +1,6 @@
 export { CompanionProvider, useCompanion } from "./CompanionProvider";
 export { CompanionBar } from "./CompanionBar";
+export { CompanionInline } from "./CompanionInline";
 export { CharacterAvatar } from "./CharacterAvatar";
 export { MessageBubble } from "./MessageBubble";
 export { MessageList } from "./MessageList";

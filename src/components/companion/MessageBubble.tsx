@@ -114,11 +114,17 @@ export function MessageBubble({ message }: MessageBubbleProps) {
         >
           {isUser ? (
             <p>{message.content}</p>
-          ) : (
+          ) : displayContent ? (
             <div className="prose-companion">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {displayContent || "\u200B"}
+                {displayContent}
               </ReactMarkdown>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 py-0.5">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-[var(--text-tertiary)] animate-[bounce_1.2s_ease-in-out_infinite]" />
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-[var(--text-tertiary)] animate-[bounce_1.2s_ease-in-out_0.2s_infinite]" />
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-[var(--text-tertiary)] animate-[bounce_1.2s_ease-in-out_0.4s_infinite]" />
             </div>
           )}
         </div>

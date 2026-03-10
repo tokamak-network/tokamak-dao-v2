@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { useCompanion } from "./CompanionProvider";
 import { CharacterAvatar } from "./CharacterAvatar";
@@ -17,33 +17,7 @@ export function CompanionBar() {
     screenContext,
     sendMessage,
     clearMessages,
-    lastAssistantMessage,
   } = useCompanion();
-
-  const [nudgeDismissed, setNudgeDismissed] = useState(false);
-  const [nudgeVisible, setNudgeVisible] = useState(false);
-  const prevRouteRef = useRef(screenContext.route);
-
-  // Reset nudge when navigating to a new page
-  useEffect(() => {
-    if (prevRouteRef.current !== screenContext.route) {
-      prevRouteRef.current = screenContext.route;
-      setNudgeDismissed(false);
-    }
-  }, [screenContext.route]);
-
-  // Show floating character + nudge when panel is closed and no messages yet
-  const showFloating = !isExpanded;
-  const showNudge = showFloating && messages.length === 0 && !nudgeDismissed;
-
-  // Animate nudge in after a short delay
-  useEffect(() => {
-    if (showNudge) {
-      const timer = setTimeout(() => setNudgeVisible(true), 800);
-      return () => clearTimeout(timer);
-    }
-    setNudgeVisible(false);
-  }, [showNudge]);
 
   // ESC key to close panel
   const handleKeyDown = useCallback(
@@ -59,11 +33,6 @@ export function CompanionBar() {
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [handleKeyDown]);
-
-  const openPanel = () => {
-    setNudgeDismissed(true);
-    setIsExpanded(true);
-  };
 
   // Panel header (expanded)
   const panelHeader = (
@@ -136,61 +105,6 @@ export function CompanionBar() {
 
   return (
     <>
-      {/* ===== Floating character FAB + nudge bubble ===== */}
-      {showFloating && (
-        <div className="fixed bottom-6 right-6 z-[var(--z-banner)] flex flex-col items-end gap-2">
-          {/* Nudge speech bubble */}
-          <div
-            className={cn(
-              "max-w-[240px] transition-all duration-[var(--duration-slow)] ease-[var(--ease-default)]",
-              showNudge && nudgeVisible
-                ? "opacity-100 translate-y-0"
-                : "opacity-0 translate-y-2 pointer-events-none"
-            )}
-          >
-            <div
-              className="relative bg-[var(--surface-primary)] border border-[var(--border-secondary)] rounded-2xl shadow-lg px-3.5 py-2.5 cursor-pointer"
-              onClick={openPanel}
-            >
-              <div className="flex items-start gap-2">
-                <p className="text-sm text-[var(--text-primary)] leading-relaxed">
-                  궁금한 것이 있다면 저와 대화해봐요!
-                </p>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setNudgeDismissed(true);
-                  }}
-                  className="flex-shrink-0 p-0.5 rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] transition-colors"
-                  aria-label="닫기"
-                >
-                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-              {/* Speech bubble tail pointing down-right toward the avatar */}
-              <div className="absolute -bottom-1.5 right-5 w-3 h-3 bg-[var(--surface-primary)] border-r border-b border-[var(--border-secondary)] rotate-45" />
-            </div>
-          </div>
-
-          {/* Character avatar FAB */}
-          <button
-            onClick={openPanel}
-            className={cn(
-              "rounded-full shadow-lg",
-              "ring-2 ring-[var(--border-secondary)] hover:ring-[var(--accent-primary)]",
-              "transition-all duration-[var(--duration-normal)]",
-              "hover:scale-110 active:scale-95",
-              "cursor-pointer"
-            )}
-            aria-label="Open DAO Companion"
-          >
-            <CharacterAvatar size="md" />
-          </button>
-        </div>
-      )}
-
       {/* ===== MOBILE (< lg): Bottom expansion ===== */}
 
       {/* Mobile backdrop */}
