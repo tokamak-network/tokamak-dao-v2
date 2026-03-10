@@ -18,6 +18,8 @@ import { MobileNav } from "@/components/ui/mobile-nav";
 import { Footer } from "@/components/Footer";
 import { ThemeToggle } from "@/providers/ThemeProvider";
 import { SandboxBanner } from "@/components/sandbox";
+import { CompanionProvider, CompanionBar } from "@/components/companion";
+
 
 // Navigation icons
 const ProposalsIcon = () => (
@@ -64,6 +66,7 @@ export default function AppLayout({
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   return (
+    <CompanionProvider>
     <div className="flex flex-col min-h-screen bg-[var(--bg-primary)]">
       <Navigation>
         <div className="flex items-center gap-2">
@@ -151,11 +154,13 @@ export default function AppLayout({
         }
       />
 
-      <main className="flex-1 container mx-auto px-4 py-6 lg:py-8 max-w-7xl">
+      <main className="flex-1 container mx-auto px-4 py-6 lg:py-8 max-w-7xl pb-16">
         {children}
       </main>
 
       <Footer />
+      <CompanionBar />
     </div>
+    </CompanionProvider>
   );
 }

@@ -577,3 +577,60 @@ a:not([class]):hover {
   }
 }
 
+/* Companion markdown prose (compact) */
+.prose-companion {
+  line-height: 1.5;
+}
+
+.prose-companion p {
+  margin: 0.25em 0;
+}
+
+.prose-companion p:first-child {
+  margin-top: 0;
+}
+
+.prose-companion p:last-child {
+  margin-bottom: 0;
+}
+
+.prose-companion ul,
+.prose-companion ol {
+  margin: 0.25em 0;
+  padding-left: 1.25em;
+}
+
+.prose-companion li {
+  margin: 0.125em 0;
+}
+
+.prose-companion code {
+  font-size: 0.85em;
+  padding: 0.125em 0.375em;
+  border-radius: var(--radius-sm);
+  background: var(--surface-tertiary);
+}
+
+.prose-companion pre {
+  margin: 0.5em 0;
+  padding: 0.5em;
+  border-radius: var(--radius-md);
+  background: var(--surface-tertiary);
+  overflow-x: auto;
+  font-size: 0.8em;
+}
+
+.prose-companion pre code {
+  padding: 0;
+  background: none;
+}
+
+.prose-companion strong {
+  font-weight: 600;
+}
+
+.prose-companion a {
+  color: var(--text-brand);
+  text-decoration: underline;
+}
+

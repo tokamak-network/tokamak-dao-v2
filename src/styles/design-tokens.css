@@ -496,4 +496,12 @@
   --table-row-bg: var(--surface-primary);
   --table-row-bg-hover: var(--surface-secondary);
   --table-border: var(--border-secondary);
+
+  /* Companion */
+  --companion-width: var(--sidebar-width);
+  --companion-bg: var(--surface-primary);
+  --companion-border: var(--sidebar-border);
+  --companion-bar-height: 3.5rem;
+  --companion-expanded-height: 50vh;
+  --companion-expanded-height-mobile: 80vh;
 }
