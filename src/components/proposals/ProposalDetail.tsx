@@ -152,7 +152,7 @@ export function ProposalDetail({ className, proposal, onVoteSuccess }: ProposalD
           onClick={() => {
             setIsExpanded(true);
             if (messages.length === 0) {
-              sendMessage(`이 안건에 대해 설명해줘: "${proposal.title}"`);
+              sendMessage(`Explain this proposal: "${proposal.title}"`);
             }
           }}
           className="group absolute right-0 top-0 flex items-start cursor-pointer transition-transform duration-200 hover:scale-[1.03]"

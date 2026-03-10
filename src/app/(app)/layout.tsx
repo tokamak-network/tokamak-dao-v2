@@ -77,7 +77,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
   const { isExpanded } = useCompanion();
 
   const showCompanionBar = pathname !== "/";
-  const showCompanionInline = pathname !== "/" && pathname !== "/proposals/create";
+  const showCompanionInline = pathname !== "/" && !pathname.startsWith("/proposals");
 
   return (
     <div
