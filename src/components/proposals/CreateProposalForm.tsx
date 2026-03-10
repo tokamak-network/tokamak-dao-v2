@@ -194,7 +194,7 @@ export function CreateProposalForm({ className }: CreateProposalFormProps) {
   ]);
   const [agentProposal, setAgentProposal] = React.useState<ExtractedProposal | null>(null);
 
-  const { registerApplyProposal } = useCompanion();
+  const { registerApplyProposal, pendingProposal, clearPendingProposal } = useCompanion();
 
   const { proposeAsync } = usePropose();
   const { proposalCreationCost, proposalThreshold, isLoading: isGovernanceLoading } = useGovernanceParams();
@@ -273,19 +273,26 @@ export function CreateProposalForm({ className }: CreateProposalFormProps) {
     }
   }, [isVTONClaimConfirmed, refetchVTONBalance, resetVTONClaim]);
 
+  // Apply proposal data to form (shared by register handler and pending proposal)
+  const applyProposalToForm = React.useCallback((proposal: ExtractedProposal) => {
+    setTitle(proposal.title || proposal.calldata.description);
+    setDescription(proposal.content || "");
+    setAgentProposal(proposal);
+    setShowAdvanced(true);
+  }, []);
+
   // Register companion proposal apply handler
   React.useEffect(() => {
-    registerApplyProposal((proposal: ExtractedProposal) => {
-      // agenda-draft: title + RFC content + calldata
-      // proposal-data (fallback): calldata.description only
-      setTitle(proposal.title || proposal.calldata.description);
-      setDescription(proposal.content || "");
+    registerApplyProposal(applyProposalToForm);
+  }, [registerApplyProposal, applyProposalToForm]);
 
-      // Store full proposal for read-only actions display and submission
-      setAgentProposal(proposal);
-      setShowAdvanced(true);
-    });
-  }, [registerApplyProposal]);
+  // Auto-apply pending proposal from cross-page navigation
+  React.useEffect(() => {
+    if (pendingProposal) {
+      applyProposalToForm(pendingProposal);
+      clearPendingProposal();
+    }
+  }, [pendingProposal, applyProposalToForm, clearPendingProposal]);
 
   // Form validation
   const isFormValid =

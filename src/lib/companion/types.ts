@@ -14,12 +14,29 @@ export interface ToolCall {
   status: "pending" | "running" | "done" | "error";
 }
 
+export interface ProposalContextData {
+  id: string;
+  title: string;
+  description: string;
+  status: string;
+  proposer: string;
+  forVotes: number;
+  againstVotes: number;
+  abstainVotes: number;
+  totalVoters: number;
+  targets?: string[];
+  values?: string[];
+  calldatas?: string[];
+  burnRate?: number;
+}
+
 export interface ScreenContext {
   route: string;
   pageTitle: string;
   description: string;
   suggestedQuestions: string[];
   mode?: "chat" | "make_proposal" | "analyze_proposal" | "forum_proposal";
+  proposalData?: ProposalContextData;
 }
 
 export type SSEEvent =

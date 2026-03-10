@@ -18,7 +18,9 @@ import {
 import { MobileNav } from "@/components/ui/mobile-nav";
 import { ThemeToggle } from "@/providers/ThemeProvider";
 import { SandboxBanner } from "@/components/sandbox";
-import { CompanionProvider, CompanionBar, useCompanion } from "@/components/companion";
+import { CompanionProvider, CompanionBar, CompanionInline, useCompanion } from "@/components/companion";
+import { Footer } from "@/components/Footer";
+
 
 
 // Navigation icons
@@ -74,14 +76,15 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const { isExpanded } = useCompanion();
 
-  const showCompanion = pathname !== "/";
+  const showCompanionBar = pathname !== "/";
+  const showCompanionInline = pathname !== "/" && pathname !== "/proposals/create";
 
   return (
     <div
       className={cn(
         "flex flex-col min-h-screen bg-[var(--bg-primary)]",
         "transition-[margin] duration-[var(--duration-slow)] ease-[var(--ease-default)]",
-        showCompanion && isExpanded && "lg:mr-[400px]"
+        showCompanionBar && isExpanded && "lg:mr-[400px]"
       )}
     >
       <Navigation>
@@ -171,15 +174,18 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
       />
 
       {pathname === "/" ? (
-        <main className="flex-1">{children}</main>
+        <>
+          <main className="flex-1">{children}</main>
+          <Footer />
+        </>
       ) : (
         <main className="flex-1 container mx-auto px-4 py-6 lg:py-8 max-w-7xl pb-16">
           {children}
+          {showCompanionInline && <CompanionInline />}
         </main>
       )}
 
-
-      {showCompanion && <CompanionBar />}
+      {showCompanionBar && <CompanionBar />}
     </div>
   );
 }

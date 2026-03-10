@@ -22,6 +22,7 @@ import { cn, formatAddress, formatNumber, formatDate, formatVTON } from "@/lib/u
 import type { ProposalStatus } from "@/types/governance";
 import { useHasVoted } from "@/hooks/contracts/useDAOGovernor";
 import { useTotalDelegated } from "@/hooks/contracts/useDelegateRegistry";
+import { useCompanion, CharacterAvatar } from "@/components/companion";
 
 export interface ProposalDetailData {
   id: string;
@@ -40,6 +41,9 @@ export interface ProposalDetailData {
   queuedAt?: Date;
   eta?: Date; // timelock expiry - when queued proposal becomes executable
   burnRate?: number; // basis points (0-10000 = 0-100%)
+  targets?: string[]; // contract addresses to call
+  values?: string[]; // ETH values per call (as string to avoid bigint serialization)
+  calldatas?: string[]; // encoded function call data
 }
 
 export interface ProposalDetailProps {
@@ -50,7 +54,28 @@ export interface ProposalDetailProps {
 
 export function ProposalDetail({ className, proposal, onVoteSuccess }: ProposalDetailProps) {
   const { address, isConnected } = useAccount();
+  const { setIsExpanded, sendMessage, messages, setProposalContext } = useCompanion();
   const [isVotingModalOpen, setIsVotingModalOpen] = React.useState(false);
+
+  // Inject proposal data into companion context
+  React.useEffect(() => {
+    setProposalContext({
+      id: proposal.id,
+      title: proposal.title,
+      description: proposal.description,
+      status: proposal.status,
+      proposer: proposal.proposer,
+      forVotes: proposal.forVotes,
+      againstVotes: proposal.againstVotes,
+      abstainVotes: proposal.abstainVotes,
+      totalVoters: proposal.totalVoters,
+      targets: proposal.targets,
+      values: proposal.values,
+      calldatas: proposal.calldatas,
+      burnRate: proposal.burnRate,
+    });
+    return () => setProposalContext(null);
+  }, [proposal, setProposalContext]);
 
   // Check if this is a demo proposal (cannot interact with contract)
   const isDemo = proposal.id.startsWith("demo-");
@@ -100,26 +125,50 @@ export function ProposalDetail({ className, proposal, onVoteSuccess }: ProposalD
 
   return (
     <div className={cn("space-y-6", className)}>
-      {/* Back link */}
-      <Link
-        href="/proposals"
-        className="inline-flex items-center gap-2 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
-      >
-        <svg
-          className="size-4"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2}
+      {/* Back link + Companion CTA */}
+      <div className="relative">
+        <Link
+          href="/proposals"
+          className="inline-flex items-center gap-2 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
         >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"
-          />
-        </svg>
-        Back to Proposals
-      </Link>
+          <svg
+            className="size-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"
+            />
+          </svg>
+          Back to Proposals
+        </Link>
+
+        {/* Companion CTA — absolute so it doesn't affect layout */}
+        <button
+          onClick={() => {
+            setIsExpanded(true);
+            if (messages.length === 0) {
+              sendMessage(`이 안건에 대해 설명해줘: "${proposal.title}"`);
+            }
+          }}
+          className="group absolute right-0 top-0 flex items-start cursor-pointer transition-transform duration-200 hover:scale-[1.03]"
+        >
+          {/* Speech bubble with tail on bottom-right pointing to avatar */}
+          <div className="relative px-5 py-3 rounded-2xl bg-[var(--companion-bg,var(--bg-secondary))] border border-[var(--border-default)] text-base font-medium text-[var(--text-secondary)] group-hover:border-[var(--border-hover)] group-hover:text-[var(--text-primary)] transition-colors shadow-lg mr-2 mt-2">
+            Ask me about this proposal!
+            {/* Diagonal tail pointing bottom-right toward avatar */}
+            <svg className="absolute -right-[10px] -bottom-[6px] w-4 h-4 transition-colors scale-x-[-1]" viewBox="0 0 16 16" fill="none">
+              <path d="M16 0 C12 4 4 6 0 16 C2 10 6 6 16 0Z" fill="var(--companion-bg,var(--bg-secondary))" />
+              <path d="M16 0 C12 4 4 6 0 16" stroke="var(--border-default)" strokeWidth="1" className="group-hover:[stroke:var(--border-hover)] transition-colors" />
+            </svg>
+          </div>
+          <CharacterAvatar size="lg" className="!w-16 !h-16 !border-[3px] flex-shrink-0" />
+        </button>
+      </div>
 
       {/* Header */}
       <div className="space-y-4">

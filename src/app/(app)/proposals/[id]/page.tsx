@@ -247,6 +247,9 @@ function RealProposalDetail({ id }: { id: string }) {
     id: bigint;
     proposer: `0x${string}`;
     description: string;
+    targets: readonly `0x${string}`[];
+    values: readonly bigint[];
+    calldatas: readonly `0x${string}`[];
     snapshotBlock: bigint;
     voteStart: bigint;
     voteEnd: bigint;
@@ -285,6 +288,9 @@ function RealProposalDetail({ id }: { id: string }) {
     executedAt: executedAt ?? (proposal.executed ? new Date() : undefined),
     eta: etaData && etaData > 0n ? new Date(Number(etaData) * 1000) : undefined,
     burnRate: proposal.burnRate ?? 0,
+    targets: [...proposal.targets],
+    values: proposal.values.map(v => v.toString()),
+    calldatas: [...proposal.calldatas],
   };
 
   return <ProposalDetail proposal={proposalDetail} onVoteSuccess={handleVoteSuccess} />;

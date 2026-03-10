@@ -9,6 +9,7 @@ const screenContexts: Record<string, ScreenContext> = {
       "What proposals are currently active?",
       "How does the voting process work?",
       "What is the quorum requirement?",
+      "새로운 Agenda를 만들고 싶어",
     ],
   },
   "/proposals/create": {
@@ -111,6 +112,7 @@ export function getScreenContext(pathname: string): ScreenContext {
         "Can you summarize this proposal?",
         "What are the voting results so far?",
         "When does voting end?",
+        "이 제안을 기반으로 새 Agenda를 만들고 싶어",
       ],
     };
   }
