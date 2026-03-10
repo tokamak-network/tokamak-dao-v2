@@ -9,18 +9,18 @@ const screenContexts: Record<string, ScreenContext> = {
       "What proposals are currently active?",
       "How does the voting process work?",
       "What is the quorum requirement?",
-      "새로운 Agenda를 만들고 싶어",
+      "I want to create a new Agenda",
     ],
   },
   "/proposals/create": {
     route: "/proposals/create",
     pageTitle: "Create Proposal",
     description: "Create a new governance proposal for Tokamak DAO",
-    mode: "forum_proposal",
+    mode: "make_proposal",
     suggestedQuestions: [
-      "DAO 세뇨리지 비율을 변경하고 싶어",
-      "DAOVault에서 TON 사용을 승인하고 싶어",
-      "DAO 쿼럼을 변경하고 싶어",
+      "I want to change the DAO seigniorage rate",
+      "I want to approve TON usage from DAOVault",
+      "I want to change the DAO quorum",
     ],
   },
   "/delegates": {
@@ -112,7 +112,7 @@ export function getScreenContext(pathname: string): ScreenContext {
         "Can you summarize this proposal?",
         "What are the voting results so far?",
         "When does voting end?",
-        "이 제안을 기반으로 새 Agenda를 만들고 싶어",
+        "I want to create a new Agenda based on this proposal",
       ],
     };
   }

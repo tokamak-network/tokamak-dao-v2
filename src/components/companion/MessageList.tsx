@@ -1,15 +1,16 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import type { CompanionMessage } from "@/lib/companion/types";
+import type { CompanionMessage, ScreenContext } from "@/lib/companion/types";
 import { MessageBubble } from "./MessageBubble";
 
 interface MessageListProps {
   messages: CompanionMessage[];
   isStreaming: boolean;
+  screenContext?: ScreenContext;
 }
 
-export function MessageList({ messages, isStreaming }: MessageListProps) {
+export function MessageList({ messages, isStreaming, screenContext }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -17,13 +18,20 @@ export function MessageList({ messages, isStreaming }: MessageListProps) {
   }, [messages, isStreaming]);
 
   if (messages.length === 0) {
+    const isProposalMode = screenContext?.mode === "forum_proposal" || screenContext?.mode === "make_proposal";
     return (
       <div className="flex-1 flex items-center justify-center p-6 text-center">
         <div className="text-[var(--text-tertiary)] text-sm">
           <p className="mb-1 font-medium text-[var(--text-secondary)]">
-            Ask me anything about Tokamak DAO
+            {isProposalMode
+              ? "What agenda would you like to create?"
+              : "Ask me anything about Tokamak DAO"}
           </p>
-          <p>I can help you understand proposals, delegates, and governance.</p>
+          <p>
+            {isProposalMode
+              ? "Tell me what you want to change and I'll help you from contract research to calldata generation."
+              : "I can help you understand proposals, delegates, and governance."}
+          </p>
         </div>
       </div>
     );

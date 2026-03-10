@@ -93,7 +93,7 @@ export function CompanionBar() {
           {error}
         </div>
       )}
-      <MessageList messages={messages} isStreaming={isStreaming} />
+      <MessageList messages={messages} isStreaming={isStreaming} screenContext={screenContext} />
       <CompanionInput
         onSend={sendMessage}
         disabled={isStreaming}

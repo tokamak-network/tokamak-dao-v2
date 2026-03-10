@@ -39,6 +39,7 @@ export function CompanionProvider({ children }: { children: React.ReactNode }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [proposalContext, setProposalContext] = useState<ProposalContextData | null>(null);
   const [pendingProposal, setPendingProposal] = useState<ExtractedProposal | null>(null);
+  const [modeOverride, setModeOverride] = useState<ScreenContext["mode"] | null>(null);
   const applyProposalRef = useRef<((data: ExtractedProposal) => void) | null>(null);
   const baseScreenContext = useScreenContext();
   const screenContext = useMemo<ScreenContext>(
@@ -46,8 +47,13 @@ export function CompanionProvider({ children }: { children: React.ReactNode }) {
     [baseScreenContext, proposalContext]
   );
 
-  const { messages, isStreaming, error, sendMessage: rawSendMessage, clearMessages, abort } =
+  const { messages, isStreaming, error, sendMessage: rawSendMessage, clearMessages: rawClearMessages, abort } =
     useCompanionChat();
+
+  const clearMessages = useCallback(() => {
+    rawClearMessages();
+    setModeOverride(null);
+  }, [rawClearMessages]);
 
   const lastAssistantMessage = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
@@ -60,23 +66,31 @@ export function CompanionProvider({ children }: { children: React.ReactNode }) {
 
   const sendMessage = useCallback(
     async (content: string) => {
-      // Auto-detect agenda creation intent and override mode to forum_proposal
-      // so the agent backend activates its proposal-building tools
-      let ctx = screenContext;
-      if (!screenContext.mode) {
+      // Determine effective mode: page-defined > sticky override > auto-detect
+      let effectiveMode = screenContext.mode || modeOverride;
+
+      if (!effectiveMode) {
         const lower = content.toLowerCase();
         const isAgendaIntent =
           lower.includes("agenda") ||
           lower.includes("안건") ||
           lower.includes("만들고 싶") ||
-          lower.includes("생성");
+          lower.includes("생성") ||
+          lower.includes("수정하고 싶") ||
+          lower.includes("변경하고 싶");
         if (isAgendaIntent) {
-          ctx = { ...screenContext, mode: "forum_proposal" };
+          effectiveMode = "make_proposal";
+          // Sticky: persist for all subsequent messages in this conversation
+          setModeOverride("make_proposal");
         }
       }
+
+      const ctx = effectiveMode
+        ? { ...screenContext, mode: effectiveMode }
+        : screenContext;
       await rawSendMessage(content, ctx);
     },
-    [rawSendMessage, screenContext]
+    [rawSendMessage, screenContext, modeOverride]
   );
 
   const applyProposal = useCallback((data: ExtractedProposal) => {
