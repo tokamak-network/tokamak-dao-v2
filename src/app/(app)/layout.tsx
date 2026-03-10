@@ -18,7 +18,7 @@ import {
 import { MobileNav } from "@/components/ui/mobile-nav";
 
 import { SandboxBanner } from "@/components/sandbox";
-import { CompanionProvider, CompanionBar, CompanionInline, useCompanion } from "@/components/companion";
+import { CompanionProvider, CompanionBar, useCompanion } from "@/components/companion";
 import { Footer } from "@/components/Footer";
 
 
@@ -77,7 +77,6 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
   const { isExpanded } = useCompanion();
 
   const showCompanionBar = pathname !== "/";
-  const showCompanionInline = pathname !== "/" && !pathname.startsWith("/proposals");
 
   return (
     <div
@@ -181,7 +180,6 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
       ) : (
         <main className="flex-1 container mx-auto px-4 py-6 lg:py-8 max-w-7xl pb-16">
           {children}
-          {showCompanionInline && <CompanionInline />}
         </main>
       )}
 
