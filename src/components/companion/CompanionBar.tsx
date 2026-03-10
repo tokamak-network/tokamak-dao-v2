@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useCompanion } from "./CompanionProvider";
 import { CharacterAvatar } from "./CharacterAvatar";
@@ -19,6 +20,24 @@ export function CompanionBar() {
     lastAssistantMessage,
   } = useCompanion();
 
+  const [nudgeDismissed, setNudgeDismissed] = useState(false);
+  const [nudgeVisible, setNudgeVisible] = useState(false);
+
+  const showNudge =
+    screenContext.mode === "forum_proposal" &&
+    !isExpanded &&
+    messages.length === 0 &&
+    !nudgeDismissed;
+
+  // Animate in after a short delay
+  useEffect(() => {
+    if (showNudge) {
+      const timer = setTimeout(() => setNudgeVisible(true), 500);
+      return () => clearTimeout(timer);
+    }
+    setNudgeVisible(false);
+  }, [showNudge]);
+
   return (
     <>
       {/* Mobile backdrop */}
@@ -27,6 +46,48 @@ export function CompanionBar() {
           className="fixed inset-0 bg-black/40 z-[calc(var(--z-banner)-1)] lg:hidden"
           onClick={() => setIsExpanded(false)}
         />
+      )}
+
+      {/* Nudge speech bubble */}
+      {showNudge && (
+        <div
+          className={cn(
+            "fixed bottom-[calc(var(--companion-bar-height)+8px)] left-4 lg:left-8 lg:max-w-sm z-[var(--z-banner)]",
+            "transition-all duration-[var(--duration-slow)] ease-[var(--ease-default)]",
+            nudgeVisible
+              ? "opacity-100 translate-y-0"
+              : "opacity-0 translate-y-2"
+          )}
+        >
+          <div
+            className="relative bg-[var(--surface-primary)] border border-[var(--border-secondary)] rounded-2xl shadow-lg px-4 py-3 cursor-pointer"
+            onClick={() => {
+              setNudgeDismissed(true);
+              setIsExpanded(true);
+            }}
+          >
+            <div className="flex items-start gap-3">
+              <CharacterAvatar size="sm" className="mt-0.5 flex-shrink-0" />
+              <p className="text-sm text-[var(--text-primary)] leading-relaxed">
+                어젠더를 작성하는데 필요한 것이 있나요? 무엇이든 도와드릴게요!
+              </p>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setNudgeDismissed(true);
+                }}
+                className="flex-shrink-0 p-1 rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] transition-colors"
+                aria-label="닫기"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            {/* Speech bubble tail */}
+            <div className="absolute -bottom-2 left-8 w-4 h-4 bg-[var(--surface-primary)] border-r border-b border-[var(--border-secondary)] rotate-45" />
+          </div>
+        </div>
       )}
 
       {/* Bottom bar container */}

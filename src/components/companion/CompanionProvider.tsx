@@ -78,9 +78,13 @@ export function CompanionProvider({ children }: { children: React.ReactNode }) {
 
     prevRouteRef.current = currentRoute;
 
-    // Skip auto-greet for pages with specialized mode (e.g. forum_proposal) —
-    // they have dedicated suggested questions that are more useful than a generic greeting
-    if (!greetedRoutesRef.current.has(currentRoute) && currentRoute !== "/" && !screenContext.mode) {
+    // Pages with specialized mode (e.g. forum_proposal) — show nudge bubble
+    // instead of auto-expanding or sending a generic greeting
+    if (screenContext.mode) {
+      return;
+    }
+
+    if (!greetedRoutesRef.current.has(currentRoute) && currentRoute !== "/") {
       greetedRoutesRef.current.add(currentRoute);
       isGreetingRef.current = true;
       rawSendMessage(
