@@ -49,3 +49,7 @@ next-env.d.ts
 contracts/cache/
 contracts/out/
 contracts/broadcast/
+
+# Agent data (large compiled artifacts)
+data/agent/contracts-src/
+data/agent/contracts-out/
