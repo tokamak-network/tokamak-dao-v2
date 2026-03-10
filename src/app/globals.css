@@ -634,3 +634,95 @@ a:not([class]):hover {
   text-decoration: underline;
 }
 
+/* ============================================
+   Speech Bubble
+   ============================================ */
+
+.speech-bubble {
+  position: relative;
+  background: var(--surface-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-xl, 16px);
+  padding: var(--space-4) var(--space-5);
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+  max-width: 280px;
+  margin-inline: auto;
+  box-shadow: var(--shadow-sm);
+}
+
+.speech-bubble::after {
+  content: "";
+  position: absolute;
+  bottom: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-top: 8px solid var(--surface-primary);
+}
+
+.speech-bubble::before {
+  content: "";
+  position: absolute;
+  bottom: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 9px solid transparent;
+  border-right: 9px solid transparent;
+  border-top: 9px solid var(--border-primary);
+}
+
+/* Left-pointing speech bubble (for DaoExplain) */
+.speech-bubble-left {
+  max-width: none;
+}
+
+.speech-bubble-left::after {
+  left: -8px;
+  bottom: auto;
+  top: 50%;
+  transform: translateY(-50%);
+  border-left: none;
+  border-right: 8px solid var(--surface-primary);
+  border-top: 8px solid transparent;
+  border-bottom: 8px solid transparent;
+}
+
+.speech-bubble-left::before {
+  left: -10px;
+  bottom: auto;
+  top: 50%;
+  transform: translateY(-50%);
+  border-left: none;
+  border-right: 9px solid var(--border-primary);
+  border-top: 9px solid transparent;
+  border-bottom: 9px solid transparent;
+}
+
+@media (max-width: 639px) {
+  .speech-bubble-left::after {
+    left: 50%;
+    top: -8px;
+    transform: translateX(-50%);
+    border-right: 8px solid transparent;
+    border-left: 8px solid transparent;
+    border-top: none;
+    border-bottom: 8px solid var(--surface-primary);
+  }
+
+  .speech-bubble-left::before {
+    left: 50%;
+    top: -10px;
+    transform: translateX(-50%);
+    border-right: 9px solid transparent;
+    border-left: 9px solid transparent;
+    border-top: none;
+    border-bottom: 9px solid var(--border-primary);
+  }
+}
+

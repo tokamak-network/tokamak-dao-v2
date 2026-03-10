@@ -139,7 +139,7 @@ export default function AppLayout({
         ]}
         currentPath={pathname}
         logo={
-          <div className="flex items-center gap-2">
+          <Link href="/" className="flex items-center gap-2">
             <Image
               src="/tokamak-logo.svg"
               alt="Tokamak DAO"
@@ -150,16 +150,20 @@ export default function AppLayout({
             <span className="font-semibold text-[var(--text-primary)]">
               Tokamak DAO
             </span>
-          </div>
+          </Link>
         }
       />
 
-      <main className="flex-1 container mx-auto px-4 py-6 lg:py-8 max-w-7xl pb-16">
-        {children}
-      </main>
+      {pathname === "/" ? (
+        <main className="flex-1">{children}</main>
+      ) : (
+        <main className="flex-1 container mx-auto px-4 py-6 lg:py-8 max-w-7xl pb-16">
+          {children}
+        </main>
+      )}
 
-      <Footer />
-      <CompanionBar />
+      {pathname !== "/" && <Footer />}
+      {pathname !== "/" && <CompanionBar />}
     </div>
     </CompanionProvider>
   );
