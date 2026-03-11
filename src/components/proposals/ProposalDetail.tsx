@@ -19,6 +19,7 @@ import { ProposalTimeline } from "./ProposalTimeline";
 import { ProposalActions } from "./ProposalActions";
 import { VotingModal } from "./VotingModal";
 import { cn, formatAddress, formatNumber, formatDate, formatVTON } from "@/lib/utils";
+import { formatEther } from "viem";
 import type { ProposalStatus } from "@/types/governance";
 import { useHasVoted } from "@/hooks/contracts/useDAOGovernor";
 import { useTotalDelegated } from "@/hooks/contracts/useDelegateRegistry";
@@ -50,6 +51,102 @@ export interface ProposalDetailProps {
   className?: string;
   proposal: ProposalDetailData;
   onVoteSuccess?: () => void;
+}
+
+function ProposalCalldataSection({
+  targets,
+  values,
+  calldatas,
+}: {
+  targets: string[];
+  values: string[];
+  calldatas: string[];
+}) {
+  const [expandedIndex, setExpandedIndex] = React.useState<number | null>(null);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Proposed Actions</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {targets.map((target, i) => {
+          const value = values[i] || "0";
+          const calldata = calldatas[i] || "0x";
+          const hasValue = value !== "0";
+          const isExpanded = expandedIndex === i;
+
+          return (
+            <div
+              key={i}
+              className="rounded-lg border border-[var(--border-default)] overflow-hidden"
+            >
+              {/* Action header */}
+              <button
+                type="button"
+                onClick={() => setExpandedIndex(isExpanded ? null : i)}
+                className="w-full flex items-center justify-between p-3 text-left hover:bg-[var(--bg-secondary)] transition-colors"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="flex items-center justify-center size-5 rounded-full bg-[var(--bg-tertiary)] text-xs font-medium text-[var(--text-secondary)] shrink-0">
+                    {i + 1}
+                  </span>
+                  <span className="text-sm font-mono text-[var(--text-primary)] truncate">
+                    {formatAddress(target, 6)}
+                  </span>
+                  {hasValue && (
+                    <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--color-warning-500)]/10 text-[var(--color-warning-500)] shrink-0">
+                      {formatEther(BigInt(value))} ETH
+                    </span>
+                  )}
+                </div>
+                <svg
+                  className={cn(
+                    "size-4 text-[var(--text-tertiary)] transition-transform shrink-0",
+                    isExpanded && "rotate-180"
+                  )}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                </svg>
+              </button>
+
+              {/* Expanded details */}
+              {isExpanded && (
+                <div className="px-3 pb-3 space-y-2 border-t border-[var(--border-default)]">
+                  <div className="pt-2 space-y-2 text-xs">
+                    <div>
+                      <span className="text-[var(--text-tertiary)]">Target</span>
+                      <p className="font-mono text-[var(--text-primary)] break-all mt-0.5">
+                        {target}
+                      </p>
+                    </div>
+                    {hasValue && (
+                      <div>
+                        <span className="text-[var(--text-tertiary)]">Value</span>
+                        <p className="text-[var(--text-primary)] mt-0.5">
+                          {formatEther(BigInt(value))} ETH
+                        </p>
+                      </div>
+                    )}
+                    <div>
+                      <span className="text-[var(--text-tertiary)]">Calldata</span>
+                      <p className="font-mono text-[var(--text-secondary)] break-all bg-[var(--bg-tertiary)] rounded p-2 mt-0.5 max-h-32 overflow-y-auto">
+                        {calldata}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </CardContent>
+    </Card>
+  );
 }
 
 export function ProposalDetail({ className, proposal, onVoteSuccess }: ProposalDetailProps) {
@@ -202,6 +299,15 @@ export function ProposalDetail({ className, proposal, onVoteSuccess }: ProposalD
               </div>
             </CardContent>
           </Card>
+
+          {/* Proposed Actions (calldata) */}
+          {proposal.targets && proposal.targets.length > 0 && (
+            <ProposalCalldataSection
+              targets={proposal.targets}
+              values={proposal.values || []}
+              calldatas={proposal.calldatas || []}
+            />
+          )}
 
           {/* Actions - only for real proposals */}
           {!isDemo && (
