@@ -23,12 +23,8 @@ export const metadata: Metadata = {
 
 const themeInitScript = `
 (function() {
-  const storageKey = 'tokamak-dao-theme';
-  const theme = localStorage.getItem(storageKey);
-  const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  const isDark = theme === 'light' ? false : theme === 'system' ? systemDark : true;
-  document.documentElement.classList.add(isDark ? 'dark' : 'light');
-  document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+  document.documentElement.classList.add('dark');
+  document.documentElement.setAttribute('data-theme', 'dark');
 })();
 `;
 
