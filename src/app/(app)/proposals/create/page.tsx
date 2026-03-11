@@ -10,7 +10,7 @@ import { useCompanion, CharacterAvatar } from "@/components/companion";
  * Allows users to create new governance proposals
  */
 export default function CreateProposalPage() {
-  const { setIsExpanded } = useCompanion();
+  const { isExpanded, setIsExpanded } = useCompanion();
 
   return (
     <div className="space-y-6">
@@ -36,20 +36,20 @@ export default function CreateProposalPage() {
           Back to Proposals
         </Link>
 
-        {/* Companion CTA — same style as ProposalDetail */}
-        <button
+        {/* Companion CTA — same style as ProposalDetail, hidden when panel is open */}
+        {!isExpanded && <button
           onClick={() => setIsExpanded(true)}
           className="group absolute right-0 top-0 flex items-start cursor-pointer transition-transform duration-200 hover:scale-[1.03]"
         >
           <div className="relative px-5 py-3 rounded-2xl bg-[var(--companion-bg,var(--bg-secondary))] border border-[var(--border-default)] text-base font-medium text-[var(--text-secondary)] group-hover:border-[var(--border-hover)] group-hover:text-[var(--text-primary)] transition-colors shadow-lg mr-2 mt-2">
-            Help me create an Agenda!
+            Need help creating a proposal?
             <svg className="absolute -right-[10px] -bottom-[6px] w-4 h-4 transition-colors scale-x-[-1]" viewBox="0 0 16 16" fill="none">
               <path d="M16 0 C12 4 4 6 0 16 C2 10 6 6 16 0Z" fill="var(--companion-bg,var(--bg-secondary))" />
               <path d="M16 0 C12 4 4 6 0 16" stroke="var(--border-default)" strokeWidth="1" className="group-hover:[stroke:var(--border-hover)] transition-colors" />
             </svg>
           </div>
           <CharacterAvatar size="lg" className="!w-16 !h-16 !border-[3px] flex-shrink-0" />
-        </button>
+        </button>}
       </div>
 
       {/* Header */}

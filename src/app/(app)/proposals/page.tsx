@@ -19,7 +19,7 @@ export default function ProposalsPage() {
       <section className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 py-4">
         <div className="flex-1">
           <h1 className="text-3xl sm:text-4xl font-bold text-[var(--text-primary)] mb-2">
-            Tokamak DAO
+            Proposals
           </h1>
           <p className="text-base text-[var(--text-secondary)] max-w-lg">
             Participate in Tokamak Network governance. Vote on proposals,
