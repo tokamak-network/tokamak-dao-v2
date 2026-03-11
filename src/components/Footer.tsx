@@ -23,7 +23,6 @@ const footerColumns = [
   {
     title: "About",
     links: [
-      { label: "Team", href: "https://tokamaknetwork.com/about/team", external: true },
       { label: "Price Dashboard", href: "https://price.tokamak.network", external: true },
       { label: "Partners", href: "https://tokamaknetwork.com/about/partners", external: true },
       { label: "Insight", href: "https://tokamaknetwork.com/about/insight", external: true },
