@@ -7,28 +7,37 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { AddressAvatar } from "@/components/ui/avatar";
 import { useAgents, type AgentListItem } from "@/hooks/contracts/useAgentRegistry";
-import { useDelegateInfo } from "@/hooks/contracts/useDelegateRegistry";
+import { SEPOLIA_CHAIN_ID } from "@/constants/erc8004";
 
 function truncateAddress(addr: string) {
-  return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+  return `${addr.slice(0, 6)}\u2026${addr.slice(-4)}`;
 }
 
-function AgentCard({ agent }: { agent: AgentListItem }) {
+function getChainName(chainId?: number): string {
+  switch (chainId) {
+    case SEPOLIA_CHAIN_ID:
+      return "Sepolia";
+    case 1:
+      return "Ethereum";
+    default:
+      return "Unknown";
+  }
+}
+
+function AgentRow({ agent }: { agent: AgentListItem }) {
   const meta = agent.metadata;
   const name = meta?.name || `Agent #${agent.agentId.toString()}`;
   const description = meta?.description;
-  const skills = meta?.skills ?? [];
-  const domains = meta?.domains ?? [];
   const isActive = meta?.active;
-  const ownerAddress = agent.owner as `0x${string}`;
-  const { data: delegateInfo } = useDelegateInfo(ownerAddress);
-  const delegateName = delegateInfo?.profile || null;
 
   return (
-    <Link href={`/agents/${agent.agentId.toString()}`}>
-      <Card padding="none" interactive className="p-5">
-        <div className="flex items-start gap-4">
-          {/* Avatar */}
+    <tr className="border-b border-[var(--border-default)] last:border-b-0 hover:bg-[var(--bg-secondary)] transition-colors">
+      {/* AGENT */}
+      <td className="py-4 px-5">
+        <Link
+          href={`/agents/${agent.agentId.toString()}`}
+          className="flex items-center gap-3 min-w-0"
+        >
           {meta?.image ? (
             /* eslint-disable-next-line @next/next/no-img-element */
             <img
@@ -39,81 +48,67 @@ function AgentCard({ agent }: { agent: AgentListItem }) {
           ) : (
             <AddressAvatar address={agent.owner} size="md" />
           )}
-
-          {/* Info */}
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <span className="text-base font-medium text-[var(--text-primary)] truncate">
-                {name}
-              </span>
-              {isActive && (
-                <Badge variant="success" size="sm">Active</Badge>
-              )}
-            </div>
-
+          <div className="min-w-0">
+            <span className="text-sm font-semibold text-[var(--text-primary)] truncate block">
+              {name}
+            </span>
             {description ? (
-              <p className="text-sm text-[var(--text-secondary)] line-clamp-2 mt-1">
+              <p className="text-xs text-[var(--text-secondary)] truncate mt-0.5">
                 {description}
               </p>
             ) : (
-              <p className="text-sm text-[var(--text-tertiary)] italic mt-1">
+              <p className="text-xs text-[var(--text-tertiary)] italic mt-0.5">
                 No description
               </p>
             )}
-
-            {/* Tags */}
-            {(skills.length > 0 || domains.length > 0) && (
-              <div className="flex flex-wrap gap-1 mt-2">
-                {skills.slice(0, 3).map((s) => (
-                  <span key={s} className="rounded-full bg-[var(--color-primary-500)]/10 px-2 py-0.5 text-[10px] text-[var(--text-brand)]">
-                    {s}
-                  </span>
-                ))}
-                {domains.slice(0, 2).map((d) => (
-                  <span key={d} className="rounded-full bg-[var(--fg-brand-primary)]/10 px-2 py-0.5 text-[10px] text-[var(--fg-brand-primary)]">
-                    {d}
-                  </span>
-                ))}
-                {skills.length + domains.length > 5 && (
-                  <span className="rounded-full bg-[var(--surface-secondary)] px-2 py-0.5 text-[10px] text-[var(--text-tertiary)]">
-                    +{skills.length + domains.length - 5}
-                  </span>
-                )}
-              </div>
-            )}
           </div>
+        </Link>
+      </td>
 
-          {/* Right side info */}
-          <div className="text-right shrink-0">
-            <p className="text-xs font-mono text-[var(--text-tertiary)]">
-              #{agent.agentId.toString()}
-            </p>
-            <div className="mt-1 flex items-center justify-end gap-1">
-              {delegateName && (
-                <Badge variant="default" size="sm">Delegate</Badge>
-              )}
-              <span
-                className="text-xs text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] transition-colors cursor-pointer"
-                onClick={(e) => {
-                  e.preventDefault();
-                  window.location.href = `/delegates/${agent.owner}`;
-                }}
-                title={`View delegate: ${agent.owner}`}
-              >
-                {delegateName || truncateAddress(agent.owner)}
-              </span>
-            </div>
-          </div>
+      {/* CHAIN */}
+      <td className="py-4 px-5">
+        <Badge variant="primary" size="sm" className="gap-1">
+          <span className="inline-block size-1.5 rounded-full bg-current opacity-70" />
+          {getChainName(SEPOLIA_CHAIN_ID)}
+        </Badge>
+      </td>
+
+      {/* OWNER */}
+      <td className="py-4 px-5">
+        <span className="text-sm font-mono text-[var(--text-secondary)]">
+          {truncateAddress(agent.owner)}
+        </span>
+      </td>
+
+      {/* REPUTATION */}
+      <td className="py-4 px-5">
+        <div className="flex items-center gap-1">
+          <span className="text-amber-400">&#9733;</span>
+          <span className="text-sm font-semibold text-[var(--text-primary)]">0</span>
+          <span className="text-xs text-[var(--text-tertiary)]">/100</span>
         </div>
-      </Card>
-    </Link>
+      </td>
+
+      {/* FEEDBACK */}
+      <td className="py-4 px-5 text-center">
+        <span className="text-sm text-[var(--text-primary)]">0</span>
+      </td>
+
+      {/* STATUS */}
+      <td className="py-4 px-5 text-right">
+        {isActive ? (
+          <Badge variant="success" size="sm">Active</Badge>
+        ) : (
+          <Badge variant="default" size="sm">Inactive</Badge>
+        )}
+      </td>
+    </tr>
   );
 }
 
 export function AgentList() {
   const { agents, isLoading, totalCount } = useAgents();
   const [searchQuery, setSearchQuery] = React.useState("");
-
   const filteredAgents = React.useMemo(() => {
     if (!searchQuery) return agents;
     const query = searchQuery.toLowerCase();
@@ -139,35 +134,32 @@ export function AgentList() {
         <div className="sm:max-w-xs">
           <div className="h-10 rounded-[var(--radius-md)] bg-[var(--bg-tertiary)] animate-pulse" />
         </div>
-        <div className="space-y-3">
-          {[1, 2, 3].map((i) => (
-            <Card key={i} padding="none" className="p-5">
-              <div className="flex items-start gap-4 animate-pulse">
-                <div className="h-10 w-10 rounded-[var(--radius-lg)] bg-[var(--bg-tertiary)]" />
-                <div className="flex-1 space-y-2">
-                  <div className="h-4 w-1/3 rounded bg-[var(--bg-tertiary)]" />
-                  <div className="h-3 w-2/3 rounded bg-[var(--bg-tertiary)]" />
-                </div>
-              </div>
-            </Card>
-          ))}
-        </div>
+        <Card padding="none">
+          <div className="space-y-0" role="status" aria-busy="true" aria-label="Loading agents">
+            {[1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="h-[72px] border-b border-[var(--border-default)] last:border-b-0 animate-pulse bg-[var(--bg-tertiary)]"
+              />
+            ))}
+          </div>
+        </Card>
       </div>
     );
   }
 
   if (agents.length === 0) {
-    return null; // Let the parent show the empty state
+    return null;
   }
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <Input
-          placeholder="Search by name..."
+          placeholder="Search by name, address, skill..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="sm:max-w-xl"
+          className="w-80"
           aria-label="Search agents"
           leftIcon={
             <svg
@@ -191,16 +183,45 @@ export function AgentList() {
             : `${filteredAgents.length} / ${totalCount}`}
         </span>
       </div>
+
       {filteredAgents.length === 0 ? (
         <div className="text-center py-12 text-[var(--text-tertiary)]">
           <p className="text-sm">No agents found matching your search</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {filteredAgents.map((agent) => (
-            <AgentCard key={agent.agentId.toString()} agent={agent} />
-          ))}
-        </div>
+        <Card padding="none" className="overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full table-fixed">
+              <thead>
+                <tr className="border-b border-[var(--border-default)] bg-[var(--bg-secondary)]">
+                  <th className="py-3 px-5 text-left text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider w-[40%]">
+                    Agent
+                  </th>
+                  <th className="py-3 px-5 text-left text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider w-[10%]">
+                    Chain
+                  </th>
+                  <th className="py-3 px-5 text-left text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider w-[14%]">
+                    Owner
+                  </th>
+                  <th className="py-3 px-5 text-left text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider w-[14%]">
+                    Reputation
+                  </th>
+                  <th className="py-3 px-5 text-center text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider w-[11%]">
+                    Feedback
+                  </th>
+                  <th className="py-3 px-5 text-right text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider w-[11%]">
+                    Status
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredAgents.map((agent) => (
+                  <AgentRow key={agent.agentId.toString()} agent={agent} />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
       )}
     </div>
   );
