@@ -44,10 +44,28 @@ const DelegatesIcon = () => (
   </svg>
 );
 
+const AgentsIcon = () => (
+  <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M12 2a1 1 0 0 1 1 1v1h-2V3a1 1 0 0 1 1-1Z"
+    />
+    <rect x="4" y="4" width="16" height="12" rx="3" fill="none" />
+    <circle cx="9" cy="10" r="1.5" fill="currentColor" stroke="none" />
+    <circle cx="15" cy="10" r="1.5" fill="currentColor" stroke="none" />
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M2 10h2M20 10h2M9 16l-2 4M15 16l2 4"
+    />
+  </svg>
+);
 
 const primaryNavItems = [
   { href: "/proposals", label: "Proposals", icon: <ProposalsIcon /> },
   { href: "/delegates", label: "Delegates", icon: <DelegatesIcon /> },
+  { href: "/agents", label: "Agents", icon: <AgentsIcon /> },
 ];
 
 const moreDropdownChildren = [
@@ -122,6 +140,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
               {item.label}
             </NavigationItem>
           ))}
+          {/* TODO: Re-enable More dropdown when ready
           <NavigationDropdownItem
             label="More"
             active={moreDropdownChildren.some(
@@ -132,6 +151,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
           >
             {moreDropdownChildren}
           </NavigationDropdownItem>
+          */}
         </NavigationItems>
 
         <NavigationActions>
@@ -149,11 +169,13 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
         onClose={() => setMobileNavOpen(false)}
         items={[
           ...primaryNavItems,
+          /* TODO: Re-enable More section when ready
           {
             href: "#",
             label: "More",
             children: moreDropdownChildren,
           },
+          */
         ]}
         currentPath={pathname}
         logo={
