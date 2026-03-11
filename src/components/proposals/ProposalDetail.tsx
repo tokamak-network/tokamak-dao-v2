@@ -54,7 +54,7 @@ export interface ProposalDetailProps {
 
 export function ProposalDetail({ className, proposal, onVoteSuccess }: ProposalDetailProps) {
   const { address, isConnected } = useAccount();
-  const { setIsExpanded, sendMessage, messages, setProposalContext } = useCompanion();
+  const { isExpanded, setIsExpanded, sendMessage, messages, setProposalContext } = useCompanion();
   const [isVotingModalOpen, setIsVotingModalOpen] = React.useState(false);
 
   // Inject proposal data into companion context
@@ -147,8 +147,8 @@ export function ProposalDetail({ className, proposal, onVoteSuccess }: ProposalD
           Back to Proposals
         </Link>
 
-        {/* Companion CTA — absolute so it doesn't affect layout */}
-        <button
+        {/* Companion CTA — absolute so it doesn't affect layout, hidden when panel is open */}
+        {!isExpanded && <button
           onClick={() => {
             setIsExpanded(true);
             if (messages.length === 0) {
@@ -167,7 +167,7 @@ export function ProposalDetail({ className, proposal, onVoteSuccess }: ProposalD
             </svg>
           </div>
           <CharacterAvatar size="lg" className="!w-16 !h-16 !border-[3px] flex-shrink-0" />
-        </button>
+        </button>}
       </div>
 
       {/* Header */}
