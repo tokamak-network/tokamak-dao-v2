@@ -66,14 +66,14 @@ export default function VTONIssuanceSimulatorPage() {
   return (
     <div className="space-y-8">
       {/* Page Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-[var(--text-primary)]">
+      <section className="py-4">
+        <h1 className="text-3xl sm:text-4xl font-bold text-[var(--text-primary)] mb-2">
           vTON Issuance Simulator
         </h1>
-        <p className="text-[var(--text-secondary)] mt-1">
+        <p className="text-base text-[var(--text-secondary)] max-w-lg">
           Explore vTON issuance mechanics with the halving schedule.
         </p>
-      </div>
+      </section>
 
       {/* Mint Simulator — uses live state, always instant */}
       <section>

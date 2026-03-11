@@ -31,14 +31,14 @@ function SecurityCouncilContent() {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-bold text-[var(--text-primary)]">
+      <section className="py-4">
+        <h1 className="text-3xl sm:text-4xl font-bold text-[var(--text-primary)] mb-2">
           Security Council
         </h1>
-        <p className="text-sm text-[var(--text-secondary)]">
+        <p className="text-base text-[var(--text-secondary)] max-w-lg">
           Emergency response multi-signature governance
         </p>
-      </div>
+      </section>
 
       {/* Stats Overview */}
       <section className="grid grid-cols-1 sm:grid-cols-3 gap-4">

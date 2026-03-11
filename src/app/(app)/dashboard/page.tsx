@@ -24,14 +24,14 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-bold text-[var(--text-primary)]">
+      <section className="py-4">
+        <h1 className="text-3xl sm:text-4xl font-bold text-[var(--text-primary)] mb-2">
           Dashboard
         </h1>
-        <p className="text-sm text-[var(--text-secondary)]">
+        <p className="text-base text-[var(--text-secondary)] max-w-lg">
           Overview of vTON DAO governance metrics and activity
         </p>
-      </div>
+      </section>
 
       {/* Key Metrics */}
       <section>

@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatVTON } from "@/lib/utils";
 import { useVTONBalance } from "@/hooks/contracts/useVTON";
@@ -20,86 +19,48 @@ export function MyDelegation() {
   // Loading state (waiting for hydration and connection restore)
   if (!isReady) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            My Delegation
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4 animate-pulse">
-            <div className="h-16 bg-[var(--bg-secondary)] rounded-lg" />
-            <div className="grid grid-cols-2 gap-4">
-              <div className="h-16 bg-[var(--bg-tertiary)] rounded-lg" />
-              <div className="h-16 bg-[var(--bg-tertiary)] rounded-lg" />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="flex items-center gap-3 px-4 py-3 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-secondary)] animate-pulse">
+        <div className="h-4 w-24 bg-[var(--bg-tertiary)] rounded" />
+        <div className="h-4 w-32 bg-[var(--bg-tertiary)] rounded" />
+      </div>
     );
   }
 
-  // Not connected state
+  // Not connected state - compact banner
   if (!isConnected || !address) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            My Delegation
-            <Badge variant="warning" size="sm">
-              Not Connected
-            </Badge>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center py-6 text-[var(--text-tertiary)]">
-            <p className="text-sm">Connect your wallet to view your delegation status</p>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="flex items-center gap-3 px-4 py-3 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-secondary)]">
+        <span className="text-sm font-medium text-[var(--text-primary)]">My Delegation</span>
+        <Badge variant="warning" size="sm">
+          Not Connected
+        </Badge>
+        <span className="text-sm text-[var(--text-tertiary)]">
+          Connect your wallet to view your delegation status
+        </span>
+      </div>
     );
   }
 
-  // Show balance and delegation info
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          My Delegation
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        {!isDeployed && (
-          <div className="text-center py-2 mb-4 text-[var(--text-tertiary)]">
-            <p className="text-xs">
-              Showing default values (contracts not deployed)
-            </p>
-          </div>
-        )}
-        <div className="space-y-4">
-          {/* Balance Info */}
-          <div className="p-4 bg-[var(--bg-secondary)] rounded-lg text-center">
-            <p className="text-xs text-[var(--text-tertiary)] mb-1">Your vTON Balance</p>
-            <p className="text-2xl font-bold text-[var(--text-primary)]">
-              {formatVTON(vtonBalance ?? BigInt(0))} vTON
-            </p>
-          </div>
+  // Show balance and delegation info - compact banner
+  const hasBalance = vtonBalance && vtonBalance > BigInt(0);
 
-          {/* Instructions */}
-          <div className="p-3 bg-[var(--bg-tertiary)] rounded-lg text-sm text-[var(--text-secondary)]">
-            {(!vtonBalance || vtonBalance === BigInt(0)) ? (
-              <p className="text-[var(--text-tertiary)]">
-                You have no vTON. Acquire vTON to delegate and participate in governance.
-              </p>
-            ) : (
-              <p>
-                vTON holders cannot vote directly. Select a delegate from the list below
-                to delegate your vTON and participate in governance.
-              </p>
-            )}
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-secondary)]">
+      <span className="text-sm font-medium text-[var(--text-primary)]">My Delegation</span>
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-[var(--text-tertiary)]">vTON Balance</span>
+        <span className="text-sm font-bold text-[var(--text-primary)]">
+          {formatVTON(vtonBalance ?? BigInt(0))} vTON
+        </span>
+      </div>
+      {!isDeployed && (
+        <span className="text-xs text-[var(--text-tertiary)]">(contracts not deployed)</span>
+      )}
+      <span className="text-xs text-[var(--text-tertiary)]">
+        {hasBalance
+          ? "Select a delegate below to delegate your vTON."
+          : "Acquire vTON to delegate and participate in governance."}
+      </span>
+    </div>
   );
 }

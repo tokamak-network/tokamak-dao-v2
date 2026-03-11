@@ -3,9 +3,11 @@
 import * as React from "react";
 import { useAccount } from "wagmi";
 import { useQueryClient } from "@tanstack/react-query";
-import { MyDelegation, DelegatesList, DelegateRegistrationModal } from "@/components/delegates";
+import { DelegatesList, DelegateRegistrationModal } from "@/components/delegates";
 import { Button } from "@/components/ui/button";
 import { useDelegateInfo } from "@/hooks/contracts/useDelegateRegistry";
+import { useVTONBalance } from "@/hooks/contracts/useVTON";
+import { formatVTON } from "@/lib/utils";
 
 /**
  * Delegates Page
@@ -25,6 +27,7 @@ export default function DelegatesPage() {
   const { address, isConnected } = useAccount();
   const queryClient = useQueryClient();
   const { data: delegateInfo, isLoading, refetch } = useDelegateInfo(address);
+  const { data: vtonBalance } = useVTONBalance(address);
   const [registrationModalOpen, setRegistrationModalOpen] = React.useState(false);
   const [mounted, setMounted] = React.useState(false);
 
@@ -39,17 +42,23 @@ export default function DelegatesPage() {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-bold text-[var(--text-primary)]">
+      <section className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 py-4">
+        <div className="flex-1">
+          <h1 className="text-3xl sm:text-4xl font-bold text-[var(--text-primary)] mb-2">
             Delegates
           </h1>
-          <p className="text-sm text-[var(--text-secondary)]">
+          <p className="text-base text-[var(--text-secondary)] max-w-lg">
             Delegate your vTON to participate in governance voting
           </p>
         </div>
         {ready && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[var(--bg-secondary)] border border-[var(--border-primary)]">
+              <span className="text-xs text-[var(--text-tertiary)]">vTON</span>
+              <span className="text-sm font-semibold text-[var(--text-primary)]">
+                {formatVTON(vtonBalance ?? BigInt(0))}
+              </span>
+            </div>
             <Button
               onClick={() => setRegistrationModalOpen(true)}
               loading={isLoading}
@@ -61,11 +70,6 @@ export default function DelegatesPage() {
             </Button>
           </div>
         )}
-      </div>
-
-      {/* My Delegation Status */}
-      <section>
-        <MyDelegation />
       </section>
 
       {/* All Delegates */}
