@@ -6,8 +6,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { DelegatesList, DelegateRegistrationModal } from "@/components/delegates";
 import { Button } from "@/components/ui/button";
 import { useDelegateInfo } from "@/hooks/contracts/useDelegateRegistry";
-import { useVTONBalance } from "@/hooks/contracts/useVTON";
-import { formatVTON } from "@/lib/utils";
 
 /**
  * Delegates Page
@@ -27,7 +25,6 @@ export default function DelegatesPage() {
   const { address, isConnected } = useAccount();
   const queryClient = useQueryClient();
   const { data: delegateInfo, isLoading, refetch } = useDelegateInfo(address);
-  const { data: vtonBalance } = useVTONBalance(address);
   const [registrationModalOpen, setRegistrationModalOpen] = React.useState(false);
   const [mounted, setMounted] = React.useState(false);
 
@@ -52,13 +49,7 @@ export default function DelegatesPage() {
           </p>
         </div>
         {ready && (
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[var(--bg-secondary)] border border-[var(--border-primary)]">
-              <span className="text-xs text-[var(--text-tertiary)]">vTON</span>
-              <span className="text-sm font-semibold text-[var(--text-primary)]">
-                {formatVTON(vtonBalance ?? BigInt(0))}
-              </span>
-            </div>
+          <div className="flex items-center gap-2">
             <Button
               onClick={() => setRegistrationModalOpen(true)}
               loading={isLoading}
