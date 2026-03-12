@@ -87,10 +87,10 @@ function AgentRow({ agent }: { agent: AgentListItem }) {
 
       {/* REPUTATION */}
       <td className="py-4 px-5">
-        <div className="flex items-center gap-1">
+        <div className="flex items-center justify-center gap-1">
           <span className="text-amber-400">&#9733;</span>
           <span className="text-sm font-semibold text-[var(--text-primary)]">0</span>
-          <span className="text-xs text-[var(--text-tertiary)]">/100</span>
+          <span className="text-sm text-[var(--text-tertiary)]">/100</span>
         </div>
       </td>
 
@@ -153,10 +153,6 @@ export function AgentList() {
     );
   }
 
-  if (agents.length === 0) {
-    return null;
-  }
-
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -189,45 +185,49 @@ export function AgentList() {
         </span>
       </div>
 
-      {filteredAgents.length === 0 ? (
-        <div className="text-center py-12 text-[var(--text-tertiary)]">
-          <p className="text-sm">No agents found matching your search</p>
-        </div>
-      ) : (
-        <Card padding="none" className="overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full table-fixed">
-              <thead>
-                <tr className="border-b border-[var(--border-default)] bg-[var(--bg-secondary)]">
-                  <th className="py-3 px-5 text-left text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider w-[40%]">
-                    Agent
-                  </th>
-                  <th className="py-3 px-5 text-left text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider w-[10%]">
-                    Chain
-                  </th>
-                  <th className="py-3 px-5 text-left text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider w-[14%]">
-                    Owner
-                  </th>
-                  <th className="py-3 px-5 text-left text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider w-[14%]">
-                    Reputation
-                  </th>
-                  <th className="py-3 px-5 text-center text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider w-[11%]">
-                    Feedback
-                  </th>
-                  <th className="py-3 px-5 text-right text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider w-[11%]">
-                    Status
-                  </th>
+      <Card padding="none" className="overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full table-fixed">
+            <thead>
+              <tr className="border-b border-[var(--border-default)] bg-[var(--bg-secondary)]">
+                <th className="py-3 px-5 text-left text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider w-[40%]">
+                  Agent
+                </th>
+                <th className="py-3 px-5 text-left text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider w-[10%]">
+                  Chain
+                </th>
+                <th className="py-3 px-5 text-left text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider w-[14%]">
+                  Owner
+                </th>
+                <th className="py-3 px-5 text-center text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider w-[14%]">
+                  Reputation
+                </th>
+                <th className="py-3 px-5 text-center text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider w-[11%]">
+                  Feedback
+                </th>
+                <th className="py-3 px-5 text-right text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider w-[11%]">
+                  Status
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredAgents.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center text-sm text-[var(--text-tertiary)]">
+                    {agents.length === 0
+                      ? "No agents registered yet"
+                      : "No agents found matching your search"}
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {filteredAgents.map((agent) => (
+              ) : (
+                filteredAgents.map((agent) => (
                   <AgentRow key={agent.agentId.toString()} agent={agent} />
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      )}
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Card>
     </div>
   );
 }
