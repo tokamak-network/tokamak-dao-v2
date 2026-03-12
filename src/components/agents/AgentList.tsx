@@ -5,7 +5,6 @@ import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { AddressAvatar } from "@/components/ui/avatar";
 import { useAgents, type AgentListItem } from "@/hooks/contracts/useAgentRegistry";
 import { SEPOLIA_CHAIN_ID } from "@/constants/erc8004";
 
@@ -43,16 +42,12 @@ function AgentRow({ agent }: { agent: AgentListItem }) {
           href={`/agents/${agent.agentId.toString()}`}
           className="flex items-center gap-3 min-w-0"
         >
-          {meta?.image ? (
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img
-              src={resolveImage(meta.image)}
-              alt=""
-              className="h-10 w-10 rounded-[var(--radius-lg)] object-cover bg-[var(--surface-secondary)] shrink-0"
-            />
-          ) : (
-            <AddressAvatar address={agent.owner} size="md" />
-          )}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={meta?.image ? resolveImage(meta.image) : `https://api.dicebear.com/9.x/bottts/svg?seed=${agent.owner.toLowerCase()}`}
+            alt=""
+            className="h-10 w-10 rounded-[var(--radius-lg)] object-cover bg-[var(--surface-secondary)] shrink-0"
+          />
           <div className="min-w-0">
             <span className="text-sm font-semibold text-[var(--text-primary)] truncate block">
               {name}

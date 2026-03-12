@@ -1,12 +1,14 @@
 "use client";
 
-import { use, useEffect, useMemo, useState } from "react";
+import { use, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useReadContracts } from "wagmi";
+import { useAccount, useReadContracts } from "wagmi";
 import { identityRegistryAbi, getRegistryAddress, SEPOLIA_CHAIN_ID } from "@/constants/erc8004";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { AddressAvatar } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Modal, ModalBody, ModalFooter } from "@/components/ui/modal";
 import type { AgentMetadata } from "@/types/agent";
 
 const CHAIN_ID = SEPOLIA_CHAIN_ID;
@@ -71,12 +73,7 @@ function BackLink() {
 
 // ─── Tabs ────────────────────────────────────────────────
 
-const TABS = [
-  { id: "overview" as const, label: "Overview" },
-  { id: "capabilities" as const, label: "Capabilities" },
-];
-
-type TabId = "overview" | "capabilities";
+type TabId = "overview" | "capabilities" | "settings";
 
 // ─── Page ────────────────────────────────────────────────
 
@@ -87,7 +84,18 @@ export default function AgentDetailPage({
 }) {
   const { id } = use(params);
   const agentId = BigInt(id);
+  const { address } = useAccount();
   const [tab, setTab] = useState<TabId>("overview");
+  const [telegramConnected, setTelegramConnected] = useState(false);
+
+  const refreshTelegram = useCallback(() => {
+    fetch(`/api/agents?agentId=${id}`)
+      .then((res) => res.json())
+      .then((data) => setTelegramConnected(!!data.telegramConnected))
+      .catch(() => {});
+  }, [id]);
+
+  useEffect(() => { refreshTelegram(); }, [refreshTelegram]);
 
   const { data: results, isLoading } = useReadContracts({
     contracts: [
@@ -155,6 +163,17 @@ export default function AgentDetailPage({
     return [...new Set(p)];
   }, [meta]);
 
+  const isOwner = !!(address && owner && address.toLowerCase() === owner.toLowerCase());
+
+  const tabs = useMemo(() => {
+    const base: { id: TabId; label: string }[] = [
+      { id: "overview", label: "Overview" },
+      { id: "capabilities", label: "Capabilities" },
+    ];
+    if (isOwner) base.push({ id: "settings", label: "Settings" });
+    return base;
+  }, [isOwner]);
+
   const explorerBase = "https://sepolia.etherscan.io";
 
   // Loading
@@ -196,16 +215,12 @@ export default function AgentDetailPage({
 
       {/* ═══ Header ═══ */}
       <div className="flex items-start gap-6">
-        {meta?.image ? (
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img
-            src={resolveImage(meta.image)}
-            alt={name}
-            className="h-20 w-20 rounded-[var(--radius-xl)] object-cover bg-[var(--surface-secondary)]"
-          />
-        ) : (
-          <AddressAvatar address={owner} size="2xl" />
-        )}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={meta?.image ? resolveImage(meta.image) : `https://api.dicebear.com/9.x/bottts/svg?seed=${owner.toLowerCase()}`}
+          alt={name}
+          className="h-20 w-20 rounded-[var(--radius-xl)] object-cover bg-[var(--surface-secondary)]"
+        />
 
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -221,6 +236,9 @@ export default function AgentDetailPage({
             {protocols.map((p) => (
               <Badge key={p} variant="primary" size="sm">{p}</Badge>
             ))}
+            {telegramConnected && (
+              <Badge variant="info" size="sm">Telegram</Badge>
+            )}
           </div>
           <p className="mt-2 text-[var(--text-secondary)]">
             {meta?.description || "No description available"}
@@ -231,7 +249,7 @@ export default function AgentDetailPage({
       {/* ═══ Tabs ═══ */}
       <div className="border-b border-[var(--border-primary)]">
         <nav className="flex gap-6">
-          {TABS.map((t) => (
+          {tabs.map((t) => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
@@ -434,6 +452,378 @@ export default function AgentDetailPage({
           </Section>
         </div>
       )}
+
+      {/* ═══ Settings Tab (owner only) ═══ */}
+      {tab === "settings" && isOwner && (
+        <div className="space-y-6">
+          <TelegramSettings agentId={id} owner={owner} connected={telegramConnected} onSaved={refreshTelegram} />
+        </div>
+      )}
     </div>
+  );
+}
+
+// ─── Telegram Settings ──────────────────────────────────
+
+function TelegramSettings({
+  agentId,
+  owner,
+  connected,
+  onSaved,
+}: {
+  agentId: string;
+  owner: string;
+  connected: boolean;
+  onSaved: () => void;
+}) {
+  const [token, setToken] = useState("");
+  const [showToken, setShowToken] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [verifyResult, setVerifyResult] = useState<{ ok: boolean; botName?: string; error?: string } | null>(null);
+  const [saveResult, setSaveResult] = useState<{ ok: boolean; error?: string } | null>(null);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; chatTitle?: string; error?: string } | null>(null);
+  const [showGuide, setShowGuide] = useState(false);
+
+  const handleVerify = async () => {
+    if (!token.trim()) return;
+    setVerifying(true);
+    setVerifyResult(null);
+    try {
+      const res = await fetch("/api/agents/telegram/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
+      });
+      setVerifyResult(await res.json());
+    } catch {
+      setVerifyResult({ ok: false, error: "Network error" });
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    setSaveResult(null);
+    try {
+      const res = await fetch("/api/agents", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ agentId, owner, telegramBotToken: token }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setToken("");
+        setVerifyResult(null);
+        setSaveResult({ ok: true });
+        onSaved();
+      } else {
+        setSaveResult({ ok: false, error: data.error || "Failed to save" });
+      }
+    } catch {
+      setSaveResult({ ok: false, error: "Network error" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleTest = async () => {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const res = await fetch("/api/agents/telegram/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ agentId }),
+      });
+      setTestResult(await res.json());
+    } catch {
+      setTestResult({ ok: false, error: "Network error" });
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const [showChangeToken, setShowChangeToken] = useState(false);
+
+  return (
+    <Section title="Telegram Integration">
+      <div className="space-y-4">
+        {connected ? (
+          <>
+            <div className="rounded-[var(--radius-md)] bg-[var(--status-success-bg)] px-3 py-2 text-sm text-[var(--status-success-fg)]">
+              Telegram bot is connected
+            </div>
+
+            <div className="flex items-center gap-3">
+              <Button
+                variant="secondary"
+                onClick={handleTest}
+                disabled={testing}
+              >
+                {testing ? "Sending..." : "Send Test Message"}
+              </Button>
+              <button
+                type="button"
+                onClick={() => setShowChangeToken(!showChangeToken)}
+                className="text-sm text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] transition-colors"
+              >
+                {showChangeToken ? "Cancel" : "Change Bot Token"}
+              </button>
+            </div>
+
+            {testResult && (
+              <div className={`rounded-[var(--radius-md)] px-3 py-2 text-xs ${
+                testResult.ok
+                  ? "bg-[var(--status-success-bg)] text-[var(--status-success-fg)]"
+                  : "bg-[var(--status-error-bg)] text-[var(--status-error-fg)]"
+              }`}>
+                {testResult.ok
+                  ? `Test message sent to "${testResult.chatTitle}"`
+                  : testResult.error || "Failed to send test message"}
+              </div>
+            )}
+
+            {showChangeToken && (
+              <div className="space-y-3 rounded-[var(--radius-lg)] border border-[var(--border-primary)] p-4">
+                <div className="space-y-2">
+                  <label className="mb-1 block text-xs text-[var(--text-tertiary)]">New Bot Token</label>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <Input
+                        type={showToken ? "text" : "password"}
+                        value={token}
+                        onChange={(e) => {
+                          setToken(e.target.value);
+                          setVerifyResult(null);
+                        }}
+                        placeholder="123456789:ABCdefGHI..."
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowToken(!showToken)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
+                      >
+                        {showToken ? "Hide" : "Show"}
+                      </button>
+                    </div>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={handleVerify}
+                      disabled={!token.trim() || verifying}
+                    >
+                      {verifying ? "Verifying..." : "Verify"}
+                    </Button>
+                  </div>
+
+                  {verifyResult && (
+                    <div className={`rounded-[var(--radius-md)] px-3 py-2 text-xs ${
+                      verifyResult.ok
+                        ? "bg-[var(--status-success-bg)] text-[var(--status-success-fg)]"
+                        : "bg-[var(--status-error-bg)] text-[var(--status-error-fg)]"
+                    }`}>
+                      {verifyResult.ok
+                        ? `Verified: @${verifyResult.botName}`
+                        : verifyResult.error || "Verification failed"}
+                    </div>
+                  )}
+                </div>
+
+                <Button
+                  onClick={handleSave}
+                  disabled={!verifyResult?.ok || saving}
+                >
+                  {saving ? "Saving..." : "Update Bot Token"}
+                </Button>
+
+                {saveResult && (
+                  <div className={`rounded-[var(--radius-md)] px-3 py-2 text-xs ${
+                    saveResult.ok
+                      ? "bg-[var(--status-success-bg)] text-[var(--status-success-fg)]"
+                      : "bg-[var(--status-error-bg)] text-[var(--status-error-fg)]"
+                  }`}>
+                    {saveResult.ok
+                      ? "Bot token saved successfully"
+                      : saveResult.error || "Failed to save"}
+                  </div>
+                )}
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            <p className="text-sm text-[var(--text-tertiary)]">
+              Connect a Telegram bot to enable community engagement through Telegram.
+            </p>
+
+            <button
+              type="button"
+              onClick={() => setShowGuide(true)}
+              className="flex items-center gap-2 text-sm text-[var(--text-brand)] hover:underline"
+            >
+              <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              How to create a Telegram Bot
+            </button>
+
+            <Modal
+              open={showGuide}
+              onClose={() => setShowGuide(false)}
+              title="How to Create a Telegram Bot"
+              description="Follow these steps to create a bot and connect it to your DAO agent."
+              size="md"
+            >
+              <ModalBody className="space-y-5">
+                {[
+                  {
+                    step: 1,
+                    title: "Open BotFather",
+                    content: (
+                      <>
+                        Open Telegram and search for{" "}
+                        <a
+                          href="https://t.me/BotFather"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-mono text-[var(--text-brand)] hover:underline"
+                        >
+                          @BotFather
+                        </a>
+                        . This is the official Telegram bot for creating and managing bots.
+                      </>
+                    ),
+                  },
+                  {
+                    step: 2,
+                    title: "Create a new bot",
+                    content: (
+                      <>
+                        Send the command{" "}
+                        <code className="px-1.5 py-0.5 rounded bg-[var(--bg-tertiary)] text-[var(--text-secondary)] text-xs">/newbot</code>{" "}
+                        to BotFather. It will ask you to choose a display name (e.g. &quot;Tokamak DAO Agent&quot;) and a
+                        username ending in <code className="px-1.5 py-0.5 rounded bg-[var(--bg-tertiary)] text-[var(--text-secondary)] text-xs">_bot</code>{" "}
+                        (e.g. &quot;tokamak_dao_bot&quot;).
+                      </>
+                    ),
+                  },
+                  {
+                    step: 3,
+                    title: "Copy the bot token",
+                    content: (
+                      <>
+                        BotFather will send you a token that looks like{" "}
+                        <code className="px-1.5 py-0.5 rounded bg-[var(--bg-tertiary)] text-[var(--text-secondary)] text-xs break-all">
+                          123456789:ABCdefGHIjklMNO...
+                        </code>
+                        . Copy this token and paste it in the Bot Token field below.
+                      </>
+                    ),
+                  },
+                  {
+                    step: 4,
+                    title: "Start a chat with your bot",
+                    content: (
+                      <>
+                        Find your new bot on Telegram and send{" "}
+                        <code className="px-1.5 py-0.5 rounded bg-[var(--bg-tertiary)] text-[var(--text-secondary)] text-xs">/start</code>
+                        . This is required so the bot knows where to send notifications. You can also add the bot to a group chat.
+                      </>
+                    ),
+                  },
+                  {
+                    step: 5,
+                    title: "Verify & send a test message",
+                    content:
+                      "After saving the token, click \"Send Test Message\" to confirm everything is connected. You should receive a message from your bot in Telegram.",
+                  },
+                ].map(({ step, title: stepTitle, content }) => (
+                  <div key={step} className="flex gap-3">
+                    <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-[var(--accent-primary)] text-xs font-bold text-white">
+                      {step}
+                    </div>
+                    <div className="space-y-1 pt-0.5">
+                      <p className="text-sm font-medium text-[var(--text-primary)]">{stepTitle}</p>
+                      <p className="text-sm text-[var(--text-secondary)] leading-relaxed">{content}</p>
+                    </div>
+                  </div>
+                ))}
+              </ModalBody>
+              <ModalFooter>
+                <Button variant="secondary" size="sm" onClick={() => setShowGuide(false)}>
+                  Close
+                </Button>
+              </ModalFooter>
+            </Modal>
+
+            <div className="space-y-2">
+              <label className="mb-1 block text-xs text-[var(--text-tertiary)]">Bot Token</label>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Input
+                    type={showToken ? "text" : "password"}
+                    value={token}
+                    onChange={(e) => {
+                      setToken(e.target.value);
+                      setVerifyResult(null);
+                    }}
+                    placeholder="123456789:ABCdefGHI..."
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowToken(!showToken)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
+                  >
+                    {showToken ? "Hide" : "Show"}
+                  </button>
+                </div>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleVerify}
+                  disabled={!token.trim() || verifying}
+                >
+                  {verifying ? "Verifying..." : "Verify"}
+                </Button>
+              </div>
+
+              {verifyResult && (
+                <div className={`rounded-[var(--radius-md)] px-3 py-2 text-xs ${
+                  verifyResult.ok
+                    ? "bg-[var(--status-success-bg)] text-[var(--status-success-fg)]"
+                    : "bg-[var(--status-error-bg)] text-[var(--status-error-fg)]"
+                }`}>
+                  {verifyResult.ok
+                    ? `Verified: @${verifyResult.botName}`
+                    : verifyResult.error || "Verification failed"}
+                </div>
+              )}
+            </div>
+
+            <Button
+              onClick={handleSave}
+              disabled={!verifyResult?.ok || saving}
+            >
+              {saving ? "Saving..." : "Save Bot Token"}
+            </Button>
+
+            {saveResult && (
+              <div className={`rounded-[var(--radius-md)] px-3 py-2 text-xs ${
+                saveResult.ok
+                  ? "bg-[var(--status-success-bg)] text-[var(--status-success-fg)]"
+                  : "bg-[var(--status-error-bg)] text-[var(--status-error-fg)]"
+              }`}>
+                {saveResult.ok
+                  ? "Bot token saved successfully"
+                  : saveResult.error || "Failed to save"}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </Section>
   );
 }

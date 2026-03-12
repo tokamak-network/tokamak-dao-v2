@@ -136,12 +136,17 @@ function SkillChip({ label, selected, onClick }: { label: string; selected: bool
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-[var(--radius-lg)] border px-3 py-1.5 text-sm transition ${
+      className={`inline-flex items-center gap-1.5 rounded-[var(--radius-lg)] border px-3 py-1.5 text-sm transition ${
         selected
           ? "border-[var(--color-primary-500)] bg-[var(--color-primary-500)]/10 text-[var(--text-brand)]"
-          : "border-[var(--border-primary)] text-[var(--text-secondary)] hover:border-[var(--border-secondary)]"
+          : "border-[var(--border-secondary)] text-[var(--text-secondary)] hover:border-[var(--color-primary-400)] hover:bg-[var(--color-primary-500)]/5"
       }`}
     >
+      {selected && (
+        <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+        </svg>
+      )}
       {label}
     </button>
   );
@@ -327,9 +332,16 @@ function Step3({ form, setForm }: { form: FormData; setForm: (f: FormData) => vo
     <div className="space-y-8">
       {/* Agent Skills (OASF) */}
       <div className="rounded-[var(--radius-xl)] border border-[var(--border-primary)] bg-[var(--surface-secondary)] p-5">
-        <h3 className="text-base font-semibold text-[var(--text-primary)] mb-1">
-          Agent Skills (OASF)
-        </h3>
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="text-base font-semibold text-[var(--text-primary)]">
+            Agent Skills (OASF)
+          </h3>
+          {(form.skills.length + form.customSkills.length) > 0 && (
+            <span className="rounded-full bg-[var(--color-primary-500)]/10 px-2.5 py-0.5 text-xs font-medium text-[var(--text-brand)]">
+              {form.skills.length + form.customSkills.length} selected
+            </span>
+          )}
+        </div>
         <p className="mb-4 text-sm text-[var(--text-secondary)]">
           Select the capabilities your agent provides. Skills are mapped to OASF v0.8.0 taxonomy.
         </p>
@@ -343,23 +355,29 @@ function Step3({ form, setForm }: { form: FormData; setForm: (f: FormData) => vo
         </div>
 
         <div className="space-y-4">
-          {filteredSkills.map((cat) => (
-            <div key={cat.category}>
-              <p className="mb-2 text-xs font-medium tracking-wider text-[var(--text-tertiary)]">
-                {cat.category}
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {cat.items.map((skill) => (
-                  <SkillChip
-                    key={skill}
-                    label={skill}
-                    selected={form.skills.includes(skill)}
-                    onClick={() => toggleSkill(skill)}
-                  />
-                ))}
+          {filteredSkills.length > 0 ? (
+            filteredSkills.map((cat) => (
+              <div key={cat.category}>
+                <p className="mb-2 text-xs font-medium uppercase tracking-wider text-[var(--text-tertiary)]">
+                  {cat.category}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {cat.items.map((skill) => (
+                    <SkillChip
+                      key={skill}
+                      label={skill}
+                      selected={form.skills.includes(skill)}
+                      onClick={() => toggleSkill(skill)}
+                    />
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            ))
+          ) : (
+            <p className="py-3 text-center text-sm text-[var(--text-tertiary)]">
+              No skills matching &ldquo;{skillSearch}&rdquo;
+            </p>
+          )}
         </div>
 
         {/* Custom Skills */}
@@ -372,10 +390,10 @@ function Step3({ form, setForm }: { form: FormData; setForm: (f: FormData) => vo
               onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addCustomSkill())}
               placeholder="Add custom skill..."
             />
-            <Button variant="secondary" onClick={addCustomSkill} size="sm">+</Button>
+            <Button variant="secondary" onClick={addCustomSkill} size="sm">Add</Button>
           </div>
           <p className="mt-1 text-xs text-[var(--text-tertiary)]">
-            Custom skills will be prefixed with &quot;custom/&quot; in OASF format
+            Saved as <span className="font-mono">custom/</span> prefix in OASF format
           </p>
           {form.customSkills.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-2">
@@ -397,9 +415,16 @@ function Step3({ form, setForm }: { form: FormData; setForm: (f: FormData) => vo
 
       {/* Application Domains (OASF) */}
       <div className="rounded-[var(--radius-xl)] border border-[var(--border-primary)] bg-[var(--surface-secondary)] p-5">
-        <h3 className="text-base font-semibold text-[var(--text-primary)] mb-1">
-          Application Domains (OASF)
-        </h3>
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="text-base font-semibold text-[var(--text-primary)]">
+            Application Domains (OASF)
+          </h3>
+          {(form.domains.length + form.customDomains.length) > 0 && (
+            <span className="rounded-full bg-[var(--color-primary-500)]/10 px-2.5 py-0.5 text-xs font-medium text-[var(--text-brand)]">
+              {form.domains.length + form.customDomains.length} selected
+            </span>
+          )}
+        </div>
         <p className="mb-4 text-sm text-[var(--text-secondary)]">
           Choose the industries or areas where your agent operates. Domains are mapped to OASF v0.8.0 taxonomy.
         </p>
@@ -413,23 +438,29 @@ function Step3({ form, setForm }: { form: FormData; setForm: (f: FormData) => vo
         </div>
 
         <div className="space-y-4">
-          {filteredDomains.map((cat) => (
-            <div key={cat.category}>
-              <p className="mb-2 text-xs font-medium tracking-wider text-[var(--text-tertiary)]">
-                {cat.category}
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {cat.items.map((domain) => (
-                  <SkillChip
-                    key={domain}
-                    label={domain}
-                    selected={form.domains.includes(domain)}
-                    onClick={() => toggleDomain(domain)}
-                  />
-                ))}
+          {filteredDomains.length > 0 ? (
+            filteredDomains.map((cat) => (
+              <div key={cat.category}>
+                <p className="mb-2 text-xs font-medium uppercase tracking-wider text-[var(--text-tertiary)]">
+                  {cat.category}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {cat.items.map((domain) => (
+                    <SkillChip
+                      key={domain}
+                      label={domain}
+                      selected={form.domains.includes(domain)}
+                      onClick={() => toggleDomain(domain)}
+                    />
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            ))
+          ) : (
+            <p className="py-3 text-center text-sm text-[var(--text-tertiary)]">
+              No domains matching &ldquo;{domainSearch}&rdquo;
+            </p>
+          )}
         </div>
 
         {/* Custom Domains */}
@@ -442,10 +473,10 @@ function Step3({ form, setForm }: { form: FormData; setForm: (f: FormData) => vo
               onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addCustomDomain())}
               placeholder="Add custom domain..."
             />
-            <Button variant="secondary" onClick={addCustomDomain} size="sm">+</Button>
+            <Button variant="secondary" onClick={addCustomDomain} size="sm">Add</Button>
           </div>
           <p className="mt-1 text-xs text-[var(--text-tertiary)]">
-            Custom domains will be prefixed with &quot;custom/&quot; in OASF format
+            Saved as <span className="font-mono">custom/</span> prefix in OASF format
           </p>
           {form.customDomains.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-2">
@@ -607,9 +638,11 @@ function Step4({ form, setForm }: { form: FormData; setForm: (f: FormData) => vo
           <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="agent@example.com" />
         </div>
       </div>
+
     </div>
   );
 }
+
 
 // ─── Step 5: Storage ─────────────────────────────────────
 
@@ -781,7 +814,7 @@ function Step6({ form, metadata, walletAddress }: {
   walletAddress?: string;
 }) {
   const filledServices = form.services.filter((s) => s.endpoint);
-  const previewUrl = form.image || (walletAddress ? `https://api.dicebear.com/9.x/bottts/svg?seed=${walletAddress}` : undefined);
+  const previewUrl = form.image || (walletAddress ? `https://api.dicebear.com/9.x/bottts/svg?seed=${walletAddress.toLowerCase()}` : undefined);
   const allSkills = [...form.skills, ...form.customSkills.map((s) => `custom/${s}`)];
   const allDomains = [...form.domains, ...form.customDomains.map((d) => `custom/${d}`)];
 
@@ -947,7 +980,7 @@ export function AgentRegisterForm() {
   const metadata = buildAgentMetadata({
     name: form.name || "Unnamed Agent",
     description: form.description || "No description",
-    image: form.image || undefined,
+    image: form.image || (address ? `https://api.dicebear.com/9.x/bottts/svg?seed=${address.toLowerCase()}` : undefined),
     services: form.services
       .filter((s) => s.endpoint)
       .map((s) => ({

@@ -355,6 +355,19 @@ export function CreateProposalForm({ className }: CreateProposalFormProps) {
 
       if (logs.length > 0 && logs[0].args.proposalId) {
         const proposalId = logs[0].args.proposalId.toString();
+
+        // Fire-and-forget: notify Telegram agents
+        fetch("/api/agents/telegram/notify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            proposalId,
+            title,
+            proposer: address,
+            origin: window.location.origin,
+          }),
+        }).catch(() => {});
+
         router.push(`/proposals/${proposalId}`);
       } else {
         router.push("/proposals");
