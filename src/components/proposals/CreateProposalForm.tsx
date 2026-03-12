@@ -8,7 +8,6 @@ import { useAccount, useChainId, usePublicClient } from "wagmi";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input, Textarea, Label, HelperText } from "@/components/ui/input";
 import { cn, formatVTON } from "@/lib/utils";
 import { usePropose, useGovernanceParams } from "@/hooks/contracts/useDAOGovernor";

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   useAccount,
@@ -1173,7 +1174,7 @@ export function AgentRegisterForm() {
             </p>
           </div>
           <Button asChild>
-            <a href="/delegates">Go to Delegates</a>
+            <Link href="/delegates">Go to Delegates</Link>
           </Button>
         </CardContent>
       </Card>
