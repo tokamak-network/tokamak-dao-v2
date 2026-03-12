@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo, useCallback } from "react";
-import { useReadContract, useReadContracts } from "wagmi";
+import { useReadContracts } from "wagmi";
 import { agentSupabase } from "@/lib/agent-supabase";
 import { identityRegistryAbi, getRegistryAddress, SEPOLIA_CHAIN_ID } from "@/constants/erc8004";
 import type { AgentMetadata } from "@/types/agent";
@@ -10,7 +10,8 @@ const CHAIN_ID = SEPOLIA_CHAIN_ID;
 const registryAddress = getRegistryAddress(CHAIN_ID);
 
 /**
- * Parse agentURI (data URI or plain JSON) into AgentMetadata
+ * Parse agentURI (data URI or plain JSON) into AgentMetadata synchronously.
+ * Returns null for IPFS URIs (use resolveAgentURI for those).
  */
 function parseAgentURI(uri: string): AgentMetadata | null {
   try {
@@ -22,11 +23,37 @@ function parseAgentURI(uri: string): AgentMetadata | null {
     if (uri.startsWith("{")) {
       return JSON.parse(uri);
     }
-    // IPFS URIs — metadata can't be resolved client-side without a gateway
     return null;
   } catch {
     return null;
   }
+}
+
+function resolveIpfsUrl(uri: string): string {
+  if (uri.startsWith("ipfs://")) return `https://ipfs.io/ipfs/${uri.slice(7)}`;
+  return uri;
+}
+
+/**
+ * Resolve agentURI to AgentMetadata, fetching from IPFS gateway if needed.
+ */
+async function resolveAgentURI(uri: string): Promise<AgentMetadata | null> {
+  // Try synchronous parsing first (data URI / plain JSON)
+  const sync = parseAgentURI(uri);
+  if (sync) return sync;
+
+  // Fetch from IPFS gateway
+  if (uri.startsWith("ipfs://")) {
+    try {
+      const res = await fetch(resolveIpfsUrl(uri));
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
 }
 
 export interface AgentListItem {
@@ -85,22 +112,58 @@ export function useAgents() {
     query: { enabled: rows.length > 0 },
   });
 
-  // 3. Combine Supabase rows + on-chain metadata
-  const agents = useMemo<AgentListItem[]>(() => {
-    if (rows.length === 0) return [];
+  // 3. Resolve metadata (sync for data URIs, async for IPFS)
+  const [agents, setAgents] = useState<AgentListItem[]>([]);
+  const [isResolvingMeta, setIsResolvingMeta] = useState(false);
 
-    return rows.map((row, i) => {
-      const uriResult = uriResults?.[i];
-      const agentURI = uriResult?.status === "success" ? (uriResult.result as string) : "";
-      const metadata = agentURI ? parseAgentURI(agentURI) : null;
+  useEffect(() => {
+    if (rows.length === 0 || !uriResults) {
+      setAgents([]);
+      return;
+    }
 
-      return {
-        agentId: BigInt(row.agent_id),
-        owner: row.owner,
-        agentURI,
-        metadata,
-      };
+    let cancelled = false;
+
+    const uris = rows.map((_, i) => {
+      const r = uriResults[i];
+      return r?.status === "success" ? (r.result as string) : "";
     });
+
+    // Check if any URI needs async resolution (IPFS)
+    const needsAsync = uris.some((u) => u.startsWith("ipfs://"));
+
+    if (!needsAsync) {
+      // All can be resolved synchronously
+      setAgents(
+        rows.map((row, i) => ({
+          agentId: BigInt(row.agent_id),
+          owner: row.owner,
+          agentURI: uris[i],
+          metadata: uris[i] ? parseAgentURI(uris[i]) : null,
+        }))
+      );
+      return;
+    }
+
+    // Resolve IPFS URIs asynchronously
+    setIsResolvingMeta(true);
+    Promise.all(uris.map((u) => (u ? resolveAgentURI(u) : Promise.resolve(null))))
+      .then((metadataList) => {
+        if (cancelled) return;
+        setAgents(
+          rows.map((row, i) => ({
+            agentId: BigInt(row.agent_id),
+            owner: row.owner,
+            agentURI: uris[i],
+            metadata: metadataList[i],
+          }))
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setIsResolvingMeta(false);
+      });
+
+    return () => { cancelled = true; };
   }, [rows, uriResults]);
 
   const refetch = useCallback(() => {
@@ -110,7 +173,7 @@ export function useAgents() {
   return {
     agents,
     totalCount: rows.length,
-    isLoading: isLoadingRows || (rows.length > 0 && isLoadingURIs),
+    isLoading: isLoadingRows || (rows.length > 0 && isLoadingURIs) || isResolvingMeta,
     refetch,
   };
 }

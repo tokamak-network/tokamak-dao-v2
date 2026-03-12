@@ -13,6 +13,11 @@ function truncateAddress(addr: string) {
   return `${addr.slice(0, 6)}\u2026${addr.slice(-4)}`;
 }
 
+function resolveImage(url: string) {
+  if (url.startsWith("ipfs://")) return `https://ipfs.io/ipfs/${url.slice(7)}`;
+  return url;
+}
+
 function getChainName(chainId?: number): string {
   switch (chainId) {
     case SEPOLIA_CHAIN_ID:
@@ -41,7 +46,7 @@ function AgentRow({ agent }: { agent: AgentListItem }) {
           {meta?.image ? (
             /* eslint-disable-next-line @next/next/no-img-element */
             <img
-              src={meta.image}
+              src={resolveImage(meta.image)}
               alt=""
               className="h-10 w-10 rounded-[var(--radius-lg)] object-cover bg-[var(--surface-secondary)] shrink-0"
             />

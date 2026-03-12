@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useMemo, useState } from "react";
+import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useReadContracts } from "wagmi";
 import { identityRegistryAbi, getRegistryAddress, SEPOLIA_CHAIN_ID } from "@/constants/erc8004";
@@ -110,7 +110,24 @@ export default function AgentDetailPage({
 
   const owner = results?.[0]?.status === "success" ? (results[0].result as string) : null;
   const agentURI = results?.[1]?.status === "success" ? (results[1].result as string) : null;
-  const meta = useMemo(() => (agentURI ? parseAgentURI(agentURI) : null), [agentURI]);
+  // Resolve metadata: sync for data URIs, async fetch for IPFS
+  const syncMeta = useMemo(() => (agentURI ? parseAgentURI(agentURI) : null), [agentURI]);
+  const [ipfsMeta, setIpfsMeta] = useState<AgentMetadata | null>(null);
+
+  useEffect(() => {
+    if (!agentURI || !agentURI.startsWith("ipfs://")) {
+      setIpfsMeta(null);
+      return;
+    }
+    let cancelled = false;
+    fetch(resolveImage(agentURI))
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => { if (!cancelled) setIpfsMeta(data); })
+      .catch(() => { if (!cancelled) setIpfsMeta(null); });
+    return () => { cancelled = true; };
+  }, [agentURI]);
+
+  const meta = syncMeta ?? ipfsMeta;
 
   const name = meta?.name || `Agent #${id}`;
 
