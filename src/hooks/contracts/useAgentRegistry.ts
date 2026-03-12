@@ -179,32 +179,20 @@ export function useAgents() {
 }
 
 /**
- * Check if an address already owns an agent (ERC-721 balanceOf > 0).
- * Also fetches the agent ID from Supabase for navigation.
+ * Check if an address already owns an agent via Supabase DB.
  * Used to enforce the 1-delegate-1-agent constraint.
  */
 export function useHasAgent(address?: `0x${string}`) {
   const [agentId, setAgentId] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [fetchKey, setFetchKey] = useState(0);
 
-  const result = useReadContract({
-    address: registryAddress,
-    abi: identityRegistryAbi,
-    functionName: "balanceOf",
-    args: address ? [address] : undefined,
-    chainId: CHAIN_ID,
-    query: {
-      enabled: !!address,
-    },
-  });
-
-  const hasAgent = typeof result.data === "bigint" ? result.data > 0n : false;
-
-  // Fetch agent ID from Supabase when we know the address has an agent
   useEffect(() => {
-    if (!address || !hasAgent) {
+    if (!address) {
       setAgentId(null);
       return;
     }
+    setIsLoading(true);
     agentSupabase
       .from("agents")
       .select("agent_id")
@@ -214,13 +202,18 @@ export function useHasAgent(address?: `0x${string}`) {
       .limit(1)
       .then(({ data }) => {
         setAgentId(data?.[0]?.agent_id ?? null);
+        setIsLoading(false);
       });
-  }, [address, hasAgent]);
+  }, [address, fetchKey]);
+
+  const refetch = useCallback(() => {
+    setFetchKey((k) => k + 1);
+  }, []);
 
   return {
-    hasAgent,
+    hasAgent: agentId !== null,
     agentId,
-    isLoading: result.isLoading,
-    refetch: result.refetch,
+    isLoading,
+    refetch,
   };
 }
