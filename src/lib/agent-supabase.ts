@@ -18,6 +18,6 @@ function getAgentSupabase(): SupabaseClient {
 
 export const agentSupabase = new Proxy({} as SupabaseClient, {
   get(_target, prop) {
-    return (getAgentSupabase() as Record<string | symbol, unknown>)[prop];
+    return (getAgentSupabase() as unknown as Record<string | symbol, unknown>)[prop];
   },
 });
