@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tokamak DAO Architecture Visualization (V1 vs V2)</title>
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({ startOnLoad: true, theme: 'default', securityLevel: 'loose' });
+  </script>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; background:#f7f8fb; color:#111; }
+    header { padding: 20px 24px; background:#111827; color:#fff; }
+    header h1 { margin:0; font-size:20px; }
+    header p { margin:6px 0 0; opacity:.9; font-size:13px; }
+    .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+    .tabs { display:flex; gap:8px; margin-bottom:16px; }
+    .tab-btn { border:1px solid #d1d5db; background:#fff; border-radius:8px; padding:8px 12px; cursor:pointer; font-weight:600; }
+    .tab-btn.active { background:#111827; color:#fff; border-color:#111827; }
+    .panel { display:none; }
+    .panel.active { display:block; }
+    .card { background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:16px; margin-bottom:16px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+    .card h2 { margin:0 0 10px; font-size:18px; }
+    .note { font-size:13px; color:#4b5563; line-height:1.5; }
+    .mermaid { overflow:auto; }
+    code { background:#f3f4f6; padding:2px 6px; border-radius:6px; }
+  </style>
+</head>
+<body>
+<header>
+  <h1>Tokamak DAO 계약 아키텍처 시각화</h1>
+  <p>V1(기존) vs V2(목표) 구조 비교 페이지</p>
+</header>
+
+<div class="container">
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="v1">V1 아키텍처</button>
+    <button class="tab-btn" data-tab="v2">V2 아키텍처</button>
+    <button class="tab-btn" data-tab="compare">비교 포인트</button>
+  </div>
+
+  <section id="v1" class="panel active">
+    <div class="card">
+      <h2>V1 Contract Topology</h2>
+      <div class="mermaid">
+flowchart LR
+  U[Users / Operators] --> P1[DAOCommitteeProxy]
+  P1 --> P2[DAOCommitteeProxy2\nselector router]
+  P2 --> IA[Implementation A\nDAOCommittee_V1]
+  P2 --> IB[Implementation B\nDAOCommitteeOwner]
+
+  IA --> AM[DAOAgendaManager]
+  IA --> DV[DAOVault]
+  IA --> CF[CandidateFactory]
+  CF --> C[Candidate Contracts xN]
+  C --> IA
+
+  IA --> L2R[Layer2Registry]
+  IA --> SM[SeigManager]
+
+  subgraph V1-Risk Focus
+    S1[Storage layout consistency\nProxy + Impl + AddOn]
+    S2[Selector routing correctness]
+    S3[Owner/Admin control path]
+  end
+
+  P2 -.-> S2
+  P1 -.-> S1
+  IA -.-> S3
+      </div>
+      <p class="note">핵심: Proxy → Proxy2 → Impl 구조, selector 라우팅 및 storage 정합성 관리가 중요.</p>
+    </div>
+
+    <div class="card">
+      <h2>V1 Governance Flow (요약)</h2>
+      <div class="mermaid">
+sequenceDiagram
+  participant Proposer
+  participant Gov as DAOCommittee
+  participant Agenda as DAOAgendaManager
+  participant Exec as Target Contracts
+
+  Proposer->>Gov: onApprove / createAgenda
+  Gov->>Agenda: newAgenda()
+  Note over Agenda: NOTICE -> VOTING
+  Gov->>Agenda: castVote()
+  Note over Agenda: ACCEPT / REJECT / DISMISS
+  Gov->>Exec: executeAgenda() if ACCEPT
+      </div>
+    </div>
+  </section>
+
+  <section id="v2" class="panel">
+    <div class="card">
+      <h2>V2 Contract Topology</h2>
+      <div class="mermaid">
+flowchart LR
+  Token[vTON] --> DR[DelegateRegistry]
+  DR --> GOV[DAOGovernor]
+  GOV --> TL[Timelock]
+  SC[SecurityCouncil\nVeto + Pause only] --> GOV
+  SC -.no direct cancel.-> TL
+
+  GOV --> P[Proposal Lifecycle]
+  TL --> EX[Execution Targets]
+
+  subgraph Governance Safety
+    G1[Self-defense restriction\n(SC cannot veto proposals targeting itself)]
+    G2[SC validity window 12m\n+ permissionless expiry]
+    G3[Burn removed in voting path\n(spec 0.1.4 alignment)]
+  end
+
+  GOV -.-> G1
+  SC -.-> G2
+  GOV -.-> G3
+      </div>
+      <p class="note">핵심: non-upgradeable + Timelock 중심, SC 권한 최소화(Veto/Pause), 만료 메커니즘 포함.</p>
+    </div>
+
+    <div class="card">
+      <h2>V2 Proposal Lifecycle</h2>
+      <div class="mermaid">
+stateDiagram-v2
+  [*] --> Pending
+  Pending --> Active
+  Active --> Defeated
+  Active --> Succeeded
+  Succeeded --> Queued
+  Queued --> Executed
+  Queued --> Expired
+  Pending --> Canceled
+  Active --> Canceled
+  Succeeded --> Canceled
+  Queued --> Canceled
+      </div>
+    </div>
+  </section>
+
+  <section id="compare" class="panel">
+    <div class="card">
+      <h2>V1 ↔ V2 비교 핵심</h2>
+      <ul class="note">
+        <li><b>구조:</b> V1은 Proxy 중심 라우팅 복잡도, V2는 Governor + Timelock 중심 단순화</li>
+        <li><b>보안:</b> V2는 SC 권한을 Veto/Pause로 제한하고 만료를 온체인에서 강제</li>
+        <li><b>거버넌스:</b> V2는 delegation 기반 투표 흐름 명확화, spec 0.1.4 기준 burn 제거 정합</li>
+        <li><b>마이그레이션 리스크:</b> V1의 상태 이관 정확도(members/candidates/agenda 상태) + 권한 이관(Timelock 귀속)이 핵심</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>권장 사용법</h2>
+      <p class="note">
+        이 파일은 <code>docs/architecture-visualization.html</code> 단일 페이지입니다.<br/>
+        브라우저에서 바로 열거나, 정적 호스팅(GitHub Pages 등)에 올려 팀 리뷰 자료로 사용하세요.
+      </p>
+    </div>
+  </section>
+</div>
+
+<script>
+  const buttons = document.querySelectorAll('.tab-btn');
+  const panels = document.querySelectorAll('.panel');
+  buttons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      buttons.forEach(b => b.classList.remove('active'));
+      panels.forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById(btn.dataset.tab).classList.add('active');
+    });
+  });
+</script>
+</body>
+</html>
