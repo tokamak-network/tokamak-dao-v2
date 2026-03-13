@@ -90,6 +90,28 @@ contract SecurityCouncilTest is Test {
         assertFalse(members[1].isFoundation);
     }
 
+    function test_ExpireCouncilPermissionless() public {
+        vm.warp(block.timestamp + 366 days);
+
+        address anyone = makeAddr("anyone");
+        vm.prank(anyone);
+        council.expireCouncil();
+
+        assertTrue(council.expired());
+        assertTrue(council.isExpired());
+    }
+
+    function test_ExpiredCouncilCannotPauseProtocol() public {
+        vm.warp(block.timestamp + 366 days);
+
+        vm.prank(makeAddr("anyone"));
+        council.expireCouncil();
+
+        vm.prank(foundationMember);
+        vm.expectRevert(SecurityCouncil.CouncilIsExpired.selector);
+        council.pauseProtocol("too late");
+    }
+
     /*//////////////////////////////////////////////////////////////
                          EMERGENCY ACTIONS
     //////////////////////////////////////////////////////////////*/

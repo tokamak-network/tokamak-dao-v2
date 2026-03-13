@@ -48,7 +48,7 @@ interface IDAOGovernor {
         uint256 abstainVotes;
         bool canceled;
         bool executed;
-        uint16 burnRate; // basis points (0-10000 = 0-100%)
+        uint16 burnRate; // deprecated in spec 0.1.4 (must be 0)
         uint256 totalDelegatedAtSnapshot; // snapshot of total delegated for quorum calculation
         uint256 snapshotQuorum; // quorum at proposal creation (basis points)
         uint256 snapshotPassRate; // passRate at proposal creation (basis points)
@@ -68,7 +68,7 @@ interface IDAOGovernor {
         uint16 burnRate
     );
 
-    /// @notice Emitted when vTON is burned during voting
+    /// @notice Deprecated in spec 0.1.4 (vote burn removed)
     event VoteBurn(address indexed voter, uint256 indexed proposalId, uint256 burnAmount);
 
     /// @notice Emitted when a vote is cast
@@ -148,7 +148,7 @@ interface IDAOGovernor {
     /// @param values ETH values for calls
     /// @param calldatas Calldata for each call
     /// @param description Human-readable description
-    /// @param burnRate Burn rate in basis points (0-10000 = 0-100%)
+    /// @param burnRate Deprecated in spec 0.1.4; must be 0
     /// @return proposalId The unique proposal ID
     /// @dev Requires burning proposalCreationCost TON
     function propose(

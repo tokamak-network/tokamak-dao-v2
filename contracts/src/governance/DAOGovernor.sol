@@ -49,6 +49,7 @@ contract DAOGovernor is IDAOGovernor, Ownable, Pausable, ReentrancyGuard {
     error InsufficientTON();
     error InsufficientVTON();
     error InvalidPassRate();
+    error SelfDefenseRestricted();
 
     /*//////////////////////////////////////////////////////////////
                                 CONSTANTS
@@ -221,7 +222,8 @@ contract DAOGovernor is IDAOGovernor, Ownable, Pausable, ReentrancyGuard {
         if (targets.length != values.length || targets.length != calldatas.length) {
             revert ArrayLengthMismatch();
         }
-        if (burnRate > MAX_BURN_RATE) revert InvalidBurnRate();
+        // 0.1.4 spec: proposer-configurable vote burn is removed; only 0 is allowed.
+        if (burnRate != 0) revert InvalidBurnRate();
 
         // Check vTON balance + delegated threshold
         if (proposalThreshold > 0) {
@@ -258,7 +260,7 @@ contract DAOGovernor is IDAOGovernor, Ownable, Pausable, ReentrancyGuard {
         proposal.snapshotBlock = snapshot;
         proposal.voteStart = voteStart;
         proposal.voteEnd = voteEnd;
-        proposal.burnRate = burnRate;
+        proposal.burnRate = 0;
         proposal.totalDelegatedAtSnapshot = delegateRegistry.totalDelegatedAll();
         proposal.snapshotQuorum = quorum;
         proposal.snapshotPassRate = passRate;
@@ -276,7 +278,7 @@ contract DAOGovernor is IDAOGovernor, Ownable, Pausable, ReentrancyGuard {
             snapshot,
             voteStart,
             voteEnd,
-            burnRate
+            0
         );
     }
 
@@ -370,6 +372,14 @@ contract DAOGovernor is IDAOGovernor, Ownable, Pausable, ReentrancyGuard {
             // Guardian cannot cancel final states (Defeated, Expired)
             if (currentState == ProposalState.Defeated || currentState == ProposalState.Expired) {
                 revert IDAOGovernor.InvalidProposalState();
+            }
+
+            // 0.1.4 spec self-defense restriction:
+            // guardian cannot cancel proposals that target itself.
+            for (uint256 i = 0; i < proposal.targets.length; i++) {
+                if (proposal.targets[i] == msg.sender) {
+                    revert SelfDefenseRestricted();
+                }
             }
         }
 
@@ -644,15 +654,6 @@ contract DAOGovernor is IDAOGovernor, Ownable, Pausable, ReentrancyGuard {
         }
 
         emit VoteCast(msg.sender, proposalId, support, weight, reason);
-
-        // Burn vTON if burn rate is set
-        if (proposal.burnRate > 0 && weight > 0) {
-            uint256 burnAmount = (weight * proposal.burnRate) / BASIS_POINTS;
-            if (burnAmount > 0) {
-                delegateRegistry.burnFromDelegate(msg.sender, burnAmount);
-                emit VoteBurn(msg.sender, proposalId, burnAmount);
-            }
-        }
     }
 
     /// @notice Receive ETH for proposal execution
