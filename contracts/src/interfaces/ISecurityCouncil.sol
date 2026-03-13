@@ -71,6 +71,12 @@ interface ISecurityCouncil {
     /// @notice Emitted when the protocol target address is updated
     event ProtocolTargetUpdated(address oldTarget, address newTarget);
 
+    /// @notice Emitted when council validity is renewed
+    event CouncilValidityRenewed(uint256 oldValidUntil, uint256 newValidUntil);
+
+    /// @notice Emitted when council is expired (permissionless trigger)
+    event CouncilExpired(address indexed caller, uint256 timestamp);
+
     /// @notice Add a new council member
     /// @param member The member address
     /// @param isFoundation Whether this is a foundation member
@@ -152,4 +158,20 @@ interface ISecurityCouncil {
     /// @param actionId The action ID
     /// @return True if threshold is met
     function isActionApproved(uint256 actionId) external view returns (bool);
+
+    /// @notice Security Council validity end timestamp
+    function validUntil() external view returns (uint256);
+
+    /// @notice Explicit expiration flag
+    function expired() external view returns (bool);
+
+    /// @notice True if council is effectively expired (explicitly or by time)
+    function isExpired() external view returns (bool);
+
+    /// @notice Permissionless expiry trigger after validUntil
+    function expireCouncil() external;
+
+    /// @notice DAO-governed validity renewal
+    /// @param newValidUntil new validity end timestamp (must be future)
+    function renewCouncilValidity(uint256 newValidUntil) external;
 }
