@@ -269,8 +269,11 @@ contract DeploySepoliaScript is Script {
     function run() public {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerPrivateKey);
+        address governanceAdmin = vm.envOr("GOVERNANCE_ADMIN", deployer);
+        bool enableTestParams = vm.envOr("ENABLE_TEST_PARAMS", false);
 
         console.log("Deployer:", deployer);
+        console.log("Governance Admin:", governanceAdmin);
         console.log("Chain ID:", block.chainid);
 
         vm.startBroadcast(deployerPrivateKey);
@@ -333,12 +336,37 @@ contract DeploySepoliaScript is Script {
         vton.setMinter(deployer, true);
         vton.setMinter(address(faucet), true);
 
-        // === Test parameters for team testing ===
-        governor.setVotingDelay(0);             // Immediate voting start
-        governor.setVotingPeriod(100);          // ~20 min voting (100 blocks × 12s)
-        governor.setGracePeriod(1 hours);       // 1 hour execution grace
-        // quorum, proposalThreshold, proposalCreationCost: keep defaults (faucet available)
-        console.log("Test parameters set: votingDelay=0, votingPeriod=100(~20min)");
+        // 13. Ownership/Admin hardening
+        // Governor/Registry ownership -> Timelock (DAO-controlled)
+        governor.transferOwnership(address(timelock));
+        delegateRegistry.transferOwnership(address(timelock));
+
+        // vTON is Ownable2Step: set pending owner to Timelock (must be accepted by Timelock flow)
+        vton.transferOwnership(address(timelock));
+
+        // Timelock admin -> governance admin (multisig recommended)
+        if (governanceAdmin != deployer) {
+            timelock.setPendingAdmin(governanceAdmin);
+            console.log("Timelock pendingAdmin set:", governanceAdmin);
+        }
+
+        // Optional local testing shortcuts (disabled by default on Sepolia)
+        if (enableTestParams) {
+            governor.setVotingDelay(0);             // Immediate voting start
+            governor.setVotingPeriod(100);          // ~20 min voting
+            governor.setGracePeriod(1 hours);       // 1 hour execution grace
+            console.log("[WARN] Test parameters enabled on deployment");
+        }
+
+
+        // 14. Post-deploy access checks
+        console.log("Owner checks:");
+        console.log("  Governor.owner:", governor.owner());
+        console.log("  DelegateRegistry.owner:", delegateRegistry.owner());
+        console.log("  vTON.owner:", vton.owner());
+        console.log("  vTON.pendingOwner:", vton.pendingOwner());
+        console.log("  Timelock.admin:", timelock.admin());
+        console.log("  Timelock.pendingAdmin:", timelock.pendingAdmin());
 
         vm.stopBroadcast();
 
