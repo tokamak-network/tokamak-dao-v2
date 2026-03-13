@@ -6,7 +6,10 @@
   <title>Tokamak DAO Architecture Visualization (V1 vs V2)</title>
   <script type="module">
     import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
-    mermaid.initialize({ startOnLoad: true, theme: 'default', securityLevel: 'loose' });
+    mermaid.initialize({ startOnLoad: false, theme: 'default', securityLevel: 'loose' });
+    // Render visible panel first, then re-render on tab switch
+    await mermaid.run({ querySelector: '.panel.active .mermaid' });
+    window.__mermaid = mermaid;
   </script>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; background:#f7f8fb; color:#111; }
@@ -44,49 +47,74 @@
       <h2>V1 Contract Topology</h2>
       <div class="mermaid">
 flowchart LR
-  U[Users / Operators] --> P1[DAOCommitteeProxy]
-  P1 --> P2[DAOCommitteeProxy2\nselector router]
-  P2 --> IA[Implementation A\nDAOCommittee_V1]
-  P2 --> IB[Implementation B\nDAOCommitteeOwner]
+  U["Users / Operators"] -->|"TON.approveAndCall"| TONTK["TON Token"]
+  TONTK -->|"onApprove"| P1["DAOCommitteeProxy\nstorage holder\nslots 0-25"]
+  ADMIN["Admin\nGnosis Safe 2/3 Multisig"] -.->|"pauseProxy\nupgradeTo"| P1
+  P1 --> P2["DAOCommitteeProxy2\nselector router"]
+  P2 -->|"default"| IA["Implementation A\nDAOCommittee_V1"]
+  P2 -->|"4 selectors"| IB["Implementation B\nDAOCommitteeOwner\nsetQuorum\nsetActivityRewardPerSecond\nincreaseMaxMember\ndecreaseMaxMember"]
 
-  IA --> AM[DAOAgendaManager]
-  IA --> DV[DAOVault]
-  IA --> CF[CandidateFactory]
-  CF --> C[Candidate Contracts xN]
-  C --> IA
+  IA --> AM["DAOAgendaManager"]
+  IA --> DV["DAOVault\nTON/WTON custody"]
+  IA --> CFP["CandidateFactoryProxy"]
+  CFP --> CF["CandidateFactory"]
+  CF --> C["Candidate Proxy xN\n1 operator = 1 proxy"]
+  C -->|"castVote"| P1
 
-  IA --> L2R[Layer2Registry]
-  IA --> SM[SeigManager]
+  IA --> L2R["Layer2Registry"]
+  IA --> SM["SeigManager"]
 
-  subgraph V1-Risk Focus
-    S1[Storage layout consistency\nProxy + Impl + AddOn]
-    S2[Selector routing correctness]
-    S3[Owner/Admin control path]
+  subgraph Risk ["V1 Risk Focus"]
+    S1["Storage layout\nslots 0-25"]
+    S2["Selector routing\ncorrectness"]
+    S3["Admin control path"]
   end
 
   P2 -.-> S2
   P1 -.-> S1
-  IA -.-> S3
+  ADMIN -.-> S3
       </div>
-      <p class="note">핵심: Proxy → Proxy2 → Impl 구조, selector 라우팅 및 storage 정합성 관리가 중요.</p>
+      <p class="note">
+        핵심: Proxy → Proxy2 → Impl 2단계 delegatecall 구조. Storage는 DAOCommitteeProxy의 slots 0-25에 보유.<br/>
+        Admin(Gnosis Safe 2/3 Multisig)이 pauseProxy, upgradeTo 권한 보유.<br/>
+        Candidate Proxy는 castVote 시 DAOCommitteeProxy(P1)를 경유하여 Proxy2 → Impl A로 delegatecall.<br/>
+        Impl B는 4개 함수만 처리: setQuorum, setActivityRewardPerSecond, increaseMaxMember, decreaseMaxMember.
+      </p>
     </div>
 
     <div class="card">
-      <h2>V1 Governance Flow (요약)</h2>
+      <h2>V1 Governance Flow</h2>
       <div class="mermaid">
 sequenceDiagram
   participant Proposer
-  participant Gov as DAOCommittee
+  participant TON as TON Token
+  participant Gov as DAOCommitteeProxy
   participant Agenda as DAOAgendaManager
+  participant Cand as Candidate xN
   participant Exec as Target Contracts
 
-  Proposer->>Gov: onApprove / createAgenda
-  Gov->>Agenda: newAgenda()
-  Note over Agenda: NOTICE -> VOTING
-  Gov->>Agenda: castVote()
-  Note over Agenda: ACCEPT / REJECT / DISMISS
-  Gov->>Exec: executeAgenda() if ACCEPT
+  Proposer->>TON: approveAndCall with 10 TON
+  TON->>Gov: onApprove callback
+  Gov->>Gov: 10 TON burn to address 1
+  Gov->>Agenda: newAgenda
+  Note over Agenda: NOTICE state - 16 day minimum
+
+  Note over Cand,Agenda: VOTING state - min 2 days
+  Cand->>Gov: castVote via Proxy (1 operator = 1 vote)
+  Gov->>Agenda: record vote
+  Note over Agenda: 1st vote snapshots current members
+
+  Note over Agenda: Quorum: YES >= 2 of 3 members
+  Note over Agenda: WAITING_EXEC or REJECT or DISMISS
+
+  Note over Gov,Exec: Execution window: 7 days
+  Gov->>Exec: executeAgenda - atomic or non-atomic
+  Note over Agenda: EXPIRED if not executed within 7 days
       </div>
+      <p class="note">
+        각 L2 Operator는 개별 Candidate Proxy를 통해 투표 (1인 1표).<br/>
+        Admin(Gnosis Safe Multisig)이 pauseProxy, 구현체 업그레이드 권한 보유.
+      </p>
     </div>
   </section>
 
@@ -95,55 +123,226 @@ sequenceDiagram
       <h2>V2 Contract Topology</h2>
       <div class="mermaid">
 flowchart LR
-  Token[vTON] --> DR[DelegateRegistry]
-  DR --> GOV[DAOGovernor]
-  GOV --> TL[Timelock]
-  SC[SecurityCouncil\nVeto + Pause only] --> GOV
-  SC -.->|no direct cancel| TL
-
-  GOV --> P[Proposal Lifecycle]
-  TL --> EX[Execution Targets]
-
-  subgraph Governance Safety
-    G1[Self-defense restriction\n(SC cannot veto proposals targeting itself)]
-    G2[SC validity window 12m\n+ permissionless expiry]
-    G3[Burn removed in voting path\n(spec 0.1.4 alignment)]
+  subgraph Token Layer
+    TON["TON\nexternal ERC20"]
+    vTON["vTON\nERC20Votes + Halving\nMax 100M / Epoch 5M"]
+    TON -->|"10 TON burn to 0xdead\nproposal cost"| GOV
   end
 
-  GOV -.-> G1
-  SC -.-> G2
-  GOV -.-> G3
+  subgraph Delegation Layer
+    DR["DelegateRegistry\nOwnable + ReentrancyGuard"]
+    Holders["vTON Holders"] -->|"delegate / undelegate\nredelegate"| DR
+    DEL["Registered Delegates"] -->|"register / update\ndeactivate / reactivate"| DR
+  end
+
+  vTON -->|"custody transfer"| DR
+
+  subgraph Governance Layer
+    GOV["DAOGovernor\nOwnable + Pausable + ReentrancyGuard"]
+    DR -->|"getVotingPower\nisRegisteredDelegate"| GOV
+    DEL -->|"castVote\ncastVoteWithReason"| GOV
+  end
+
+  subgraph Execution Layer
+    TL["Timelock\nReentrancyGuard\ndelay 7-30d / grace 14d"]
+    GOV -->|"queue / execute\ncancelTransaction"| TL
+    TL -->|"call target"| EX["Execution Targets\nvTON / DR / GOV / SC / ..."]
+  end
+
+  subgraph Emergency Layer
+    SC["SecurityCouncil\nMultisig 2/3 threshold\n12m validity + expiry"]
+    SC -->|"cancelProposal"| GOV
+    SC -->|"pause / unpause"| GOV
+  end
+
+  EX -.->|"addMember / removeMember\nrenewCouncilValidity"| SC
       </div>
-      <p class="note">핵심: non-upgradeable + Timelock 중심, SC 권한 최소화(Veto/Pause), 만료 메커니즘 포함.</p>
+      <p class="note">
+        핵심: non-upgradeable 구조. TON은 기존 외부 ERC20 토큰 (V2 자체 컨트랙트 아님).<br/>
+        vTON Holder는 직접 투표 불가 (vTON.delegate() 호출 시 UseDelegateRegistry 에러) — DelegateRegistry를 통해 Delegate에게 위임 후 Delegate가 투표.<br/>
+        Timelock이 모든 실행을 중개하며, SecurityCouncil은 Veto/Pause 전용 권한만 보유. SC 멤버 변경은 DAO 거버넌스(Timelock)를 통해서만 가능.
+      </p>
+    </div>
+
+    <div class="card">
+      <h2>V2 Governance Flow</h2>
+      <div class="mermaid">
+sequenceDiagram
+  participant Holder as vTON Holder
+  participant DR as DelegateRegistry
+  participant Del as Delegate
+  participant Gov as DAOGovernor
+  participant TL as Timelock
+  participant SC as SecurityCouncil
+  participant Target as Target Contract
+
+  Note over Holder,DR: 사전 단계: 위임
+  Holder->>DR: delegate(delegate, amount)
+  DR->>DR: vTON custody transfer + record
+
+  Note over Del,Gov: 1. Proposal 생성
+  Del->>Gov: propose with 10 TON burn
+  Gov->>Gov: threshold check - 0.25 pct of vTON supply
+  Gov->>Gov: snapshot = block.number - maturityPeriod 50400 blocks
+
+  Note over Del,Gov: 2. Voting (votingDelay 1d 후 ~ votingPeriod 7d)
+  Del->>Gov: castVote(proposalId, support)
+  Gov->>DR: getVotingPower delegate snapshotBlock
+  DR-->>Gov: delegated vTON at snapshot
+  Gov->>Gov: record vote (For / Against / Abstain)
+
+  Note over Gov: 3. Result: quorum 4pct + passRate over 50pct = Succeeded
+
+  Note over Gov,TL: 4. Queue
+  Del->>Gov: queue(proposalId)
+  Gov->>TL: queueTransaction(target, value, data)
+  TL->>TL: eta = now + delay(7d)
+
+  Note over SC,Gov: ProposalGuardian can cancel non-final states
+  SC-->>Gov: cancel - requires 2/3 multisig approval
+
+  Note over Gov,Target: 5. Execute - after eta within 14d grace
+  Del->>Gov: execute(proposalId)
+  Gov->>TL: executeTransaction(target, value, data, eta)
+  TL->>Target: call(data)
+      </div>
     </div>
 
     <div class="card">
       <h2>V2 Proposal Lifecycle</h2>
       <div class="mermaid">
-stateDiagram-v2
-  [*] --> Pending
-  Pending --> Active
-  Active --> Defeated
-  Active --> Succeeded
-  Succeeded --> Queued
-  Queued --> Executed
-  Queued --> Expired
-  Pending --> Canceled
-  Active --> Canceled
-  Succeeded --> Canceled
-  Queued --> Canceled
+flowchart TD
+  S0(("Start")) --> Pending
+  Pending -->|"votingDelay 1d"| Active
+  Active -->|"quorum or passRate fail"| Defeated
+  Active -->|"quorum and passRate pass"| Succeeded
+  Succeeded -->|"queue"| Queued
+  Queued -->|"execute after eta"| Executed
+  Queued -->|"grace period over"| Expired
+
+  Pending -->|"proposer"| Canceled
+  Active -->|"proposer"| Canceled
+  Succeeded -->|"guardian"| Canceled
+  Queued -->|"guardian veto"| Canceled
       </div>
+      <p class="note">
+        votingDelay = 7,200 blocks (~1d), votingPeriod = 50,400 blocks (~7d), timelockDelay = 7 days, grace = 14 days.<br/>
+        ProposalGuardian은 SecurityCouncil과 별도 역할 — setProposalGuardian()으로 임의 주소 설정 가능 (SC 설정은 일반적이나 필수 아님).<br/>
+        ProposalGuardian에는 self-defense restriction 적용 (자기 자신을 대상으로 하는 프로포절은 취소 불가).
+      </p>
+    </div>
+
+    <div class="card">
+      <h2>V2 Roles &amp; Permissions</h2>
+      <div class="mermaid">
+flowchart TB
+  subgraph Gov ["DAO Governance"]
+    GOV_NODE["DAOGovernor\nOwner: Timelock"]
+    TL_NODE["Timelock\n2-step admin transfer"]
+  end
+
+  subgraph Tok ["Token"]
+    VTON_OWN["vTON Owner"] -->|"setMinter\nsetEmissionRatio"| VTON_CT["vTON Contract"]
+  end
+
+  subgraph Guardians ["Guardian Roles"]
+    PG_NODE["PauseGuardian"] -->|"pause\nunpause"| GOV_NODE
+    PROP_NODE["ProposalGuardian"] -->|"cancel non-final proposals\nself-defense restriction"| GOV_NODE
+  end
+
+  subgraph SCG ["Security Council"]
+    SC_MEM["SC Members\nthreshold: 2 of 3"] -->|"cancelProposal\npauseProtocol\nunpauseProtocol"| SC_CT["SecurityCouncil\n12m validity"]
+  end
+
+  GOV_NODE -->|"setQuorum\nsetPassRate\nsetVotingDelay\nsetVotingPeriod\nsetMaturityPeriod\nsetProposalThreshold\nsetProposalCreationCost\nsetProposalGuardian\nsetPauseGuardian"| PARAMS["Governor Params\nowner-only"]
+  TL_NODE -->|"addMember\nremoveMember\nrenewValidity\nsetThreshold"| SC_CT
+  TL_NODE -->|"setDelay\nsetGovernor\nsetSecurityCouncil"| TL_NODE2["Timelock Params\nadmin-only"]
+      </div>
+      <p class="note">
+        모든 파라미터 변경은 DAOGovernor Owner(= Timelock)를 통해서만 가능.<br/>
+        ProposalGuardian과 SecurityCouncil은 별도 역할 — SC를 ProposalGuardian으로 설정 가능하나 필수는 아님.<br/>
+        Timelock Admin은 2-step transfer(setPendingAdmin → acceptAdmin)로 이전.<br/>
+        SC는 긴급 대응(Veto/Pause)만 가능하며, 12개월 후 permissionless하게 만료 가능.
+      </p>
     </div>
   </section>
 
   <section id="compare" class="panel">
+
     <div class="card">
-      <h2>V1 ↔ V2 비교 핵심</h2>
-      <ul class="note">
-        <li><b>구조:</b> V1은 Proxy 중심 라우팅 복잡도, V2는 Governor + Timelock 중심 단순화</li>
-        <li><b>보안:</b> V2는 SC 권한을 Veto/Pause로 제한하고 만료를 온체인에서 강제</li>
-        <li><b>거버넌스:</b> V2는 delegation 기반 투표 흐름 명확화, spec 0.1.4 기준 burn 제거 정합</li>
-        <li><b>마이그레이션 리스크:</b> V1의 상태 이관 정확도(members/candidates/agenda 상태) + 권한 이관(Timelock 귀속)이 핵심</li>
+      <h2>거버넌스 모델 비교</h2>
+      <table style="width:100%; border-collapse:collapse; font-size:13px;">
+        <thead><tr style="background:#f3f4f6;"><th style="padding:8px; text-align:left; border-bottom:2px solid #d1d5db;">항목</th><th style="padding:8px; text-align:left; border-bottom:2px solid #d1d5db;">V1</th><th style="padding:8px; text-align:left; border-bottom:2px solid #d1d5db;">V2</th></tr></thead>
+        <tbody>
+          <tr><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;"><b>거버넌스 모델</b></td><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;">위원회 기반 (3인, 1인 1표)</td><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;">위임 기반 (무제한 delegate, vTON 가중)</td></tr>
+          <tr><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;"><b>투표 토큰</b></td><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;">없음 (스테이킹 기반 자격)</td><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;">vTON (ERC20Votes + Halving)</td></tr>
+          <tr><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;"><b>투표 참여자</b></td><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;">L2 Operator (Candidate Proxy 경유)</td><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;">등록된 Delegate만 투표 가능</td></tr>
+          <tr><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;"><b>투표 가중치</b></td><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;">동등 (1인 1표)</td><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;">위임받은 vTON 비례</td></tr>
+          <tr><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;"><b>프로포절 비용</b></td><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;">10 TON (address(1)로 burn)</td><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;">10 TON (0xdead로 burn)</td></tr>
+          <tr><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;"><b>프로포절 생성 방식</b></td><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;">TON.approveAndCall → onApprove</td><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;">DAOGovernor.propose (직접 호출)</td></tr>
+          <tr><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;"><b>프로포절 자격</b></td><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;">10 TON 보유 누구나</td><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;">vTON 총 공급량의 0.25% 이상 투표권</td></tr>
+          <tr><td style="padding:6px 8px;"><b>투표 유형</b></td><td style="padding:6px 8px;">Yes / No / Abstain</td><td style="padding:6px 8px;">For / Against / Abstain (Abstain은 quorum만 기여)</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>거버넌스 타임라인 비교</h2>
+      <table style="width:100%; border-collapse:collapse; font-size:13px;">
+        <thead><tr style="background:#f3f4f6;"><th style="padding:8px; text-align:left; border-bottom:2px solid #d1d5db;">단계</th><th style="padding:8px; text-align:left; border-bottom:2px solid #d1d5db;">V1</th><th style="padding:8px; text-align:left; border-bottom:2px solid #d1d5db;">V2</th></tr></thead>
+        <tbody>
+          <tr><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;"><b>공지/대기 기간</b></td><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;">16일 (NOTICE state)</td><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;">1일 (7,200 blocks, votingDelay)</td></tr>
+          <tr><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;"><b>투표 기간</b></td><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;">2일 (172,800초, 가변)</td><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;">7일 (50,400 blocks)</td></tr>
+          <tr><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;"><b>Quorum</b></td><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;">2/3 멤버 (고정)</td><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;">총 위임 vTON의 4% (400bp)</td></tr>
+          <tr><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;"><b>통과 기준</b></td><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;">YES &ge; quorum</td><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;">FOR &gt; 50% (Abstain 제외, &gt; 이므로 동률시 부결)</td></tr>
+          <tr><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;"><b>Timelock</b></td><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;"><b>없음</b> (즉시 실행 가능)</td><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;">7일 (7-30일 범위 조정 가능)</td></tr>
+          <tr><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;"><b>실행 창</b></td><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;">7일 (WAITING_EXEC)</td><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;">14일 (grace period)</td></tr>
+          <tr><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;"><b>Maturity 기간</b></td><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;">없음</td><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;">7일 (50,400 blocks, flash loan 방어)</td></tr>
+          <tr><td style="padding:6px 8px;"><b>전체 소요 시간 (최단)</b></td><td style="padding:6px 8px;">~18일 (16+2)</td><td style="padding:6px 8px;">~15일 (1+7+7)</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>컨트랙트 구조 비교</h2>
+      <table style="width:100%; border-collapse:collapse; font-size:13px;">
+        <thead><tr style="background:#f3f4f6;"><th style="padding:8px; text-align:left; border-bottom:2px solid #d1d5db;">항목</th><th style="padding:8px; text-align:left; border-bottom:2px solid #d1d5db;">V1</th><th style="padding:8px; text-align:left; border-bottom:2px solid #d1d5db;">V2</th></tr></thead>
+        <tbody>
+          <tr><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;"><b>Proxy 패턴</b></td><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;">Custom 2단계 (Proxy → Proxy2 → Impl A/B)<br/>Non-EIP-1967, Storage slots 0-25</td><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;"><b>Non-upgradeable</b> (직접 배포)</td></tr>
+          <tr><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;"><b>핵심 컨트랙트</b></td><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;">DAOCommitteeProxy, Proxy2, DAOCommittee_V1, DAOCommitteeOwner, DAOAgendaManager, DAOVault, CandidateFactory</td><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;">vTON, DelegateRegistry, DAOGovernor, Timelock, SecurityCouncil</td></tr>
+          <tr><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;"><b>업그레이드 방식</b></td><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;">Admin이 _implementation 교체</td><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;">업그레이드 불가 (immutable)</td></tr>
+          <tr><td style="padding:6px 8px;"><b>실행 경로</b></td><td style="padding:6px 8px;">DAOCommitteeProxy → Target (직접)</td><td style="padding:6px 8px;">DAOGovernor → Timelock → Target (7일 지연)</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>보안 및 권한 비교</h2>
+      <table style="width:100%; border-collapse:collapse; font-size:13px;">
+        <thead><tr style="background:#f3f4f6;"><th style="padding:8px; text-align:left; border-bottom:2px solid #d1d5db;">항목</th><th style="padding:8px; text-align:left; border-bottom:2px solid #d1d5db;">V1</th><th style="padding:8px; text-align:left; border-bottom:2px solid #d1d5db;">V2</th></tr></thead>
+        <tbody>
+          <tr><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;"><b>관리자 권한</b></td><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;">Gnosis Safe 2/3 Multisig<br/>pauseProxy + 구현체 업그레이드 + 파라미터 변경</td><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;">Timelock (DAO 프로포절 통과 필수)<br/>모든 파라미터 변경은 7일 지연</td></tr>
+          <tr><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;"><b>긴급 대응</b></td><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;">Admin이 pauseProxy = true 설정</td><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;">SecurityCouncil (2/3 multisig)<br/>Veto + Pause만 가능, 임의 실행 불가</td></tr>
+          <tr><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;"><b>긴급 권한 만료</b></td><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;">만료 없음 (영구)</td><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;">12개월 후 자동 만료, permissionless expiry</td></tr>
+          <tr><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;"><b>Self-defense</b></td><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;">제한 없음</td><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;">ProposalGuardian은 자기 자신 대상 프로포절 취소 불가</td></tr>
+          <tr><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;"><b>Flash Loan 방어</b></td><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;">약함 (첫 투표 시 멤버 스냅샷)</td><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;">강함 (maturityPeriod 7일 + votingDelay 1일)</td></tr>
+          <tr><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;"><b>프로포절 필터</b></td><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;">onApprove에서 특정 selector 차단<br/>(claimTON, claimWTON, claimERC20)</td><td style="padding:6px 8px; border-bottom:1px solid #e5e7eb;">없음 (Timelock 지연으로 대체)</td></tr>
+          <tr><td style="padding:6px 8px;"><b>실행 방식</b></td><td style="padding:6px 8px;">atomic 또는 non-atomic (resumable)</td><td style="padding:6px 8px;">all-or-nothing (Timelock 경유)</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>마이그레이션 핵심 고려사항</h2>
+      <ul class="note" style="padding-left:20px;">
+        <li><b>진행 중 Agenda 처리:</b> V1에 NOTICE/VOTING/WAITING_EXEC 상태인 agenda가 있을 경우, V1에서 완료 후 전환하거나 V1 pause 후 마이그레이션 필요</li>
+        <li><b>DAOVault 소유권:</b> DAOCommitteeProxy → Timelock으로 treasury 관리 권한 이전</li>
+        <li><b>Admin 권한 이전:</b> Gnosis Safe의 V1 관리 권한을 V2 Timelock 기반으로 전환. 전환 기간 동안 V1 pauseProxy + V2 Timelock 이중 관리 가능성</li>
+        <li><b>TON burn 경로:</b> V1은 address(1)로, V2는 0xdead로 burn — 동일 TON 토큰 사용</li>
+        <li><b>SeigManager 연동:</b> V1 SeigManager가 V2 vTON의 minter로 등록되어야 함. Staking 레이어(DepositManager/Coinage)는 변경 없음</li>
+        <li><b>위원회 → Delegate 전환:</b> V1 members 개념이 V2에는 없음. 기존 operator들은 V2에서 Delegate로 등록 후 vTON 위임 필요</li>
+        <li><b>Activity Reward:</b> V1의 activityRewardPerSecond + claimedTimestamp 메커니즘은 V2에 없음. 별도 보상 체계 필요</li>
+        <li><b>역사적 데이터:</b> V1의 16개 완료 agenda는 온체인에 남아 있으며, V2 UI에서 읽기 전용으로 표시 가능</li>
       </ul>
     </div>
 
@@ -161,11 +360,17 @@ stateDiagram-v2
   const buttons = document.querySelectorAll('.tab-btn');
   const panels = document.querySelectorAll('.panel');
   buttons.forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
       buttons.forEach(b => b.classList.remove('active'));
       panels.forEach(p => p.classList.remove('active'));
       btn.classList.add('active');
-      document.getElementById(btn.dataset.tab).classList.add('active');
+      const panel = document.getElementById(btn.dataset.tab);
+      panel.classList.add('active');
+      // Render mermaid diagrams that haven't been rendered yet
+      const unrendered = panel.querySelectorAll('.mermaid:not([data-processed])');
+      if (unrendered.length > 0 && window.__mermaid) {
+        await window.__mermaid.run({ nodes: unrendered });
+      }
     });
   });
 </script>
