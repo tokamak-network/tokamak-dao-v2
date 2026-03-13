@@ -1,10 +1,23 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
 // Separate Supabase client for the ERC-8004 agent registry
 // (shared with tokamak-agent-scan)
-const url = process.env.NEXT_PUBLIC_AGENT_SUPABASE_URL!;
-const anonKey = process.env.NEXT_PUBLIC_AGENT_SUPABASE_KEY!;
-const serviceKey = process.env.AGENT_SUPABASE_SERVICE_KEY;
+// Lazily initialized to avoid build-time errors when env vars are not set
 
-// Use service role key on server (bypasses RLS), anon key on client
-export const agentSupabase = createClient(url, serviceKey || anonKey);
+let _client: SupabaseClient | null = null;
+
+function getAgentSupabase(): SupabaseClient {
+  if (!_client) {
+    const url = process.env.NEXT_PUBLIC_AGENT_SUPABASE_URL!;
+    const anonKey = process.env.NEXT_PUBLIC_AGENT_SUPABASE_KEY!;
+    const serviceKey = process.env.AGENT_SUPABASE_SERVICE_KEY;
+    _client = createClient(url, serviceKey || anonKey);
+  }
+  return _client;
+}
+
+export const agentSupabase = new Proxy({} as SupabaseClient, {
+  get(_target, prop) {
+    return (getAgentSupabase() as Record<string | symbol, unknown>)[prop];
+  },
+});
