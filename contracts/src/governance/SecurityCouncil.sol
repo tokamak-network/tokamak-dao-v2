@@ -33,6 +33,8 @@ contract SecurityCouncil is ISecurityCouncil, ReentrancyGuard {
     error OnlyProposerCanCancel();
     error ActionExpired();
     error ActionAlreadyCanceled();
+    error CouncilIsExpired();
+    error CouncilStillValid();
 
     /*//////////////////////////////////////////////////////////////
                                 CONSTANTS
@@ -43,6 +45,9 @@ contract SecurityCouncil is ISecurityCouncil, ReentrancyGuard {
 
     /// @notice Time-to-live for emergency actions (7 days)
     uint256 public constant ACTION_TTL = 7 days;
+
+    /// @notice Default Security Council validity (12 months)
+    uint256 public constant DEFAULT_VALIDITY_PERIOD = 365 days;
 
     /*//////////////////////////////////////////////////////////////
                                  STATE
@@ -59,6 +64,12 @@ contract SecurityCouncil is ISecurityCouncil, ReentrancyGuard {
 
     /// @notice Current execution threshold
     uint256 public override threshold;
+
+    /// @notice Security Council validity end timestamp
+    uint256 public override validUntil;
+
+    /// @notice Explicit expiration flag (also expires implicitly when block.timestamp > validUntil)
+    bool public override expired;
 
     /// @notice Action counter
     uint256 private _actionCount;
@@ -127,6 +138,7 @@ contract SecurityCouncil is ISecurityCouncil, ReentrancyGuard {
         daoGovernor = daoGovernor_;
         timelockAddress = timelock_;
         protocolTarget = protocolTarget_;
+        validUntil = block.timestamp + DEFAULT_VALIDITY_PERIOD;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -135,6 +147,7 @@ contract SecurityCouncil is ISecurityCouncil, ReentrancyGuard {
 
     modifier onlyMember() {
         if (!_isMember[msg.sender]) revert NotMember();
+        if (_isExpired()) revert CouncilIsExpired();
         _;
     }
 
@@ -363,6 +376,32 @@ contract SecurityCouncil is ISecurityCouncil, ReentrancyGuard {
         emit EmergencyActionApproved(actionId, msg.sender);
     }
 
+    /// @inheritdoc ISecurityCouncil
+    function isExpired() external view override returns (bool) {
+        return _isExpired();
+    }
+
+    /// @inheritdoc ISecurityCouncil
+    function expireCouncil() external override {
+        if (_isExpired()) {
+            if (!expired) {
+                expired = true;
+                emit CouncilExpired(msg.sender, block.timestamp);
+            }
+            return;
+        }
+        revert CouncilStillValid();
+    }
+
+    /// @inheritdoc ISecurityCouncil
+    function renewCouncilValidity(uint256 newValidUntil) external override onlyDAO {
+        if (newValidUntil <= block.timestamp) revert CouncilIsExpired();
+        uint256 oldValidUntil = validUntil;
+        validUntil = newValidUntil;
+        expired = false;
+        emit CouncilValidityRenewed(oldValidUntil, newValidUntil);
+    }
+
     /*//////////////////////////////////////////////////////////////
                               VIEW FUNCTIONS
     //////////////////////////////////////////////////////////////*/
@@ -455,6 +494,10 @@ contract SecurityCouncil is ISecurityCouncil, ReentrancyGuard {
                 break;
             }
         }
+    }
+
+    function _isExpired() internal view returns (bool) {
+        return expired || block.timestamp > validUntil;
     }
 
     /// @notice Update DAO Governor address
