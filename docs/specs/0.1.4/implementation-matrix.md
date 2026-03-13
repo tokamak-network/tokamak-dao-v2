@@ -45,8 +45,8 @@
 | Veto + Pause only | `SecurityCouncil.sol::cancelProposal()/pauseProtocol()/unpauseProtocol()` | ✅ | 인터페이스/구현 모두 3기능 중심 |
 | SC cancel must go through `DAOGovernor.cancel()` | `SecurityCouncil.sol::cancelProposal()` | ✅ | governor call만 생성 |
 | Timelock direct cancel 권한 제거 | `Timelock.sol::cancelTransaction()` onlyGovernor | ✅ | SC 직접 취소 불가 |
-| SC self-defense restriction (SC 대상 제안 취소 금지) | expected in `DAOGovernor.cancel()` path | ❌ | 현재 target 검증 로직 부재 (제안 타겟에 SC 포함 여부 미검사) |
-| SC validity 12 months + permissionless expiry | expected in SC state & checks | ❌ | 만료 타임스탬프/권한 소멸 트리거 없음 |
+| SC self-defense restriction (SC 대상 제안 취소 금지) | `DAOGovernor.cancel()` | ✅ | guardian cancel 시 proposal target에 guardian 포함되면 `SelfDefenseRestricted()` |
+| SC validity 12 months + permissionless expiry | `SecurityCouncil.validUntil/expireCouncil/isExpired` | ✅ | 기본 12개월 + permissionless 만료 트리거 + DAO 갱신(`renewCouncilValidity`) |
 
 ## 5) Governance Parameter Control
 
@@ -59,15 +59,13 @@
 
 | Spec 0.1.4 intent | Current code | Status | Notes |
 |---|---|---:|---|
-| Proportional burn 제거(0.1.3) | `propose(..., burnRate)` + vote 시 `burnFromDelegate` | ❌ | 코드에 burn 메커니즘 잔존 |
+| Proportional burn 제거(0.1.3) | `DAOGovernor.propose()` + `_castVote()` | ✅ | `burnRate != 0` 거부, vote-time burn 로직 제거 |
 
 ## 7) Immediate action items (priority)
 
-1. **P0:** SC self-defense 제한 온체인 강제 추가 (cancel path에서 SC 대상 proposal 차단)
-2. **P0:** SC 권한 만료(12개월) + permissionless expiry 함수 추가
-3. **P1:** `burnRate`/vote burn 로직 제거 여부를 스펙(0.1.4)과 정합화
-4. **P1:** 배포 설정에서 owner/admin이 Timelock으로 귀속되는지 스크립트/문서로 고정
-5. **P2:** 오프체인 RFC/Snapshot 단계에 대한 운영 runbook 문서화
+1. **P1:** 배포 설정에서 owner/admin이 Timelock으로 귀속되는지 스크립트/문서로 고정
+2. **P1:** `IDAOGovernor` 인터페이스/이벤트/주석에서 burn 관련 레거시 흔적 정리
+3. **P2:** 오프체인 RFC/Snapshot 단계에 대한 운영 runbook 문서화
 
 ---
 
