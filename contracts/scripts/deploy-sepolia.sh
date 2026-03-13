@@ -20,7 +20,7 @@ echo -e "${YELLOW}=== Tokamak DAO v2 - Sepolia Deployment ===${NC}"
 # Check if .env exists
 if [ ! -f "$CONTRACTS_DIR/.env" ]; then
     echo -e "${RED}Error: .env file not found in contracts directory${NC}"
-    echo "Please create contracts/.env with PRIVATE_KEY and RPC_URL_SEPOLIA"
+    echo "Please create contracts/.env with PRIVATE_KEY and RPC_URL_SEPOLIA (optional: GOVERNANCE_ADMIN, ENABLE_TEST_PARAMS=false)"
     exit 1
 fi
 
@@ -32,6 +32,12 @@ if [ -z "$PRIVATE_KEY" ] || [ -z "$RPC_URL_SEPOLIA" ]; then
     exit 1
 fi
 
+# Optional hardening params
+GOVERNANCE_ADMIN=${GOVERNANCE_ADMIN:-}
+ENABLE_TEST_PARAMS=${ENABLE_TEST_PARAMS:-false}
+
+echo -e "${YELLOW}Hardening config:${NC} GOVERNANCE_ADMIN=${GOVERNANCE_ADMIN:-<deployer>} ENABLE_TEST_PARAMS=${ENABLE_TEST_PARAMS}"
+
 # Build contracts
 echo -e "${YELLOW}Building contracts...${NC}"
 cd "$CONTRACTS_DIR"
@@ -42,7 +48,7 @@ echo -e "${YELLOW}Deploying to Sepolia...${NC}"
 OUTPUT=$(forge script script/Deploy.s.sol:DeploySepoliaScript \
     --rpc-url "$RPC_URL_SEPOLIA" \
     --broadcast \
-    -vvv 2>&1)
+    -vvv 2>&1
 
 echo "$OUTPUT"
 
