@@ -99,7 +99,7 @@ flowchart LR
   DR --> GOV[DAOGovernor]
   GOV --> TL[Timelock]
   SC[SecurityCouncil\nVeto + Pause only] --> GOV
-  SC -.no direct cancel.-> TL
+  SC -.->|no direct cancel| TL
 
   GOV --> P[Proposal Lifecycle]
   TL --> EX[Execution Targets]
