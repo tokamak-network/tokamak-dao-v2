@@ -38,14 +38,15 @@ export const CONTRACT_ADDRESSES: Record<number, ContractAddresses> = {
   },
   // Sepolia Testnet
   11155111: {
-    ton: "0x8395F53A7EDdF64F3AC61540aCDe1c45418733E4",
-    vton: "0xb36195D4DE194f0a4a08B8Ce5876548eDac41cb0",
-    delegateRegistry: "0xb773666b4Cd1e376B71845a6B94CBEE46287462b",
-    daoGovernor: "0xCe4a45E70E91bF715710461a5687D5Cf5EfE4e92",
-    securityCouncil: "0x750143eA6a8C0B96AAEf6F04F873894BbE922F4E",
-    timelock: "0x13608EfD349Fb47df19FDC1156146A79f231Ba62",
-    faucet: "0xC02e7D6cA66A2860b1A4518be33865a137A69af6",
-    tonFaucet: "0x67821E45321aB4f5c35b7236dc38E63192e5aCd6",
+    ton: "0x7d3bCCC15e2277c45DD4bcbABD516e8dEb9E3622",
+    vton: "0x44eF48593E3845857b3A5383F97349578C532e3e",
+    delegateRegistry: "0x2701574542BA4F3b2c34d28040f62Bca28eEA81F",
+    daoGovernor: "0x2673285442a9a4b5FAf731A3aAb100331bbBFDe8",
+    securityCouncil: "0xF6D0A7D514aDA8B8874eAfF291f79F1EDe94298B",
+    timelock: "0x97ce30458500abfbA15DCC2cA46929d40a0DF95F",
+    faucet: "0x0F48916463B8e43e1a4C18D0F964e70DFaB51B0c",
+    tonFaucet: "0x5b66204455e7cCb30Aec13bdEEbC8b71F7A5aC39",
+    voteRelayFund: "0xe80639D7Dd97dE6D8CB117B5d9CEf5F3Cd282E90",
   },
   // Ethereum Mainnet
   1: {
@@ -536,6 +537,19 @@ export const DAO_GOVERNOR_ABI = [
     outputs: [{ name: "", type: "uint256" }],
   },
   {
+    name: "castVoteBySig",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "proposalId", type: "uint256" },
+      { name: "support", type: "uint8" },
+      { name: "v", type: "uint8" },
+      { name: "r", type: "bytes32" },
+      { name: "s", type: "bytes32" },
+    ],
+    outputs: [],
+  },
+  {
     name: "queue",
     type: "function",
     stateMutability: "nonpayable",
@@ -990,6 +1004,87 @@ export const TON_FAUCET_ABI = [
     name: "PauseStatusUpdated",
     type: "event",
     inputs: [{ name: "paused", type: "bool", indexed: false }],
+  },
+] as const;
+
+export const VOTE_RELAY_FUND_ABI = [
+  // Read functions
+  {
+    name: "balances",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "agent", type: "address" }],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    name: "delegateOf",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "agent", type: "address" }],
+    outputs: [{ name: "", type: "address" }],
+  },
+  // Write functions
+  {
+    name: "deposit",
+    type: "function",
+    stateMutability: "payable",
+    inputs: [{ name: "agent", type: "address" }],
+    outputs: [],
+  },
+  {
+    name: "withdraw",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "agent", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+    outputs: [],
+  },
+  {
+    name: "relayVote",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "governor", type: "address" },
+      { name: "proposalId", type: "uint256" },
+      { name: "support", type: "uint8" },
+      { name: "v", type: "uint8" },
+      { name: "r", type: "bytes32" },
+      { name: "s", type: "bytes32" },
+      { name: "agent", type: "address" },
+    ],
+    outputs: [],
+  },
+  // Events
+  {
+    name: "Deposited",
+    type: "event",
+    inputs: [
+      { name: "agent", type: "address", indexed: true },
+      { name: "delegate", type: "address", indexed: true },
+      { name: "amount", type: "uint256", indexed: false },
+    ],
+  },
+  {
+    name: "Withdrawn",
+    type: "event",
+    inputs: [
+      { name: "agent", type: "address", indexed: true },
+      { name: "delegate", type: "address", indexed: true },
+      { name: "amount", type: "uint256", indexed: false },
+    ],
+  },
+  {
+    name: "VoteRelayed",
+    type: "event",
+    inputs: [
+      { name: "agent", type: "address", indexed: true },
+      { name: "relayer", type: "address", indexed: true },
+      { name: "governor", type: "address", indexed: false },
+      { name: "proposalId", type: "uint256", indexed: false },
+      { name: "gasCost", type: "uint256", indexed: false },
+    ],
   },
 ] as const;
 

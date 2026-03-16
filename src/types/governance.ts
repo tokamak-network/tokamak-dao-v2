@@ -128,6 +128,7 @@ export interface ContractAddresses {
   timelock: `0x${string}`;
   faucet?: `0x${string}`;
   tonFaucet?: `0x${string}`;
+  voteRelayFund?: `0x${string}`;
 }
 
 // Faucet Info
