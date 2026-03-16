@@ -7,6 +7,7 @@ import { DelegateRegistry } from "../src/governance/DelegateRegistry.sol";
 import { DAOGovernor } from "../src/governance/DAOGovernor.sol";
 import { SecurityCouncil } from "../src/governance/SecurityCouncil.sol";
 import { Timelock } from "../src/governance/Timelock.sol";
+import { VoteRelayFund } from "../src/governance/VoteRelayFund.sol";
 import { VTONFaucet } from "../src/test/VTONFaucet.sol";
 import { TONFaucet } from "../src/test/TONFaucet.sol";
 
@@ -187,6 +188,10 @@ contract DeployLocalScript is Script {
         TONFaucet tonFaucet = new TONFaucet(address(ton), deployer);
         console.log("TONFaucet deployed at:", address(tonFaucet));
 
+        // Deploy VoteRelayFund
+        VoteRelayFund voteRelayFund = new VoteRelayFund();
+        console.log("VoteRelayFund deployed at:", address(voteRelayFund));
+
         // Grant minter permission to faucet
         vton.setMinter(address(faucet), true);
 
@@ -210,6 +215,7 @@ contract DeployLocalScript is Script {
         console.log("SecurityCouncil:", address(securityCouncil));
         console.log("VTONFaucet:", address(faucet));
         console.log("TONFaucet:", address(tonFaucet));
+        console.log("VoteRelayFund:", address(voteRelayFund));
     }
 }
 
@@ -302,10 +308,10 @@ contract DeploySepoliaScript is Script {
 
         // 6. Deploy SecurityCouncil with real members
         // Foundation member: deployer
-        // External members: deployer + 0x488f3660FCD32099F2A250633822a6fbF6Eb771B
+        // External members: two distinct non-deployer addresses
         address[] memory extMembers = new address[](2);
-        extMembers[0] = deployer;
-        extMembers[1] = 0x488f3660FCD32099F2A250633822a6fbF6Eb771B;
+        extMembers[0] = 0x488f3660FCD32099F2A250633822a6fbF6Eb771B;
+        extMembers[1] = 0x1111111111111111111111111111111111111111;
 
         SecurityCouncil securityCouncil = new SecurityCouncil(
             deployer, extMembers, address(governor), address(timelock), address(vton)
@@ -332,11 +338,23 @@ contract DeploySepoliaScript is Script {
         TONFaucet tonFaucet = new TONFaucet(address(ton), deployer);
         console.log("TONFaucet deployed at:", address(tonFaucet));
 
-        // 12. Setup vTON minters
+        // 12. Deploy VoteRelayFund
+        VoteRelayFund voteRelayFund = new VoteRelayFund();
+        console.log("VoteRelayFund deployed at:", address(voteRelayFund));
+
+        // 13. Setup vTON minters
         vton.setMinter(deployer, true);
         vton.setMinter(address(faucet), true);
 
-        // 13. Ownership/Admin hardening
+        // 15. Optional test parameters (must be set BEFORE ownership transfer)
+        if (enableTestParams) {
+            governor.setVotingDelay(1_800);         // Minimum allowed (~6 hours)
+            governor.setVotingPeriod(7_200);        // Minimum allowed (~1 day)
+            governor.setMaturityPeriod(0);          // Disable maturity requirement
+            console.log("[WARN] Test parameters enabled on deployment");
+        }
+
+        // 16. Ownership/Admin hardening
         // Governor/Registry ownership -> Timelock (DAO-controlled)
         governor.transferOwnership(address(timelock));
         delegateRegistry.transferOwnership(address(timelock));
@@ -350,16 +368,8 @@ contract DeploySepoliaScript is Script {
             console.log("Timelock pendingAdmin set:", governanceAdmin);
         }
 
-        // Optional local testing shortcuts (disabled by default on Sepolia)
-        if (enableTestParams) {
-            governor.setVotingDelay(0);             // Immediate voting start
-            governor.setVotingPeriod(100);          // ~20 min voting
-            governor.setGracePeriod(1 hours);       // 1 hour execution grace
-            console.log("[WARN] Test parameters enabled on deployment");
-        }
 
-
-        // 14. Post-deploy access checks
+        // 16. Post-deploy access checks
         console.log("Owner checks:");
         console.log("  Governor.owner:", governor.owner());
         console.log("  DelegateRegistry.owner:", delegateRegistry.owner());
@@ -380,5 +390,6 @@ contract DeploySepoliaScript is Script {
         console.log("SecurityCouncil:", address(securityCouncil));
         console.log("VTONFaucet:", address(faucet));
         console.log("TONFaucet:", address(tonFaucet));
+        console.log("VoteRelayFund:", address(voteRelayFund));
     }
 }
