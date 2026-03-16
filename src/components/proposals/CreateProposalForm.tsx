@@ -364,6 +364,10 @@ export function CreateProposalForm({ className }: CreateProposalFormProps) {
             title,
             proposer: address,
             origin: "https://tokamak-dao-v2.vercel.app",
+            description: fullDescription,
+            targets: targets.map(String),
+            calldatas: calldatas.map(String),
+            values: values.map(String),
           }),
         }).catch(() => {});
 

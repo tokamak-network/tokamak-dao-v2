@@ -137,7 +137,7 @@ export async function POST(req: NextRequest) {
 
 /**
  * Handle inline keyboard button presses (vote buttons).
- * callback_data format: "vote:{proposalId}:{for|against|abstain}"
+ * callback_data format: "v:{proposalShortId}:{f|a|x}"
  */
 async function handleCallbackQuery(
   callbackQuery: {
@@ -152,27 +152,27 @@ async function handleCallbackQuery(
   const data = callbackQuery.data || "";
   const parts = data.split(":");
 
-  if (parts[0] === "vote" && parts.length === 3) {
-    const proposalId = parts[1];
-    const voteChoice = parts[2]; // "for" | "against" | "abstain"
+  if (parts[0] === "v" && parts.length === 3) {
+    const proposalShortId = parts[1];
+    const voteCode = parts[2]; // "f" | "a" | "x"
     const chatId = callbackQuery.message?.chat.id;
     const messageId = callbackQuery.message?.message_id;
 
     const voteLabels: Record<string, string> = {
-      for: "👍 For (찬성)",
-      against: "👎 Against (반대)",
-      abstain: "🤚 Abstain (기권)",
+      f: "👍 For (찬성)",
+      a: "👎 Against (반대)",
+      x: "🤚 Abstain (기권)",
     };
 
     // Save vote preference
     await agentSupabase.from("agent_conversations").insert({
       agent_id: agentId,
       context_type: "proposal_analysis",
-      context_id: proposalId,
+      context_id: proposalShortId,
       messages: [
         {
           role: "user",
-          content: `Vote: ${voteChoice}`,
+          content: `Vote: ${voteCode === "f" ? "for" : voteCode === "a" ? "against" : "abstain"}`,
         },
       ],
       trait_deltas: null,
@@ -182,7 +182,7 @@ async function handleCallbackQuery(
     await answerCallbackQuery(
       botToken,
       callbackQuery.id,
-      `${voteLabels[voteChoice] || voteChoice}을(를) 선택했습니다.`
+      `${voteLabels[voteCode] || voteCode}을(를) 선택했습니다.`
     );
 
     // Remove buttons and show selected vote
@@ -190,7 +190,7 @@ async function handleCallbackQuery(
       await editMessageReplyMarkup(botToken, chatId, messageId);
       await sendTelegramMessage(botToken, {
         chatId,
-        text: `✅ <b>${voteLabels[voteChoice] || voteChoice}</b>을(를) 선택했습니다.\n\n이 선택에 대해 더 논의하고 싶으시면 답장해주세요.`,
+        text: `✅ <b>${voteLabels[voteCode] || voteCode}</b>을(를) 선택했습니다.\n\n이 선택에 대해 더 논의하고 싶으시면 답장해주세요.`,
       });
     }
   } else {

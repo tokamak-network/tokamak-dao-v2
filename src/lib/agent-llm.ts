@@ -1,23 +1,25 @@
 /**
- * Lightweight Claude API wrapper using fetch.
+ * LLM API wrapper using LiteLLM (OpenAI-compatible).
  * Uses ANTHROPIC_BASE_URL + ANTHROPIC_API_KEY env vars.
  */
 
 interface Message {
-  role: "user" | "assistant";
+  role: "system" | "user" | "assistant";
   content: string;
 }
 
 interface CallClaudeOptions {
   system: string;
-  messages: Message[];
+  messages: Array<{ role: "user" | "assistant"; content: string }>;
   maxTokens?: number;
+  model?: string;
 }
 
 export async function callClaude({
   system,
   messages,
   maxTokens = 1024,
+  model = "gpt-5.2",
 }: CallClaudeOptions): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   const baseUrl = (process.env.ANTHROPIC_BASE_URL || "https://api.anthropic.com").replace(
@@ -29,31 +31,30 @@ export async function callClaude({
     throw new Error("ANTHROPIC_API_KEY is not set");
   }
 
-  const res = await fetch(`${baseUrl}/v1/messages`, {
+  const fullMessages: Message[] = [
+    { role: "system", content: system },
+    ...messages,
+  ];
+
+  const res = await fetch(`${baseUrl}/v1/chat/completions`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
+      "Authorization": `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
+      model,
       max_tokens: maxTokens,
-      system,
-      messages,
+      messages: fullMessages,
     }),
   });
 
   if (!res.ok) {
     const errorText = await res.text();
-    throw new Error(`Claude API error (${res.status}): ${errorText}`);
+    throw new Error(`LLM API error (${res.status}): ${errorText}`);
   }
 
   const data = await res.json();
 
-  // Extract text from content blocks
-  const textBlocks = data.content?.filter(
-    (block: { type: string }) => block.type === "text"
-  );
-  return textBlocks?.map((b: { text: string }) => b.text).join("") || "";
+  return data.choices?.[0]?.message?.content || "";
 }

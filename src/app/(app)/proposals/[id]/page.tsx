@@ -293,7 +293,86 @@ function RealProposalDetail({ id }: { id: string }) {
     calldatas: [...proposal.calldatas],
   };
 
-  return <ProposalDetail proposal={proposalDetail} onVoteSuccess={handleVoteSuccess} />;
+  return (
+    <>
+      <ProposalDetail proposal={proposalDetail} onVoteSuccess={handleVoteSuccess} />
+      <TestTelegramButton
+        proposalId={id}
+        title={proposalDetail.title}
+        proposer={proposal.proposer}
+        description={proposal.description}
+        targets={proposalDetail.targets || []}
+        calldatas={proposalDetail.calldatas || []}
+        values={proposalDetail.values || []}
+      />
+    </>
+  );
+}
+
+function TestTelegramButton({
+  proposalId,
+  title,
+  proposer,
+  description,
+  targets,
+  calldatas,
+  values,
+}: {
+  proposalId: string;
+  title: string;
+  proposer: string;
+  description: string;
+  targets: string[];
+  calldatas: string[];
+  values: string[];
+}) {
+  const [sending, setSending] = React.useState(false);
+  const [result, setResult] = React.useState<{ ok: boolean; sent?: number; error?: string } | null>(null);
+
+  const handleSend = async () => {
+    setSending(true);
+    setResult(null);
+    try {
+      const res = await fetch("/api/agents/telegram/notify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          proposalId,
+          title,
+          proposer,
+          description,
+          targets,
+          calldatas,
+          values,
+          origin: window.location.origin,
+        }),
+      });
+      setResult(await res.json());
+    } catch {
+      setResult({ ok: false, error: "Network error" });
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="mt-4 rounded-[var(--radius-xl)] border border-dashed border-[var(--border-primary)] bg-[var(--surface-secondary)] p-4">
+      <div className="flex items-center gap-3">
+        <button
+          onClick={handleSend}
+          disabled={sending}
+          className="rounded-[var(--radius-md)] bg-[var(--color-primary-500)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--color-primary-600)] disabled:opacity-50 transition-colors"
+        >
+          {sending ? "Sending..." : "Send to Telegram (Test)"}
+        </button>
+        {result && (
+          <span className={`text-xs ${result.ok ? "text-[var(--status-success-fg)]" : "text-[var(--status-error-fg)]"}`}>
+            {result.ok ? `Sent to ${result.sent} agent(s)` : result.error || "Failed"}
+          </span>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export default function ProposalPage({ params }: ProposalPageProps) {

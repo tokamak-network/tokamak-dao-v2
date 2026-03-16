@@ -1,12 +1,62 @@
 import { NextRequest, NextResponse } from "next/server";
 import { agentSupabase } from "@/lib/agent-supabase";
 import { sendTelegramMessage, escapeHtml } from "@/lib/telegram";
-import { analyzeProposalForAgent } from "@/lib/agent-analysis";
+import { callClaude } from "@/lib/agent-llm";
+import { decodeProposalActions, formatActionsForLLM } from "@/lib/decode-calldata";
 import type { AgentTraits } from "@/types/agent-profile";
+
+const GOVERNANCE_CONTEXT = `Tokamak Network DAO Governance Parameters:
+- Proposal Creation Cost: 100 TON (burned)
+- Proposal Threshold: 0.25% of total vTON supply
+- Voting Period: 7 days (~50,400 blocks)
+- Voting Delay: 1 day (~7,200 blocks)
+- Quorum: 4% of delegated vTON
+- Pass Rate: >50% simple majority
+- Timelock Delay: 7 days
+- Grace Period: 14 days
+- Max Burn Rate: 100%`;
+
+async function analyzeProposal(
+  title: string,
+  description: string,
+  decodedActions: string
+): Promise<string> {
+  return callClaude({
+    system: `You are a DAO governance analyst for Tokamak Network. Analyze the proposal and provide a clear, informative summary.
+
+${GOVERNANCE_CONTEXT}
+
+Your analysis should cover:
+1. What this proposal does (plain language explanation)
+2. On-chain actions breakdown (what contract calls will be executed)
+3. Impact and implications (what changes for the network/users)
+4. Key considerations (risks, tradeoffs, things voters should think about)
+
+Write in English. Use plain text only — no markdown, no HTML tags.
+Use bullet points with "•" for lists.
+Keep the total response under 800 characters for Telegram readability.`,
+    messages: [
+      {
+        role: "user",
+        content: `Title: ${title}\n\nDescription:\n${description}\n\nOn-chain Actions:\n${decodedActions}`,
+      },
+    ],
+    maxTokens: 1024,
+  });
+}
 
 export async function POST(req: NextRequest) {
   try {
-    const { proposalId, title, proposer, origin, description } = await req.json();
+    const {
+      proposalId,
+      title,
+      proposer,
+      origin,
+      description,
+      targets,
+      calldatas,
+      values,
+    } = await req.json();
 
     if (!proposalId || !title || !proposer) {
       return NextResponse.json(
@@ -36,6 +86,31 @@ export async function POST(req: NextRequest) {
     const shortProposer = `${proposer.slice(0, 6)}...${proposer.slice(-4)}`;
     const proposalUrl = origin ? `${origin}/proposals/${proposalId}` : null;
 
+    // Decode on-chain actions if available
+    let decodedActionsText = "No on-chain action data provided.";
+    if (targets?.length && calldatas?.length) {
+      try {
+        const decoded = decodeProposalActions(
+          targets,
+          calldatas,
+          values || targets.map(() => "0")
+        );
+        decodedActionsText = formatActionsForLLM(decoded);
+      } catch (err) {
+        console.error("Calldata decode failed:", err);
+      }
+    }
+
+    // Generate AI analysis with full context
+    let analysis = "";
+    if (description) {
+      try {
+        analysis = await analyzeProposal(title, description, decodedActionsText);
+      } catch (err) {
+        console.error("Analysis generation failed:", err);
+      }
+    }
+
     // Fetch or auto-create profiles for all agents
     const agentIds = agents.map((a) => a.agent_id);
     const { data: profiles } = await agentSupabase
@@ -50,7 +125,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Auto-create profiles for agents that don't have one yet
     const { DEFAULT_TRAITS } = await import("@/types/agent-profile");
     const missingIds = agentIds.filter((id) => !profileMap.has(id));
     if (missingIds.length > 0) {
@@ -66,40 +140,38 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Build notification message with summary
-    const notificationLines = [
-      `📋 <b>New Proposal Created</b>`,
+    // Build notification message
+    const lines = [
+      `📋 <b>New Proposal</b>`,
       ``,
       `<b>${escapeHtml(title)}</b>`,
       `Proposed by <code>${escapeHtml(shortProposer)}</code>`,
     ];
-    if (description) {
-      // Truncate description for Telegram
-      const summary = description.length > 200
-        ? description.slice(0, 200) + "..."
-        : description;
-      notificationLines.push(``, escapeHtml(summary));
+    if (analysis) {
+      lines.push(``, escapeHtml(analysis));
     }
     if (proposalUrl) {
-      notificationLines.push(``, `<a href="${proposalUrl}">View Proposal →</a>`);
+      lines.push(``, `👉 <a href="${proposalUrl}">View Proposal</a>`);
     }
-    const notificationMessage = notificationLines.join("\n");
+    const notificationMessage = lines.join("\n");
 
     // Vote inline keyboard buttons
+    const { createHash } = await import("crypto");
+    const proposalShortId = createHash("sha256").update(String(proposalId)).digest("hex").slice(0, 16);
+
     const voteButtons = {
       inline_keyboard: [
         [
-          { text: "👍 For", callback_data: `vote:${proposalId}:for` },
-          { text: "👎 Against", callback_data: `vote:${proposalId}:against` },
-          { text: "🤚 Abstain", callback_data: `vote:${proposalId}:abstain` },
+          { text: "👍 For", callback_data: `v:${proposalShortId}:f` },
+          { text: "👎 Against", callback_data: `v:${proposalShortId}:a` },
+          { text: "🤚 Abstain", callback_data: `v:${proposalShortId}:x` },
         ],
       ],
     };
 
-    // Send notification + analysis to all connected agents
+    // Send notification to all connected agents
     const results = await Promise.allSettled(
       agents.map(async (agent) => {
-        // Send notification with vote buttons
         const notifyResult = await sendTelegramMessage(agent.telegram_bot_token, {
           chatId: agent.telegram_chat_id,
           text: notificationMessage,
@@ -108,47 +180,19 @@ export async function POST(req: NextRequest) {
 
         if (!notifyResult.ok) return notifyResult;
 
-        // Send personalized analysis if profile exists
-        const traits = profileMap.get(agent.agent_id);
-        if (traits) {
-          try {
-            const analysis = await analyzeProposalForAgent(traits, {
-              proposalId,
-              title,
-              proposer,
-              description,
-            });
-
-            const analysisMessage = [
-              `📊 <b>안건 분석</b>`,
-              ``,
-              analysis,
-              ``,
-              `이 분석에 대해 답장하시면 더 자세히 논의할 수 있습니다.`,
-            ].join("\n");
-
-            await sendTelegramMessage(agent.telegram_bot_token, {
-              chatId: agent.telegram_chat_id,
-              text: analysisMessage,
-            });
-
-            // Save analysis conversation for future discussion
-            await agentSupabase.from("agent_conversations").insert({
-              agent_id: agent.agent_id,
-              context_type: "proposal_analysis",
-              context_id: proposalId,
-              messages: [
-                {
-                  role: "assistant",
-                  content: analysis,
-                },
-              ],
-              trait_deltas: null,
-            });
-          } catch (err) {
-            console.error(`Analysis failed for agent ${agent.agent_id}:`, err);
-          }
-        }
+        // Save conversation for future discussion
+        await agentSupabase.from("agent_conversations").insert({
+          agent_id: agent.agent_id,
+          context_type: "proposal_analysis",
+          context_id: proposalShortId,
+          messages: [
+            {
+              role: "assistant",
+              content: `[proposalId:${proposalId}]\n${analysis}`,
+            },
+          ],
+          trait_deltas: null,
+        });
 
         return notifyResult;
       })
