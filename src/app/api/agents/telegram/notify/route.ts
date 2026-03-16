@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { agentSupabase } from "@/lib/agent-supabase";
+import { sendTelegramMessage, escapeHtml } from "@/lib/telegram";
+import { analyzeProposalForAgent } from "@/lib/agent-analysis";
+import type { AgentTraits } from "@/types/agent-profile";
 
 export async function POST(req: NextRequest) {
   try {
-    const { proposalId, title, proposer, origin } = await req.json();
+    const { proposalId, title, proposer, origin, description } = await req.json();
 
     if (!proposalId || !title || !proposer) {
       return NextResponse.json(
@@ -33,10 +36,6 @@ export async function POST(req: NextRequest) {
     const shortProposer = `${proposer.slice(0, 6)}...${proposer.slice(-4)}`;
     const proposalUrl = origin ? `${origin}/proposals/${proposalId}` : null;
 
-    // Escape HTML special characters in user-provided text
-    const escapeHtml = (s: string) =>
-      s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-
     const lines = [
       `📋 <b>New Proposal Created</b>`,
       ``,
@@ -46,25 +45,77 @@ export async function POST(req: NextRequest) {
     if (proposalUrl) {
       lines.push(``, `<a href="${proposalUrl}">View Proposal →</a>`);
     }
-    const message = lines.join("\n");
+    const notificationMessage = lines.join("\n");
 
-    // Send notification to all connected agents
+    // Fetch profiles for agents with completed onboarding
+    const agentIds = agents.map((a) => a.agent_id);
+    const { data: profiles } = await agentSupabase
+      .from("agent_profiles")
+      .select("agent_id, traits, onboarding_step")
+      .in("agent_id", agentIds)
+      .gt("onboarding_step", 7);
+
+    const profileMap = new Map<number, AgentTraits>();
+    if (profiles) {
+      for (const p of profiles) {
+        profileMap.set(p.agent_id, p.traits as AgentTraits);
+      }
+    }
+
+    // Send notification + analysis to all connected agents
     const results = await Promise.allSettled(
       agents.map(async (agent) => {
-        const res = await fetch(
-          `https://api.telegram.org/bot${agent.telegram_bot_token}/sendMessage`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              chat_id: agent.telegram_chat_id,
-              text: message,
-              parse_mode: "HTML",
-              disable_web_page_preview: true,
-            }),
+        // Send base notification
+        const notifyResult = await sendTelegramMessage(agent.telegram_bot_token, {
+          chatId: agent.telegram_chat_id,
+          text: notificationMessage,
+        });
+
+        if (!notifyResult.ok) return notifyResult;
+
+        // If agent has completed onboarding, send personalized analysis
+        const traits = profileMap.get(agent.agent_id);
+        if (traits) {
+          try {
+            const analysis = await analyzeProposalForAgent(traits, {
+              proposalId,
+              title,
+              proposer,
+              description,
+            });
+
+            const analysisMessage = [
+              `📊 <b>안건 분석</b>`,
+              ``,
+              analysis,
+              ``,
+              `이 분석에 대해 답장하시면 더 자세히 논의할 수 있습니다.`,
+            ].join("\n");
+
+            await sendTelegramMessage(agent.telegram_bot_token, {
+              chatId: agent.telegram_chat_id,
+              text: analysisMessage,
+            });
+
+            // Save analysis conversation for future discussion
+            await agentSupabase.from("agent_conversations").insert({
+              agent_id: agent.agent_id,
+              context_type: "proposal_analysis",
+              context_id: proposalId,
+              messages: [
+                {
+                  role: "assistant",
+                  content: analysis,
+                },
+              ],
+              trait_deltas: null,
+            });
+          } catch (err) {
+            console.error(`Analysis failed for agent ${agent.agent_id}:`, err);
           }
-        );
-        return res.json();
+        }
+
+        return notifyResult;
       })
     );
 

@@ -73,7 +73,7 @@ function BackLink() {
 
 // ─── Tabs ────────────────────────────────────────────────
 
-type TabId = "overview" | "capabilities" | "settings";
+type TabId = "overview" | "capabilities" | "profile" | "settings";
 
 // ─── Page ────────────────────────────────────────────────
 
@@ -169,6 +169,7 @@ export default function AgentDetailPage({
     const base: { id: TabId; label: string }[] = [
       { id: "overview", label: "Overview" },
       { id: "capabilities", label: "Capabilities" },
+      { id: "profile", label: "Profile" },
     ];
     if (isOwner) base.push({ id: "settings", label: "Settings" });
     return base;
@@ -453,11 +454,206 @@ export default function AgentDetailPage({
         </div>
       )}
 
+      {/* ═══ Profile Tab ═══ */}
+      {tab === "profile" && (
+        <AgentProfileTab agentId={id} isOwner={isOwner} telegramConnected={telegramConnected} />
+      )}
+
       {/* ═══ Settings Tab (owner only) ═══ */}
       {tab === "settings" && isOwner && (
         <div className="space-y-6">
           <TelegramSettings agentId={id} owner={owner} connected={telegramConnected} onSaved={refreshTelegram} />
         </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Agent Profile Tab ───────────────────────────────────
+
+interface ProfileData {
+  agent_id: number;
+  traits: Record<string, number>;
+  onboarding_step: number;
+  onboarding_completed_at: string | null;
+}
+
+const TRAIT_CONFIG: { key: string; name: string; low: string; high: string }[] = [
+  { key: "treasury_philosophy", name: "Treasury Philosophy", low: "Conservative", high: "Aggressive" },
+  { key: "inflation_tolerance", name: "Inflation Tolerance", low: "Deflationary", high: "Inflationary" },
+  { key: "governance_accessibility", name: "Governance Accessibility", low: "High Barriers", high: "Low Barriers" },
+  { key: "security_priority", name: "Security Priority", low: "Minimal Oversight", high: "Maximum Security" },
+  { key: "expansion_stance", name: "Expansion Stance", low: "Cautious", high: "Rapid Expansion" },
+  { key: "skin_in_game", name: "Skin in the Game", low: "No Cost", high: "High Cost" },
+  { key: "delegation_style", name: "Delegation Style", low: "Manual Control", high: "Full Autonomy" },
+];
+
+function TraitBar({ name, value, low, high }: { name: string; value: number; low: string; high: string }) {
+  const pct = Math.round(value * 100);
+  return (
+    <div className="space-y-1.5">
+      <div className="flex justify-between text-sm">
+        <span className="text-[var(--text-primary)] font-medium">{name}</span>
+        <span className="text-[var(--text-tertiary)] tabular-nums">{pct}%</span>
+      </div>
+      <div className="relative h-2 rounded-full bg-[var(--bg-tertiary)]">
+        <div
+          className="absolute inset-y-0 left-0 rounded-full bg-[var(--color-primary-500)] transition-all"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <div className="flex justify-between text-xs text-[var(--text-tertiary)]">
+        <span>{low}</span>
+        <span>{high}</span>
+      </div>
+    </div>
+  );
+}
+
+function AgentProfileTab({
+  agentId,
+  isOwner,
+  telegramConnected,
+}: {
+  agentId: string;
+  isOwner: boolean;
+  telegramConnected: boolean;
+}) {
+  const [profile, setProfile] = useState<ProfileData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [starting, setStarting] = useState(false);
+  const [startError, setStartError] = useState<string | null>(null);
+
+  const fetchProfile = useCallback(() => {
+    setLoading(true);
+    fetch(`/api/agents/telegram/profile?agentId=${agentId}`)
+      .then((res) => res.json())
+      .then((data) => {
+        setProfile(data.profile || null);
+      })
+      .catch(() => setProfile(null))
+      .finally(() => setLoading(false));
+  }, [agentId]);
+
+  useEffect(() => { fetchProfile(); }, [fetchProfile]);
+
+  const handleStartOnboarding = async () => {
+    setStarting(true);
+    setStartError(null);
+    try {
+      const res = await fetch("/api/agents/telegram/onboarding", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ agentId }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        fetchProfile();
+      } else {
+        setStartError(data.error || "Failed to start onboarding");
+      }
+    } catch {
+      setStartError("Network error");
+    } finally {
+      setStarting(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="animate-pulse space-y-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="h-16 rounded-[var(--radius-lg)] bg-[var(--bg-tertiary)]" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const onboardingComplete = profile && profile.onboarding_step > 7;
+  const onboardingInProgress = profile && profile.onboarding_step >= 1 && profile.onboarding_step <= 7;
+
+  return (
+    <div className="space-y-6">
+      {/* Onboarding Status */}
+      <Section title="Profiling Status">
+        {!profile ? (
+          <div className="space-y-3">
+            <p className="text-sm text-[var(--text-tertiary)]">
+              거버넌스 프로파일링이 아직 시작되지 않았습니다.
+              {!telegramConnected && " Telegram 봇을 먼저 연결해주세요."}
+            </p>
+            {isOwner && telegramConnected && (
+              <>
+                <Button onClick={handleStartOnboarding} disabled={starting}>
+                  {starting ? "시작 중..." : "프로파일링 시작"}
+                </Button>
+                {startError && (
+                  <div className="rounded-[var(--radius-md)] bg-[var(--status-error-bg)] px-3 py-2 text-xs text-[var(--status-error-fg)]">
+                    {startError}
+                  </div>
+                )}
+              </>
+            )}
+            {isOwner && !telegramConnected && (
+              <p className="text-xs text-[var(--text-tertiary)]">
+                Settings 탭에서 Telegram 봇을 먼저 설정해주세요.
+              </p>
+            )}
+          </div>
+        ) : onboardingInProgress ? (
+          <div className="space-y-3">
+            <div className="rounded-[var(--radius-md)] bg-[var(--status-warning-bg)] px-3 py-2 text-sm text-[var(--status-warning-fg)]">
+              프로파일링 진행 중 ({profile.onboarding_step}/7)
+            </div>
+            <div className="relative h-2 rounded-full bg-[var(--bg-tertiary)]">
+              <div
+                className="absolute inset-y-0 left-0 rounded-full bg-[var(--status-warning-fg)] transition-all"
+                style={{ width: `${Math.round((profile.onboarding_step / 7) * 100)}%` }}
+              />
+            </div>
+            <p className="text-xs text-[var(--text-tertiary)]">
+              Telegram에서 질문에 답변해주세요.
+            </p>
+            {isOwner && (
+              <button
+                type="button"
+                onClick={handleStartOnboarding}
+                disabled={starting}
+                className="text-sm text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] transition-colors"
+              >
+                {starting ? "재시작 중..." : "처음부터 다시 시작"}
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="rounded-[var(--radius-md)] bg-[var(--status-success-bg)] px-3 py-2 text-sm text-[var(--status-success-fg)]">
+            프로파일링 완료
+            {profile.onboarding_completed_at && (
+              <span className="ml-2 text-xs opacity-75">
+                ({new Date(profile.onboarding_completed_at).toLocaleDateString("ko-KR")})
+              </span>
+            )}
+          </div>
+        )}
+      </Section>
+
+      {/* Trait Visualization */}
+      {profile && (onboardingComplete || onboardingInProgress) && (
+        <Section title="Governance Profile">
+          <div className="space-y-5">
+            {TRAIT_CONFIG.map(({ key, name, low, high }) => (
+              <TraitBar
+                key={key}
+                name={name}
+                value={profile.traits[key] ?? 0.5}
+                low={low}
+                high={high}
+              />
+            ))}
+          </div>
+        </Section>
       )}
     </div>
   );

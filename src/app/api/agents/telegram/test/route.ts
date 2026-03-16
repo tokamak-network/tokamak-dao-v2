@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { agentSupabase } from "@/lib/agent-supabase";
+import { setWebhook, deleteWebhook } from "@/lib/telegram";
+import crypto from "crypto";
 
 export async function POST(req: NextRequest) {
   try {
@@ -28,7 +30,10 @@ export async function POST(req: NextRequest) {
 
     const token = data.telegram_bot_token;
 
-    // 2. getUpdates to find the most recent chat_id
+    // 2. Delete existing webhook first (so getUpdates works)
+    await deleteWebhook(token);
+
+    // 3. getUpdates to find the most recent chat_id
     const updatesRes = await fetch(
       `https://api.telegram.org/bot${token}/getUpdates?limit=100`
     );
@@ -63,7 +68,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 3. sendMessage to the detected chat
+    // 4. sendMessage to the detected chat
     const sendRes = await fetch(
       `https://api.telegram.org/bot${token}/sendMessage`,
       {
@@ -84,10 +89,35 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 4. Save chat_id to Supabase for future notifications
+    // 5. Save chat_id + set up webhook
+    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+    const webhookSecret = crypto
+      .createHmac("sha256", token)
+      .update("webhook-secret")
+      .digest("hex")
+      .slice(0, 32);
+
+    // Determine app URL for webhook
+    const appUrl =
+      process.env.NEXT_PUBLIC_APP_URL ||
+      (process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}`
+        : null);
+
+    if (appUrl) {
+      const webhookUrl = `${appUrl}/api/agents/telegram/webhook?hash=${tokenHash}`;
+      const webhookResult = await setWebhook(token, webhookUrl, webhookSecret);
+      if (!webhookResult.ok) {
+        console.error("Failed to set webhook:", webhookResult.description);
+      }
+    }
+
     await agentSupabase
       .from("agents")
-      .update({ telegram_chat_id: chat.id })
+      .update({
+        telegram_chat_id: chat.id,
+        webhook_token_hash: tokenHash,
+      })
       .eq("agent_id", Number(agentId));
 
     const chatTitle = chat.title || chat.first_name || `Chat ${chat.id}`;
