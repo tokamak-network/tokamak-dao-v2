@@ -33,14 +33,18 @@ export async function POST(req: NextRequest) {
     const shortProposer = `${proposer.slice(0, 6)}...${proposer.slice(-4)}`;
     const proposalUrl = origin ? `${origin}/proposals/${proposalId}` : null;
 
+    // Escape HTML special characters in user-provided text
+    const escapeHtml = (s: string) =>
+      s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
     const lines = [
-      `📋 *New Proposal Created*`,
+      `📋 <b>New Proposal Created</b>`,
       ``,
-      `*${title}*`,
-      `Proposed by \`${shortProposer}\``,
+      `<b>${escapeHtml(title)}</b>`,
+      `Proposed by <code>${escapeHtml(shortProposer)}</code>`,
     ];
     if (proposalUrl) {
-      lines.push(``, `[View Proposal →](${proposalUrl})`);
+      lines.push(``, `<a href="${proposalUrl}">View Proposal →</a>`);
     }
     const message = lines.join("\n");
 
@@ -55,7 +59,7 @@ export async function POST(req: NextRequest) {
             body: JSON.stringify({
               chat_id: agent.telegram_chat_id,
               text: message,
-              parse_mode: "Markdown",
+              parse_mode: "HTML",
               disable_web_page_preview: true,
             }),
           }

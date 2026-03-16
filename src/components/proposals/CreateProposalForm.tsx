@@ -363,7 +363,7 @@ export function CreateProposalForm({ className }: CreateProposalFormProps) {
             proposalId,
             title,
             proposer: address,
-            origin: window.location.origin,
+            origin: "https://tokamak-dao-v2.vercel.app",
           }),
         }).catch(() => {});
 
