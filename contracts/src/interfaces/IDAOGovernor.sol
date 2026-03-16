@@ -174,6 +174,20 @@ interface IDAOGovernor {
         string calldata reason
     ) external;
 
+    /// @notice Cast a vote by EIP-712 signature (gasless for the voter)
+    /// @param proposalId The proposal ID
+    /// @param support The vote type
+    /// @param v Signature recovery byte
+    /// @param r Signature r component
+    /// @param s Signature s component
+    function castVoteBySig(
+        uint256 proposalId,
+        VoteType support,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) external;
+
     /// @notice Queue a successful proposal for execution
     /// @param proposalId The proposal ID
     function queue(uint256 proposalId) external;

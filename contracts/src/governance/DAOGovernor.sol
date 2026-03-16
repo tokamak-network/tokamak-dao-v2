@@ -6,6 +6,8 @@ import { Pausable } from "@openzeppelin/contracts/utils/Pausable.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import { EIP712 } from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 
 import { IDAOGovernor } from "../interfaces/IDAOGovernor.sol";
 import { IDelegateRegistry } from "../interfaces/IDelegateRegistry.sol";
@@ -20,7 +22,7 @@ import { Timelock } from "./Timelock.sol";
 ///      - 4% quorum of total delegated vTON
 ///      - Simple majority pass rate
 ///      - 7-day timelock before execution
-contract DAOGovernor is IDAOGovernor, Ownable, Pausable, ReentrancyGuard {
+contract DAOGovernor is IDAOGovernor, Ownable, Pausable, ReentrancyGuard, EIP712 {
     using SafeERC20 for IERC20;
 
     /*//////////////////////////////////////////////////////////////
@@ -50,10 +52,15 @@ contract DAOGovernor is IDAOGovernor, Ownable, Pausable, ReentrancyGuard {
     error InsufficientVTON();
     error InvalidPassRate();
     error SelfDefenseRestricted();
+    error InvalidSignature();
 
     /*//////////////////////////////////////////////////////////////
                                 CONSTANTS
     //////////////////////////////////////////////////////////////*/
+
+    /// @notice EIP-712 typehash for Ballot struct
+    bytes32 public constant BALLOT_TYPEHASH =
+        keccak256("Ballot(uint256 proposalId,uint8 support)");
 
     /// @notice Default proposal creation cost (10 TON)
     uint256 public constant DEFAULT_PROPOSAL_COST = 10 ether;
@@ -183,7 +190,7 @@ contract DAOGovernor is IDAOGovernor, Ownable, Pausable, ReentrancyGuard {
         address delegateRegistry_,
         address timelock_,
         address initialOwner
-    ) Ownable(initialOwner) {
+    ) Ownable(initialOwner) EIP712("DAOGovernor", "1") {
         if (
             ton_ == address(0) || vTON_ == address(0) || delegateRegistry_ == address(0)
                 || timelock_ == address(0) || initialOwner == address(0)
@@ -284,7 +291,7 @@ contract DAOGovernor is IDAOGovernor, Ownable, Pausable, ReentrancyGuard {
 
     /// @inheritdoc IDAOGovernor
     function castVote(uint256 proposalId, VoteType support) external override whenNotPaused {
-        _castVote(proposalId, support, "");
+        _castVoteFor(msg.sender, proposalId, support, "");
     }
 
     /// @inheritdoc IDAOGovernor
@@ -293,7 +300,22 @@ contract DAOGovernor is IDAOGovernor, Ownable, Pausable, ReentrancyGuard {
         VoteType support,
         string calldata reason
     ) external override whenNotPaused {
-        _castVote(proposalId, support, reason);
+        _castVoteFor(msg.sender, proposalId, support, reason);
+    }
+
+    /// @inheritdoc IDAOGovernor
+    function castVoteBySig(
+        uint256 proposalId,
+        VoteType support,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) external override whenNotPaused {
+        bytes32 structHash =
+            keccak256(abi.encode(BALLOT_TYPEHASH, proposalId, support));
+        address voter = ECDSA.recover(_hashTypedDataV4(structHash), v, r, s);
+        if (voter == address(0)) revert InvalidSignature();
+        _castVoteFor(voter, proposalId, support, "");
     }
 
     /// @inheritdoc IDAOGovernor
@@ -623,26 +645,31 @@ contract DAOGovernor is IDAOGovernor, Ownable, Pausable, ReentrancyGuard {
     //////////////////////////////////////////////////////////////*/
 
     /// @dev Internal vote casting logic
-    function _castVote(uint256 proposalId, VoteType support, string memory reason) internal {
+    function _castVoteFor(
+        address voter,
+        uint256 proposalId,
+        VoteType support,
+        string memory reason
+    ) internal {
         Proposal storage proposal = _proposals[proposalId];
 
         if (proposal.snapshotBlock == 0) revert ProposalNotFound();
         if (block.number < proposal.voteStart) revert VotingNotStarted();
         if (block.number > proposal.voteEnd) revert VotingEnded();
-        if (_hasVoted[proposalId][msg.sender]) revert AlreadyVoted();
+        if (_hasVoted[proposalId][voter]) revert AlreadyVoted();
 
         // Only registered delegates can vote
-        if (!delegateRegistry.isRegisteredDelegate(msg.sender)) {
+        if (!delegateRegistry.isRegisteredDelegate(voter)) {
             revert NotDelegate();
         }
 
         // Get voting power (only delegations made 7+ days before snapshot)
         uint256 weight =
-            delegateRegistry.getVotingPower(msg.sender, proposal.snapshotBlock, proposal.snapshotBlock);
+            delegateRegistry.getVotingPower(voter, proposal.snapshotBlock, proposal.snapshotBlock);
 
         // Record vote
-        _hasVoted[proposalId][msg.sender] = true;
-        _voteReceipts[proposalId][msg.sender] = VoteReceipt({ support: support, weight: weight });
+        _hasVoted[proposalId][voter] = true;
+        _voteReceipts[proposalId][voter] = VoteReceipt({ support: support, weight: weight });
 
         // Update vote counts (For=0, Against=1, Abstain=2)
         if (support == VoteType.For) {
@@ -653,7 +680,7 @@ contract DAOGovernor is IDAOGovernor, Ownable, Pausable, ReentrancyGuard {
             proposal.abstainVotes += weight;
         }
 
-        emit VoteCast(msg.sender, proposalId, support, weight, reason);
+        emit VoteCast(voter, proposalId, support, weight, reason);
     }
 
     /// @notice Receive ETH for proposal execution

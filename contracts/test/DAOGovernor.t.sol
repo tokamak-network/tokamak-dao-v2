@@ -2551,4 +2551,118 @@ contract DAOGovernorTest is Test {
         vm.expectRevert(IDAOGovernor.NotAuthorizedToPause.selector);
         governor.pause();
     }
+
+    /*//////////////////////////////////////////////////////////////
+                        CAST VOTE BY SIG TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_CastVoteBySig() public {
+        // Setup: register delegate, delegate tokens, create proposal
+        uint256 agentPk = 0xA11CE;
+        address agent = vm.addr(agentPk);
+
+        vm.prank(agent);
+        registry.registerDelegate("Agent", "Auto-vote", "DAO");
+
+        vm.prank(user1);
+        registry.delegate(agent, 10_000 ether);
+
+        vm.prank(user2);
+        registry.delegate(agent, 10_000 ether);
+
+        vm.warp(block.timestamp + 8 days);
+
+        // Create proposal
+        address[] memory targets = new address[](1);
+        targets[0] = address(governor);
+        uint256[] memory values = new uint256[](1);
+        bytes[] memory calldatas = new bytes[](1);
+        calldatas[0] = abi.encodeWithSignature("setQuorum(uint256)", 500);
+
+        vm.prank(user1);
+        uint256 proposalId = governor.propose(targets, values, calldatas, "Test sig vote", 0);
+
+        // Roll to voting period
+        vm.roll(block.number + governor.votingDelay() + 1);
+
+        // Agent signs EIP-712 Ballot
+        bytes32 domainSeparator = keccak256(
+            abi.encode(
+                keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+                keccak256("DAOGovernor"),
+                keccak256("1"),
+                block.chainid,
+                address(governor)
+            )
+        );
+        bytes32 structHash = keccak256(
+            abi.encode(governor.BALLOT_TYPEHASH(), proposalId, IDAOGovernor.VoteType.For)
+        );
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(agentPk, digest);
+
+        // Relayer submits (not the agent)
+        address relayer = makeAddr("relayer");
+        vm.prank(relayer);
+        governor.castVoteBySig(proposalId, IDAOGovernor.VoteType.For, v, r, s);
+
+        // Verify vote was recorded for the agent (not relayer)
+        assertTrue(governor.hasVoted(proposalId, agent));
+        assertFalse(governor.hasVoted(proposalId, relayer));
+
+        (IDAOGovernor.VoteType support, uint256 weight) = governor.getVoteReceipt(proposalId, agent);
+        assertEq(uint256(support), uint256(IDAOGovernor.VoteType.For));
+        assertGt(weight, 0);
+    }
+
+    function test_CastVoteBySigInvalidSig() public {
+        // Setup: register delegate, delegate tokens, create proposal
+        uint256 agentPk = 0xA11CE;
+        address agent = vm.addr(agentPk);
+
+        vm.prank(agent);
+        registry.registerDelegate("Agent", "Auto-vote", "DAO");
+
+        vm.prank(user1);
+        registry.delegate(agent, 10_000 ether);
+
+        vm.warp(block.timestamp + 8 days);
+
+        // Create proposal
+        address[] memory targets = new address[](1);
+        targets[0] = address(governor);
+        uint256[] memory values = new uint256[](1);
+        bytes[] memory calldatas = new bytes[](1);
+        calldatas[0] = abi.encodeWithSignature("setQuorum(uint256)", 500);
+
+        vm.prank(user1);
+        uint256 proposalId = governor.propose(targets, values, calldatas, "Test bad sig", 0);
+
+        vm.roll(block.number + governor.votingDelay() + 1);
+
+        // Sign with wrong key
+        uint256 wrongPk = 0xBAD;
+        bytes32 domainSeparator = keccak256(
+            abi.encode(
+                keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+                keccak256("DAOGovernor"),
+                keccak256("1"),
+                block.chainid,
+                address(governor)
+            )
+        );
+        bytes32 structHash = keccak256(
+            abi.encode(governor.BALLOT_TYPEHASH(), proposalId, IDAOGovernor.VoteType.For)
+        );
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(wrongPk, digest);
+
+        // The wrong signer recovers to a different address that is NOT a delegate
+        address relayer = makeAddr("relayer");
+        vm.prank(relayer);
+        vm.expectRevert(DAOGovernor.NotDelegate.selector);
+        governor.castVoteBySig(proposalId, IDAOGovernor.VoteType.For, v, r, s);
+    }
 }
