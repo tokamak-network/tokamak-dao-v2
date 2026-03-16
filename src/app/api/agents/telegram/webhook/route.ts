@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { agentSupabase } from "@/lib/agent-supabase";
 import { sendTelegramMessage } from "@/lib/telegram";
-import { handleOnboardingResponse } from "@/lib/agent-onboarding";
 import { handleProposalDiscussion } from "@/lib/agent-analysis";
 import crypto from "crypto";
 
@@ -73,70 +72,41 @@ export async function POST(req: NextRequest) {
     if (userText === "/start") {
       await sendTelegramMessage(botToken, {
         chatId,
-        text: "안녕하세요! Tokamak DAO Agent입니다. 웹에서 프로파일링을 시작하시면 거버넌스 특성을 파악해 드리겠습니다.",
+        text: "안녕하세요! Tokamak DAO Agent입니다. 새로운 안건이 올라오면 맞춤형 분석을 보내드리겠습니다.",
       });
       return NextResponse.json({ ok: true });
     }
 
-    // 4. Route message based on agent state
-    const { data: profile } = await agentSupabase
-      .from("agent_profiles")
-      .select("onboarding_step, traits")
-      .eq("agent_id", agentId)
-      .single();
+    // 4. Route: check if this is a reply to a proposal analysis
+    const replyText = message.reply_to_message?.text;
+    if (replyText) {
+      // Find the most recent proposal analysis conversation
+      const { data: recentConv } = await agentSupabase
+        .from("agent_conversations")
+        .select("context_id")
+        .eq("agent_id", agentId)
+        .eq("context_type", "proposal_analysis")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .single();
 
-    if (profile && profile.onboarding_step >= 1 && profile.onboarding_step <= 7) {
-      // Onboarding in progress
-      await handleOnboardingResponse(
-        agentId,
-        botToken,
-        chatId,
-        userText,
-        profile.onboarding_step
-      );
-      return NextResponse.json({ ok: true });
-    }
-
-    if (profile && profile.onboarding_step > 7) {
-      // Onboarding complete - check if replying to a proposal analysis
-      const replyText = message.reply_to_message?.text;
-      if (replyText) {
-        // Try to extract proposal context from the reply
-        // Look for the most recent proposal analysis conversation
-        const { data: recentConv } = await agentSupabase
-          .from("agent_conversations")
-          .select("context_id")
-          .eq("agent_id", agentId)
-          .eq("context_type", "proposal_analysis")
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .single();
-
-        if (recentConv?.context_id) {
-          const response = await handleProposalDiscussion(
-            agentId,
-            recentConv.context_id,
-            botToken,
-            chatId,
-            userText
-          );
-          await sendTelegramMessage(botToken, { chatId, text: response });
-          return NextResponse.json({ ok: true });
-        }
+      if (recentConv?.context_id) {
+        const response = await handleProposalDiscussion(
+          agentId,
+          recentConv.context_id,
+          botToken,
+          chatId,
+          userText
+        );
+        await sendTelegramMessage(botToken, { chatId, text: response });
+        return NextResponse.json({ ok: true });
       }
-
-      // General message after onboarding - just acknowledge
-      await sendTelegramMessage(botToken, {
-        chatId,
-        text: "새로운 안건이 올라오면 맞춤형 분석을 보내드리겠습니다. 안건 분석 메시지에 답장하시면 더 자세히 논의할 수 있습니다.",
-      });
-      return NextResponse.json({ ok: true });
     }
 
-    // No profile or onboarding not started
+    // General message - guide user
     await sendTelegramMessage(botToken, {
       chatId,
-      text: "아직 프로파일링이 시작되지 않았습니다. 웹에서 \"프로파일링 시작\" 버튼을 클릭해주세요.",
+      text: "새로운 안건이 올라오면 분석을 보내드리겠습니다. 안건 분석 메시지에 답장하시면 더 자세히 논의할 수 있습니다.",
     });
     return NextResponse.json({ ok: true });
   } catch (err) {

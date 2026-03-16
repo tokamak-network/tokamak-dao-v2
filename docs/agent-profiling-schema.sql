@@ -2,6 +2,7 @@
 -- Run these on the Agent Supabase instance
 
 -- 1. New table: agent_profiles
+-- Profiles start with default traits (0.5) and evolve through proposal discussions.
 CREATE TABLE IF NOT EXISTS agent_profiles (
   agent_id INTEGER PRIMARY KEY,
   traits JSONB NOT NULL DEFAULT '{
@@ -13,8 +14,6 @@ CREATE TABLE IF NOT EXISTS agent_profiles (
     "skin_in_game": 0.5,
     "delegation_style": 0.5
   }',
-  onboarding_step INTEGER NOT NULL DEFAULT 0,
-  onboarding_completed_at TIMESTAMPTZ,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -22,8 +21,8 @@ CREATE TABLE IF NOT EXISTS agent_profiles (
 CREATE TABLE IF NOT EXISTS agent_conversations (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   agent_id INTEGER NOT NULL,
-  context_type TEXT NOT NULL,  -- 'onboarding' | 'proposal_analysis'
-  context_id TEXT,             -- question number or proposal_id
+  context_type TEXT NOT NULL,  -- 'proposal_analysis'
+  context_id TEXT,             -- proposal_id
   messages JSONB NOT NULL DEFAULT '[]',
   trait_deltas JSONB,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),

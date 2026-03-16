@@ -47,18 +47,33 @@ export async function POST(req: NextRequest) {
     }
     const notificationMessage = lines.join("\n");
 
-    // Fetch profiles for agents with completed onboarding
+    // Fetch or auto-create profiles for all agents
     const agentIds = agents.map((a) => a.agent_id);
     const { data: profiles } = await agentSupabase
       .from("agent_profiles")
-      .select("agent_id, traits, onboarding_step")
-      .in("agent_id", agentIds)
-      .gt("onboarding_step", 7);
+      .select("agent_id, traits")
+      .in("agent_id", agentIds);
 
     const profileMap = new Map<number, AgentTraits>();
     if (profiles) {
       for (const p of profiles) {
         profileMap.set(p.agent_id, p.traits as AgentTraits);
+      }
+    }
+
+    // Auto-create profiles for agents that don't have one yet
+    const { DEFAULT_TRAITS } = await import("@/types/agent-profile");
+    const missingIds = agentIds.filter((id) => !profileMap.has(id));
+    if (missingIds.length > 0) {
+      await agentSupabase.from("agent_profiles").insert(
+        missingIds.map((id) => ({
+          agent_id: id,
+          traits: DEFAULT_TRAITS,
+          updated_at: new Date().toISOString(),
+        }))
+      );
+      for (const id of missingIds) {
+        profileMap.set(id, { ...DEFAULT_TRAITS });
       }
     }
 
@@ -73,7 +88,7 @@ export async function POST(req: NextRequest) {
 
         if (!notifyResult.ok) return notifyResult;
 
-        // If agent has completed onboarding, send personalized analysis
+        // Send personalized analysis if profile exists
         const traits = profileMap.get(agent.agent_id);
         if (traits) {
           try {

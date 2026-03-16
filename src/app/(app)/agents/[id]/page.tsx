@@ -456,7 +456,7 @@ export default function AgentDetailPage({
 
       {/* ═══ Profile Tab ═══ */}
       {tab === "profile" && (
-        <AgentProfileTab agentId={id} isOwner={isOwner} telegramConnected={telegramConnected} />
+        <AgentProfileTab agentId={id} />
       )}
 
       {/* ═══ Settings Tab (owner only) ═══ */}
@@ -474,8 +474,6 @@ export default function AgentDetailPage({
 interface ProfileData {
   agent_id: number;
   traits: Record<string, number>;
-  onboarding_step: number;
-  onboarding_completed_at: string | null;
 }
 
 const TRAIT_CONFIG: { key: string; name: string; low: string; high: string }[] = [
@@ -512,17 +510,11 @@ function TraitBar({ name, value, low, high }: { name: string; value: number; low
 
 function AgentProfileTab({
   agentId,
-  isOwner,
-  telegramConnected,
 }: {
   agentId: string;
-  isOwner: boolean;
-  telegramConnected: boolean;
 }) {
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [starting, setStarting] = useState(false);
-  const [startError, setStartError] = useState<string | null>(null);
 
   const fetchProfile = useCallback(() => {
     setLoading(true);
@@ -537,28 +529,6 @@ function AgentProfileTab({
 
   useEffect(() => { fetchProfile(); }, [fetchProfile]);
 
-  const handleStartOnboarding = async () => {
-    setStarting(true);
-    setStartError(null);
-    try {
-      const res = await fetch("/api/agents/telegram/onboarding", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ agentId }),
-      });
-      const data = await res.json();
-      if (data.ok) {
-        fetchProfile();
-      } else {
-        setStartError(data.error || "Failed to start onboarding");
-      }
-    } catch {
-      setStartError("Network error");
-    } finally {
-      setStarting(false);
-    }
-  };
-
   if (loading) {
     return (
       <div className="space-y-6">
@@ -571,90 +541,36 @@ function AgentProfileTab({
     );
   }
 
-  const onboardingComplete = profile && profile.onboarding_step > 7;
-  const onboardingInProgress = profile && profile.onboarding_step >= 1 && profile.onboarding_step <= 7;
+  if (!profile) {
+    return (
+      <div className="space-y-6">
+        <Section title="Governance Profile">
+          <p className="text-sm text-[var(--text-tertiary)]">
+            아직 프로필 데이터가 없습니다. 새로운 안건이 올라오면 Telegram을 통해 분석을 제공하고, 대화를 나누면서 거버넌스 프로필이 자동으로 형성됩니다.
+          </p>
+        </Section>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      {/* Onboarding Status */}
-      <Section title="Profiling Status">
-        {!profile ? (
-          <div className="space-y-3">
-            <p className="text-sm text-[var(--text-tertiary)]">
-              거버넌스 프로파일링이 아직 시작되지 않았습니다.
-              {!telegramConnected && " Telegram 봇을 먼저 연결해주세요."}
-            </p>
-            {isOwner && telegramConnected && (
-              <>
-                <Button onClick={handleStartOnboarding} disabled={starting}>
-                  {starting ? "시작 중..." : "프로파일링 시작"}
-                </Button>
-                {startError && (
-                  <div className="rounded-[var(--radius-md)] bg-[var(--status-error-bg)] px-3 py-2 text-xs text-[var(--status-error-fg)]">
-                    {startError}
-                  </div>
-                )}
-              </>
-            )}
-            {isOwner && !telegramConnected && (
-              <p className="text-xs text-[var(--text-tertiary)]">
-                Settings 탭에서 Telegram 봇을 먼저 설정해주세요.
-              </p>
-            )}
-          </div>
-        ) : onboardingInProgress ? (
-          <div className="space-y-3">
-            <div className="rounded-[var(--radius-md)] bg-[var(--status-warning-bg)] px-3 py-2 text-sm text-[var(--status-warning-fg)]">
-              프로파일링 진행 중 ({profile.onboarding_step}/7)
-            </div>
-            <div className="relative h-2 rounded-full bg-[var(--bg-tertiary)]">
-              <div
-                className="absolute inset-y-0 left-0 rounded-full bg-[var(--status-warning-fg)] transition-all"
-                style={{ width: `${Math.round((profile.onboarding_step / 7) * 100)}%` }}
-              />
-            </div>
-            <p className="text-xs text-[var(--text-tertiary)]">
-              Telegram에서 질문에 답변해주세요.
-            </p>
-            {isOwner && (
-              <button
-                type="button"
-                onClick={handleStartOnboarding}
-                disabled={starting}
-                className="text-sm text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] transition-colors"
-              >
-                {starting ? "재시작 중..." : "처음부터 다시 시작"}
-              </button>
-            )}
-          </div>
-        ) : (
-          <div className="rounded-[var(--radius-md)] bg-[var(--status-success-bg)] px-3 py-2 text-sm text-[var(--status-success-fg)]">
-            프로파일링 완료
-            {profile.onboarding_completed_at && (
-              <span className="ml-2 text-xs opacity-75">
-                ({new Date(profile.onboarding_completed_at).toLocaleDateString("ko-KR")})
-              </span>
-            )}
-          </div>
-        )}
+      <Section title="Governance Profile">
+        <div className="space-y-5">
+          {TRAIT_CONFIG.map(({ key, name, low, high }) => (
+            <TraitBar
+              key={key}
+              name={name}
+              value={profile.traits[key] ?? 0.5}
+              low={low}
+              high={high}
+            />
+          ))}
+        </div>
+        <p className="mt-4 text-xs text-[var(--text-tertiary)]">
+          이 프로필은 안건 분석 대화를 통해 자동으로 업데이트됩니다.
+        </p>
       </Section>
-
-      {/* Trait Visualization */}
-      {profile && (onboardingComplete || onboardingInProgress) && (
-        <Section title="Governance Profile">
-          <div className="space-y-5">
-            {TRAIT_CONFIG.map(({ key, name, low, high }) => (
-              <TraitBar
-                key={key}
-                name={name}
-                value={profile.traits[key] ?? 0.5}
-                low={low}
-                high={high}
-              />
-            ))}
-          </div>
-        </Section>
-      )}
     </div>
   );
 }

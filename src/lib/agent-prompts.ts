@@ -1,23 +1,4 @@
-import type { AgentTraits, TraitKey } from "@/types/agent-profile";
-
-/**
- * System prompt for extracting trait scores from onboarding answers.
- */
-export function onboardingExtractionPrompt(traitKey: TraitKey): string {
-  return `You are analyzing a DAO governance participant's response to determine their stance on a specific governance dimension.
-
-Dimension: "${traitKey}"
-
-Based on the user's response, extract a score between 0.0 and 1.0 for this dimension.
-- 0.0 = strongly leans toward the conservative/restrictive end
-- 0.5 = neutral or balanced
-- 1.0 = strongly leans toward the progressive/permissive end
-
-You MUST respond with ONLY a valid JSON object in this exact format:
-{"score": <number between 0.0 and 1.0>, "reasoning": "<brief explanation>"}
-
-Do not include any other text before or after the JSON.`;
-}
+import type { AgentTraits } from "@/types/agent-profile";
 
 /**
  * System prompt for proposal analysis based on agent traits.
@@ -66,14 +47,4 @@ If no shift is detected, output:
 {"deltas": {}, "response": "<your conversational response in Korean>"}
 
 Do not include any other text before or after the JSON.`;
-}
-
-/**
- * System prompt for conversational responses during onboarding.
- */
-export function onboardingConversationPrompt(): string {
-  return `You are a friendly DAO governance onboarding assistant for Tokamak Network.
-You are having a conversation in Korean with a participant to understand their governance preferences.
-Respond naturally and briefly acknowledge their answer before moving to the next question.
-Keep responses under 200 characters. Be warm but concise.`;
 }

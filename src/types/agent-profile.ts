@@ -33,16 +33,14 @@ export const TRAIT_LABELS: Record<TraitKey, { name: string; low: string; high: s
 export interface AgentProfile {
   agent_id: number;
   traits: AgentTraits;
-  onboarding_step: number; // 0=not started, 1-7=in progress, 8=completed
-  onboarding_completed_at: string | null;
   updated_at: string;
 }
 
 export interface ConversationRecord {
   id: string;
   agent_id: number;
-  context_type: "onboarding" | "proposal_analysis";
-  context_id: string | null; // question number or proposal_id
+  context_type: "proposal_analysis";
+  context_id: string | null; // proposal_id
   messages: Array<{ role: "user" | "assistant"; content: string }>;
   trait_deltas: Partial<AgentTraits> | null;
   created_at: string;
