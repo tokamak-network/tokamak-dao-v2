@@ -24,8 +24,8 @@ const footerColumns = [
     title: "About",
     links: [
       { label: "Price Dashboard", href: "https://price.tokamak.network", external: true },
-      { label: "Partners", href: "https://tokamaknetwork.com/about/partners", external: true },
-      { label: "Insight", href: "https://tokamaknetwork.com/about/insight", external: true },
+      { label: "Partners", href: "https://tokamak.network/about/partners", external: true },
+      { label: "Insight", href: "https://tokamak.network/about/insight", external: true },
     ],
   },
   {
