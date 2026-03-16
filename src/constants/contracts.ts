@@ -36,17 +36,17 @@ export const CONTRACT_ADDRESSES: Record<number, ContractAddresses> = {
     faucet: "0x959922bE3CAee4b8Cd9a407cc3ac1C251C2007B1",
     tonFaucet: "0x9A9f2CCfdE556A7E9Ff0848998Aa4a0CFD8863AE",
   },
-  // Sepolia Testnet
+  // Sepolia Testnet (test params: votingDelay=1800, votingPeriod=7200, maturity=0)
   11155111: {
-    ton: "0x7d3bCCC15e2277c45DD4bcbABD516e8dEb9E3622",
-    vton: "0x44eF48593E3845857b3A5383F97349578C532e3e",
-    delegateRegistry: "0x2701574542BA4F3b2c34d28040f62Bca28eEA81F",
-    daoGovernor: "0x2673285442a9a4b5FAf731A3aAb100331bbBFDe8",
-    securityCouncil: "0xF6D0A7D514aDA8B8874eAfF291f79F1EDe94298B",
-    timelock: "0x97ce30458500abfbA15DCC2cA46929d40a0DF95F",
-    faucet: "0x0F48916463B8e43e1a4C18D0F964e70DFaB51B0c",
-    tonFaucet: "0x5b66204455e7cCb30Aec13bdEEbC8b71F7A5aC39",
-    voteRelayFund: "0xe80639D7Dd97dE6D8CB117B5d9CEf5F3Cd282E90",
+    ton: "0x54EE662A624901dFD90604e4d873fd574f64997e",
+    vton: "0x88665d63a44d523395115a0CD53545C0885f9E20",
+    delegateRegistry: "0x8Cf068c8dB2b3e133F0BC6d94ae46760ed2fF8A0",
+    daoGovernor: "0xc735642bdDF460c6E0922be0D8348287450eCB42",
+    securityCouncil: "0xC0F7691C465bEb069a15F9a4F7492481140299ca",
+    timelock: "0x6Ee3E2e5B2A8459eeA1c634D648080D8C15Ad064",
+    faucet: "0xc91b6201fB22831A1e84C6ABC16B04F64448936B",
+    tonFaucet: "0xcCe45fa5e24937D4fe7C6D707C1fA9b81E78f21d",
+    voteRelayFund: "0xcF1927D06e6E23763d7C78C762c72694425cf42A",
   },
   // Ethereum Mainnet
   1: {
