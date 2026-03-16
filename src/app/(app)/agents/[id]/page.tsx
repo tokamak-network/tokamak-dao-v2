@@ -2,10 +2,11 @@
 
 import { use, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useAccount, useReadContract, useReadContracts, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { useAccount, useConfig, useReadContract, useReadContracts, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { waitForTransactionReceipt as wagmiWaitForReceipt } from "@wagmi/core";
 import { parseEther, formatEther } from "viem";
 import { identityRegistryAbi, getRegistryAddress, SEPOLIA_CHAIN_ID } from "@/constants/erc8004";
-import { DELEGATE_REGISTRY_ABI, CONTRACT_ADDRESSES, VOTE_RELAY_FUND_ABI, DAO_GOVERNOR_ABI } from "@/constants/contracts";
+import { DELEGATE_REGISTRY_ABI, CONTRACT_ADDRESSES, VOTE_RELAY_FUND_ABI, DAO_GOVERNOR_ABI, VTON_ABI } from "@/constants/contracts";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -481,8 +482,14 @@ function AgentWalletSection({ walletAddress, agentId }: { walletAddress: string;
   const [depositAmount, setDepositAmount] = useState("");
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const sepoliaAddresses = CONTRACT_ADDRESSES[SEPOLIA_CHAIN_ID];
+  const config = useConfig();
 
-  const { writeContract, data: txHash, isPending, error: writeError, reset: resetWrite } = useWriteContract();
+  const waitForReceipt = (hash: `0x${string}`) =>
+    wagmiWaitForReceipt(config, { hash, chainId: SEPOLIA_CHAIN_ID });
+
+  const [delegateStep, setDelegateStep] = useState<"idle" | "approving" | "delegating">("idle");
+
+  const { writeContract, writeContractAsync, data: txHash, isPending, error: writeError, reset: resetWrite } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
 
   // Read VoteRelayFund balance
@@ -502,17 +509,43 @@ function AgentWalletSection({ walletAddress, agentId }: { walletAddress: string;
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleDelegate = () => {
+  const handleDelegate = async () => {
     if (!delegateAmount || parseFloat(delegateAmount) <= 0) return;
-    resetWrite();
-    writeContract({
-      address: sepoliaAddresses.delegateRegistry as `0x${string}`,
-      abi: DELEGATE_REGISTRY_ABI,
-      functionName: "delegate",
-      args: [walletAddress as `0x${string}`, parseEther(delegateAmount)],
-      chainId: SEPOLIA_CHAIN_ID,
-    });
+    const amount = parseEther(delegateAmount);
+
+    try {
+      // Step 1: Approve vTON to DelegateRegistry
+      setDelegateStep("approving");
+      resetWrite();
+      const approveTx = await writeContractAsync({
+        address: sepoliaAddresses.vton as `0x${string}`,
+        abi: VTON_ABI,
+        functionName: "approve",
+        args: [sepoliaAddresses.delegateRegistry as `0x${string}`, amount],
+        chainId: SEPOLIA_CHAIN_ID,
+      });
+
+      // Wait for approve confirmation using wagmi
+      await waitForReceipt(approveTx);
+
+      // Step 2: Delegate
+      setDelegateStep("delegating");
+      writeContract({
+        address: sepoliaAddresses.delegateRegistry as `0x${string}`,
+        abi: DELEGATE_REGISTRY_ABI,
+        functionName: "delegate",
+        args: [walletAddress as `0x${string}`, amount],
+        chainId: SEPOLIA_CHAIN_ID,
+      });
+    } catch {
+      setDelegateStep("idle");
+    }
   };
+
+  // Reset delegate step on success or error
+  useEffect(() => {
+    if (isSuccess || writeError) setDelegateStep("idle");
+  }, [isSuccess, writeError]);
 
   const handleDeposit = () => {
     if (!depositAmount || parseFloat(depositAmount) <= 0 || !voteRelayFundAddress) return;
@@ -588,9 +621,11 @@ function AgentWalletSection({ walletAddress, agentId }: { walletAddress: string;
               />
               <Button
                 onClick={handleDelegate}
-                disabled={!delegateAmount || parseFloat(delegateAmount) <= 0 || isPending || isConfirming}
+                disabled={!delegateAmount || parseFloat(delegateAmount) <= 0 || isPending || isConfirming || delegateStep !== "idle"}
               >
-                {isPending ? "Signing..." : isConfirming ? "Confirming..." : "Delegate"}
+                {delegateStep === "approving" ? "Approving vTON..." :
+                 delegateStep === "delegating" ? "Delegating..." :
+                 isPending ? "Signing..." : isConfirming ? "Confirming..." : "Delegate"}
               </Button>
             </div>
           </div>
