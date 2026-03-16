@@ -6,6 +6,7 @@ import {
   editMessageReplyMarkup,
 } from "@/lib/telegram";
 import { handleProposalDiscussion } from "@/lib/agent-analysis";
+import { castAgentVote, voteCodeToSupport } from "@/lib/agent-vote";
 import crypto from "crypto";
 
 /**
@@ -164,6 +165,56 @@ async function handleCallbackQuery(
       x: "🤚 Abstain (기권)",
     };
 
+    // Answer callback immediately to remove loading state
+    await answerCallbackQuery(
+      botToken,
+      callbackQuery.id,
+      `${voteLabels[voteCode] || voteCode} — 온체인 투표를 실행합니다...`
+    );
+
+    // Remove buttons
+    if (chatId && messageId) {
+      await editMessageReplyMarkup(botToken, chatId, messageId);
+    }
+
+    // Resolve shortId → proposalId from agent_conversations
+    const { data: conv } = await agentSupabase
+      .from("agent_conversations")
+      .select("context_id, messages")
+      .eq("agent_id", agentId)
+      .eq("context_type", "proposal_analysis")
+      .eq("context_id", proposalShortId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single();
+
+    // Extract real proposalId from conversation messages
+    let proposalId: bigint | null = null;
+    if (conv?.messages) {
+      const messages = conv.messages as Array<{ role: string; content: string; proposal_id?: string }>;
+      for (const msg of messages) {
+        if (msg.proposal_id) {
+          proposalId = BigInt(msg.proposal_id);
+          break;
+        }
+      }
+    }
+
+    if (!proposalId) {
+      // Fallback: try shortId as the proposalId directly
+      try {
+        proposalId = BigInt(proposalShortId);
+      } catch {
+        if (chatId) {
+          await sendTelegramMessage(botToken, {
+            chatId,
+            text: "❌ 안건 ID를 확인할 수 없습니다.",
+          });
+        }
+        return NextResponse.json({ ok: true });
+      }
+    }
+
     // Save vote preference
     await agentSupabase.from("agent_conversations").insert({
       agent_id: agentId,
@@ -178,20 +229,43 @@ async function handleCallbackQuery(
       trait_deltas: null,
     });
 
-    // Answer callback to remove loading state
-    await answerCallbackQuery(
-      botToken,
-      callbackQuery.id,
-      `${voteLabels[voteCode] || voteCode}을(를) 선택했습니다.`
-    );
-
-    // Remove buttons and show selected vote
-    if (chatId && messageId) {
-      await editMessageReplyMarkup(botToken, chatId, messageId);
+    // Execute on-chain vote
+    if (chatId) {
       await sendTelegramMessage(botToken, {
         chatId,
-        text: `✅ <b>${voteLabels[voteCode] || voteCode}</b>을(를) 선택했습니다.\n\n이 선택에 대해 더 논의하고 싶으시면 답장해주세요.`,
+        text: `⏳ <b>${voteLabels[voteCode]}</b> — 온체인 투표를 실행 중입니다...`,
       });
+
+      try {
+        const support = voteCodeToSupport(voteCode);
+        const result = await castAgentVote(agentId, proposalId, support);
+
+        if (result.success) {
+          const explorerUrl = `https://sepolia.etherscan.io/tx/${result.txHash}`;
+          await sendTelegramMessage(botToken, {
+            chatId,
+            text: [
+              `✅ <b>${voteLabels[voteCode]}</b> 온체인 투표 완료!`,
+              ``,
+              `투표권: ${result.votingPower} vTON`,
+              `<a href="${explorerUrl}">트랜잭션 확인 →</a>`,
+              ``,
+              `이 선택에 대해 더 논의하고 싶으시면 답장해주세요.`,
+            ].join("\n"),
+          });
+        } else {
+          await sendTelegramMessage(botToken, {
+            chatId,
+            text: `❌ 온체인 투표 실패: ${result.error}\n\n투표 의향은 기록되었습니다. 이 선택에 대해 더 논의하고 싶으시면 답장해주세요.`,
+          });
+        }
+      } catch (err) {
+        console.error("Agent vote error:", err);
+        await sendTelegramMessage(botToken, {
+          chatId,
+          text: `❌ 투표 실행 중 오류가 발생했습니다.\n\n투표 의향은 기록되었습니다.`,
+        });
+      }
     }
   } else {
     await answerCallbackQuery(botToken, callbackQuery.id);

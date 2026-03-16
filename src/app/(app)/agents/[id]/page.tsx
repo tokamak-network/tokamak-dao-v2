@@ -2,8 +2,10 @@
 
 import { use, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useAccount, useReadContracts } from "wagmi";
+import { useAccount, useReadContracts, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { parseEther } from "viem";
 import { identityRegistryAbi, getRegistryAddress, SEPOLIA_CHAIN_ID } from "@/constants/erc8004";
+import { DELEGATE_REGISTRY_ABI, CONTRACT_ADDRESSES } from "@/constants/contracts";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -87,11 +89,15 @@ export default function AgentDetailPage({
   const { address } = useAccount();
   const [tab, setTab] = useState<TabId>("overview");
   const [telegramConnected, setTelegramConnected] = useState(false);
+  const [agentWalletAddress, setAgentWalletAddress] = useState<string | null>(null);
 
   const refreshTelegram = useCallback(() => {
     fetch(`/api/agents?agentId=${id}`)
       .then((res) => res.json())
-      .then((data) => setTelegramConnected(!!data.telegramConnected))
+      .then((data) => {
+        setTelegramConnected(!!data.telegramConnected);
+        setAgentWalletAddress(data.agentWalletAddress || null);
+      })
       .catch(() => {});
   }, [id]);
 
@@ -456,11 +462,113 @@ export default function AgentDetailPage({
       {/* ═══ Settings Tab (owner only) ═══ */}
       {tab === "settings" && isOwner && (
         <div className="space-y-6">
+          {agentWalletAddress && (
+            <AgentWalletSection walletAddress={agentWalletAddress} />
+          )}
           <TelegramSettings agentId={id} owner={owner} connected={telegramConnected} onSaved={refreshTelegram} />
           <AgentProfileSection agentId={id} />
         </div>
       )}
     </div>
+  );
+}
+
+// ─── Agent Wallet Section ─────────────────────────────────
+
+function AgentWalletSection({ walletAddress }: { walletAddress: string }) {
+  const [copied, setCopied] = useState(false);
+  const [delegateAmount, setDelegateAmount] = useState("");
+  const sepoliaAddresses = CONTRACT_ADDRESSES[SEPOLIA_CHAIN_ID];
+
+  const { writeContract, data: txHash, isPending, error: writeError } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(walletAddress);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleDelegate = () => {
+    if (!delegateAmount || parseFloat(delegateAmount) <= 0) return;
+    writeContract({
+      address: sepoliaAddresses.delegateRegistry as `0x${string}`,
+      abi: DELEGATE_REGISTRY_ABI,
+      functionName: "delegate",
+      args: [walletAddress as `0x${string}`, parseEther(delegateAmount)],
+      chainId: SEPOLIA_CHAIN_ID,
+    });
+  };
+
+  return (
+    <Section title="Agent Wallet (On-Chain Voting)">
+      <div className="space-y-4">
+        <p className="text-sm text-[var(--text-secondary)]">
+          This is the Agent&apos;s dedicated wallet. Delegate vTON to let the Agent vote on your behalf via Telegram.
+        </p>
+
+        <div className="space-y-2">
+          <label className="block text-xs text-[var(--text-tertiary)]">Agent Wallet Address</label>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 rounded-[var(--radius-md)] bg-[var(--bg-tertiary)] px-3 py-2 text-sm font-mono text-[var(--text-primary)] break-all">
+              {walletAddress}
+            </code>
+            <Button variant="secondary" size="sm" onClick={handleCopy}>
+              {copied ? "Copied!" : "Copy"}
+            </Button>
+          </div>
+          <a
+            href={`https://sepolia.etherscan.io/address/${walletAddress}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-block text-xs text-[var(--text-brand)] hover:underline"
+          >
+            View on Etherscan →
+          </a>
+        </div>
+
+        <div className="rounded-[var(--radius-lg)] border border-[var(--border-primary)] p-4 space-y-3">
+          <label className="block text-xs font-medium text-[var(--text-primary)]">Delegate vTON</label>
+          <p className="text-xs text-[var(--text-tertiary)]">
+            Enter the amount of vTON to delegate. The Agent will vote on your behalf using the delegated voting power.
+          </p>
+          <div className="flex gap-2">
+            <Input
+              type="number"
+              value={delegateAmount}
+              onChange={(e) => setDelegateAmount(e.target.value)}
+              placeholder="e.g. 100"
+              min="0"
+              step="any"
+            />
+            <Button
+              onClick={handleDelegate}
+              disabled={!delegateAmount || parseFloat(delegateAmount) <= 0 || isPending || isConfirming}
+            >
+              {isPending ? "Signing..." : isConfirming ? "Confirming..." : "Delegate"}
+            </Button>
+          </div>
+
+          {writeError && (
+            <div className="rounded-[var(--radius-md)] px-3 py-2 text-xs bg-[var(--status-error-bg)] text-[var(--status-error-fg)]">
+              {writeError.message.includes("user rejected")
+                ? "Transaction was rejected."
+                : `Error: ${writeError.message.slice(0, 100)}`}
+            </div>
+          )}
+
+          {isSuccess && (
+            <div className="rounded-[var(--radius-md)] px-3 py-2 text-xs bg-[var(--status-success-bg)] text-[var(--status-success-fg)]">
+              Delegation complete! The Agent can now vote on your behalf.
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-[var(--radius-md)] bg-[var(--status-warning-bg)] px-3 py-2 text-xs text-[var(--status-warning-fg)]">
+          The Agent wallet needs Sepolia ETH to pay for gas fees.
+        </div>
+      </div>
+    </Section>
   );
 }
 
@@ -541,7 +649,7 @@ function AgentProfileSection({
       <div className="space-y-6">
         <Section title="Governance Profile">
           <p className="text-sm text-[var(--text-tertiary)]">
-            아직 프로필 데이터가 없습니다. 새로운 안건이 올라오면 Telegram을 통해 분석을 제공하고, 대화를 나누면서 거버넌스 프로필이 자동으로 형성됩니다.
+            No profile data yet. When new proposals are created, the Agent will provide analysis via Telegram, and the governance profile will form automatically through conversations.
           </p>
         </Section>
       </div>
@@ -563,7 +671,7 @@ function AgentProfileSection({
           ))}
         </div>
         <p className="mt-4 text-xs text-[var(--text-tertiary)]">
-          이 프로필은 안건 분석 대화를 통해 자동으로 업데이트됩니다.
+          This profile is automatically updated through proposal analysis conversations.
         </p>
       </Section>
     </div>

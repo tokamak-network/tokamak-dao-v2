@@ -34,3 +34,7 @@ CREATE INDEX IF NOT EXISTS idx_agent_conv_context ON agent_conversations(agent_i
 
 -- 3. Add webhook_token_hash to existing agents table
 ALTER TABLE agents ADD COLUMN IF NOT EXISTS webhook_token_hash TEXT;
+
+-- 4. Add agent wallet columns for on-chain voting
+ALTER TABLE agents ADD COLUMN IF NOT EXISTS agent_wallet_address TEXT;
+ALTER TABLE agents ADD COLUMN IF NOT EXISTS encrypted_private_key TEXT;
