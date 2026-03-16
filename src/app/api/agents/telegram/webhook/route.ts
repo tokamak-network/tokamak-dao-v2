@@ -240,7 +240,21 @@ async function handleCallbackQuery(
         const support = voteCodeToSupport(voteCode);
         const result = await castAgentVote(agentId, proposalId, support);
 
-        if (result.success) {
+        if (result.success && result.pending) {
+          const appUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://dao.tokamak.network"}/agents/${agentId}`;
+          await sendTelegramMessage(botToken, {
+            chatId,
+            text: [
+              `✍️ <b>${voteLabels[voteCode]}</b> 서명 완료!`,
+              ``,
+              `투표권: ${result.votingPower} vTON`,
+              `⚠️ Agent 가스비 잔액이 부족합니다.`,
+              `프론트엔드에서 투표를 제출해주세요.`,
+              ``,
+              `<a href="${appUrl}">투표 제출하러 가기 →</a>`,
+            ].join("\n"),
+          });
+        } else if (result.success) {
           const explorerUrl = `https://sepolia.etherscan.io/tx/${result.txHash}`;
           await sendTelegramMessage(botToken, {
             chatId,

@@ -84,6 +84,20 @@ export function getAgentWalletClient(privateKey: `0x${string}`) {
 }
 
 /**
+ * Create a viem WalletClient for the relayer (pays gas for castVoteBySig).
+ */
+export function getRelayerWalletClient() {
+  const key = process.env.RELAYER_PRIVATE_KEY;
+  if (!key) throw new Error("RELAYER_PRIVATE_KEY is not set");
+  const account = privateKeyToAccount(key as `0x${string}`);
+  return createWalletClient({
+    account,
+    chain: sepolia,
+    transport: http(getSepoliaRpcUrl()),
+  });
+}
+
+/**
  * Create a viem PublicClient for reading Sepolia state.
  */
 export function getSepoliaPublicClient() {

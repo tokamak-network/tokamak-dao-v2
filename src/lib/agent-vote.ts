@@ -1,21 +1,43 @@
 /**
- * Agent On-Chain Voting
+ * Agent On-Chain Voting via EIP-712 Signature Relay
  *
- * Executes castVote transactions on behalf of agents using their encrypted wallets.
+ * Two flows:
+ * - Flow A: VoteRelayFund has balance → relayer calls relayVote() → auto gas reimbursement
+ * - Flow B: No balance → sign ballot, save as pending → delegate submits from frontend
  */
 
 import { formatEther } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { agentSupabase } from "@/lib/agent-supabase";
-import { decryptPrivateKey, getAgentWalletClient, getSepoliaPublicClient } from "@/lib/agent-wallet";
+import { decryptPrivateKey, getSepoliaPublicClient, getRelayerWalletClient } from "@/lib/agent-wallet";
 import {
   CONTRACT_ADDRESSES,
   DELEGATE_REGISTRY_ABI,
   DAO_GOVERNOR_ABI,
+  VOTE_RELAY_FUND_ABI,
 } from "@/constants/contracts";
 
 const SEPOLIA_CHAIN_ID = 11155111;
 const addresses = CONTRACT_ADDRESSES[SEPOLIA_CHAIN_ID];
+
+/** EIP-712 domain for DAOGovernor */
+const EIP712_DOMAIN = {
+  name: "DAOGovernor",
+  version: "1",
+  chainId: SEPOLIA_CHAIN_ID,
+  verifyingContract: addresses.daoGovernor as `0x${string}`,
+} as const;
+
+/** EIP-712 Ballot types */
+const BALLOT_TYPES = {
+  Ballot: [
+    { name: "proposalId", type: "uint256" },
+    { name: "support", type: "uint8" },
+  ],
+} as const;
+
+/** Estimated gas for castVoteBySig + overhead */
+const ESTIMATED_VOTE_GAS = 200_000n;
 
 /** Map vote code from Telegram callback to on-chain support value */
 export function voteCodeToSupport(code: string): number {
@@ -32,10 +54,13 @@ export interface CastVoteResult {
   txHash?: string;
   error?: string;
   votingPower?: string;
+  pending?: boolean;
 }
 
 /**
- * Execute an on-chain castVote transaction for an agent.
+ * Execute an on-chain castVoteBySig transaction for an agent.
+ * Flow A: VoteRelayFund has sufficient balance → relayVote() via VoteRelayFund
+ * Flow B: No balance → save pending ballot for delegate to submit
  */
 export async function castAgentVote(
   agentId: number,
@@ -120,42 +145,114 @@ export async function castAgentVote(
     return { success: false, error: "투표권을 확인할 수 없습니다." };
   }
 
-  // 6. Send castVote transaction
+  // 6. Agent signs EIP-712 Ballot
+  let v: number;
+  let r: `0x${string}`;
+  let s: `0x${string}`;
   try {
-    const walletClient = getAgentWalletClient(privateKey);
-
-    const txHash = await walletClient.writeContract({
-      address: addresses.daoGovernor as `0x${string}`,
-      abi: DAO_GOVERNOR_ABI,
-      functionName: "castVote",
-      args: [proposalId, support],
+    const signature = await account.signTypedData({
+      domain: EIP712_DOMAIN,
+      types: BALLOT_TYPES,
+      primaryType: "Ballot",
+      message: {
+        proposalId,
+        support,
+      },
     });
 
-    // 7. Wait for receipt
-    const receipt = await publicClient.waitForTransactionReceipt({
-      hash: txHash,
-      timeout: 60_000,
-    });
+    // Split signature into v, r, s
+    r = `0x${signature.slice(2, 66)}` as `0x${string}`;
+    s = `0x${signature.slice(66, 130)}` as `0x${string}`;
+    v = parseInt(signature.slice(130, 132), 16);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { success: false, error: `서명 실패: ${message.slice(0, 100)}` };
+  }
 
-    if (receipt.status === "reverted") {
-      return { success: false, error: "트랜잭션이 실패했습니다." };
+  // 7. Check VoteRelayFund balance (Flow A vs Flow B)
+  const voteRelayFundAddress = addresses.voteRelayFund;
+  let hasGasFund = false;
+
+  if (voteRelayFundAddress) {
+    try {
+      const balance = (await publicClient.readContract({
+        address: voteRelayFundAddress,
+        abi: VOTE_RELAY_FUND_ABI,
+        functionName: "balances",
+        args: [account.address],
+      })) as bigint;
+
+      // Estimate gas cost
+      const gasPrice = await publicClient.getGasPrice();
+      const estimatedCost = ESTIMATED_VOTE_GAS * gasPrice;
+
+      hasGasFund = balance >= estimatedCost;
+    } catch {
+      // VoteRelayFund not available, fall through to Flow B
     }
+  }
+
+  // 8. Flow A: Relay via VoteRelayFund
+  if (hasGasFund && voteRelayFundAddress) {
+    try {
+      const relayerClient = getRelayerWalletClient();
+
+      const txHash = await relayerClient.writeContract({
+        address: voteRelayFundAddress,
+        abi: VOTE_RELAY_FUND_ABI,
+        functionName: "relayVote",
+        args: [
+          addresses.daoGovernor as `0x${string}`,
+          proposalId,
+          support,
+          v,
+          r,
+          s,
+          account.address,
+        ],
+      });
+
+      const receipt = await publicClient.waitForTransactionReceipt({
+        hash: txHash,
+        timeout: 60_000,
+      });
+
+      if (receipt.status === "reverted") {
+        return { success: false, error: "트랜잭션이 실패했습니다." };
+      }
+
+      return {
+        success: true,
+        txHash,
+        votingPower: formatEther(votingPower),
+      };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      // If relay fails, fall through to Flow B
+      console.error("VoteRelayFund relay failed, falling back to pending:", message);
+    }
+  }
+
+  // 9. Flow B: Save pending ballot for delegate to submit
+  try {
+    await agentSupabase.from("pending_ballots").insert({
+      agent_id: agentId,
+      agent_address: account.address,
+      proposal_id: proposalId.toString(),
+      support,
+      v,
+      r: r as string,
+      s: s as string,
+      status: "pending",
+    });
 
     return {
       success: true,
-      txHash,
+      pending: true,
       votingPower: formatEther(votingPower),
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-
-    if (message.includes("insufficient funds")) {
-      return {
-        success: false,
-        error: "Agent 지갑에 가스비(ETH)가 부족합니다. Sepolia ETH를 보내주세요.",
-      };
-    }
-
-    return { success: false, error: `투표 트랜잭션 실패: ${message.slice(0, 100)}` };
+    return { success: false, error: `투표 저장 실패: ${message.slice(0, 100)}` };
   }
 }
