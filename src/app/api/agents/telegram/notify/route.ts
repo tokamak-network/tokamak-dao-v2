@@ -36,17 +36,6 @@ export async function POST(req: NextRequest) {
     const shortProposer = `${proposer.slice(0, 6)}...${proposer.slice(-4)}`;
     const proposalUrl = origin ? `${origin}/proposals/${proposalId}` : null;
 
-    const lines = [
-      `📋 <b>New Proposal Created</b>`,
-      ``,
-      `<b>${escapeHtml(title)}</b>`,
-      `Proposed by <code>${escapeHtml(shortProposer)}</code>`,
-    ];
-    if (proposalUrl) {
-      lines.push(``, `<a href="${proposalUrl}">View Proposal →</a>`);
-    }
-    const notificationMessage = lines.join("\n");
-
     // Fetch or auto-create profiles for all agents
     const agentIds = agents.map((a) => a.agent_id);
     const { data: profiles } = await agentSupabase
@@ -77,13 +66,44 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Build notification message with summary
+    const notificationLines = [
+      `📋 <b>New Proposal Created</b>`,
+      ``,
+      `<b>${escapeHtml(title)}</b>`,
+      `Proposed by <code>${escapeHtml(shortProposer)}</code>`,
+    ];
+    if (description) {
+      // Truncate description for Telegram
+      const summary = description.length > 200
+        ? description.slice(0, 200) + "..."
+        : description;
+      notificationLines.push(``, escapeHtml(summary));
+    }
+    if (proposalUrl) {
+      notificationLines.push(``, `<a href="${proposalUrl}">View Proposal →</a>`);
+    }
+    const notificationMessage = notificationLines.join("\n");
+
+    // Vote inline keyboard buttons
+    const voteButtons = {
+      inline_keyboard: [
+        [
+          { text: "👍 For", callback_data: `vote:${proposalId}:for` },
+          { text: "👎 Against", callback_data: `vote:${proposalId}:against` },
+          { text: "🤚 Abstain", callback_data: `vote:${proposalId}:abstain` },
+        ],
+      ],
+    };
+
     // Send notification + analysis to all connected agents
     const results = await Promise.allSettled(
       agents.map(async (agent) => {
-        // Send base notification
+        // Send notification with vote buttons
         const notifyResult = await sendTelegramMessage(agent.telegram_bot_token, {
           chatId: agent.telegram_chat_id,
           text: notificationMessage,
+          replyMarkup: voteButtons,
         });
 
         if (!notifyResult.ok) return notifyResult;

@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { agentSupabase } from "@/lib/agent-supabase";
-import { sendTelegramMessage } from "@/lib/telegram";
+import {
+  sendTelegramMessage,
+  answerCallbackQuery,
+  editMessageReplyMarkup,
+} from "@/lib/telegram";
 import { handleProposalDiscussion } from "@/lib/agent-analysis";
 import crypto from "crypto";
 
@@ -47,6 +51,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true }); // Empty body, ignore
     }
 
+    const botToken = agent.telegram_bot_token;
+    const agentId = agent.agent_id;
+
+    // 4. Handle callback_query (inline button press)
+    const callbackQuery = body.callback_query as
+      | {
+          id: string;
+          from: { id: number };
+          message?: { chat: { id: number }; message_id: number };
+          data?: string;
+        }
+      | undefined;
+
+    if (callbackQuery?.data) {
+      return handleCallbackQuery(callbackQuery, agentId, botToken);
+    }
+
+    // 5. Handle message
     const message = body.message as
       | { chat: { id: number }; text?: string; reply_to_message?: { text?: string } }
       | undefined;
@@ -57,8 +79,6 @@ export async function POST(req: NextRequest) {
 
     const chatId = message.chat.id;
     const userText = message.text;
-    const botToken = agent.telegram_bot_token;
-    const agentId = agent.agent_id;
 
     // Update chat_id if not set
     if (!agent.telegram_chat_id) {
@@ -72,12 +92,12 @@ export async function POST(req: NextRequest) {
     if (userText === "/start") {
       await sendTelegramMessage(botToken, {
         chatId,
-        text: "안녕하세요! Tokamak DAO Agent입니다. 새로운 안건이 올라오면 맞춤형 분석을 보내드리겠습니다.",
+        text: "안녕하세요! Tokamak DAO Agent입니다. 새로운 안건이 올라오면 요약과 분석을 보내드리겠습니다.",
       });
       return NextResponse.json({ ok: true });
     }
 
-    // 4. Route: check if this is a reply to a proposal analysis
+    // 6. Route: check if this is a reply to a proposal analysis
     const replyText = message.reply_to_message?.text;
     if (replyText) {
       // Find the most recent proposal analysis conversation
@@ -113,4 +133,69 @@ export async function POST(req: NextRequest) {
     console.error("Webhook error:", err);
     return NextResponse.json({ ok: true }); // Always return 200 to Telegram
   }
+}
+
+/**
+ * Handle inline keyboard button presses (vote buttons).
+ * callback_data format: "vote:{proposalId}:{for|against|abstain}"
+ */
+async function handleCallbackQuery(
+  callbackQuery: {
+    id: string;
+    from: { id: number };
+    message?: { chat: { id: number }; message_id: number };
+    data?: string;
+  },
+  agentId: number,
+  botToken: string
+): Promise<NextResponse> {
+  const data = callbackQuery.data || "";
+  const parts = data.split(":");
+
+  if (parts[0] === "vote" && parts.length === 3) {
+    const proposalId = parts[1];
+    const voteChoice = parts[2]; // "for" | "against" | "abstain"
+    const chatId = callbackQuery.message?.chat.id;
+    const messageId = callbackQuery.message?.message_id;
+
+    const voteLabels: Record<string, string> = {
+      for: "👍 For (찬성)",
+      against: "👎 Against (반대)",
+      abstain: "🤚 Abstain (기권)",
+    };
+
+    // Save vote preference
+    await agentSupabase.from("agent_conversations").insert({
+      agent_id: agentId,
+      context_type: "proposal_analysis",
+      context_id: proposalId,
+      messages: [
+        {
+          role: "user",
+          content: `Vote: ${voteChoice}`,
+        },
+      ],
+      trait_deltas: null,
+    });
+
+    // Answer callback to remove loading state
+    await answerCallbackQuery(
+      botToken,
+      callbackQuery.id,
+      `${voteLabels[voteChoice] || voteChoice}을(를) 선택했습니다.`
+    );
+
+    // Remove buttons and show selected vote
+    if (chatId && messageId) {
+      await editMessageReplyMarkup(botToken, chatId, messageId);
+      await sendTelegramMessage(botToken, {
+        chatId,
+        text: `✅ <b>${voteLabels[voteChoice] || voteChoice}</b>을(를) 선택했습니다.\n\n이 선택에 대해 더 논의하고 싶으시면 답장해주세요.`,
+      });
+    }
+  } else {
+    await answerCallbackQuery(botToken, callbackQuery.id);
+  }
+
+  return NextResponse.json({ ok: true });
 }

@@ -73,7 +73,7 @@ function BackLink() {
 
 // ─── Tabs ────────────────────────────────────────────────
 
-type TabId = "overview" | "capabilities" | "profile" | "settings";
+type TabId = "overview" | "capabilities" | "settings";
 
 // ─── Page ────────────────────────────────────────────────
 
@@ -169,7 +169,6 @@ export default function AgentDetailPage({
     const base: { id: TabId; label: string }[] = [
       { id: "overview", label: "Overview" },
       { id: "capabilities", label: "Capabilities" },
-      { id: "profile", label: "Profile" },
     ];
     if (isOwner) base.push({ id: "settings", label: "Settings" });
     return base;
@@ -454,15 +453,11 @@ export default function AgentDetailPage({
         </div>
       )}
 
-      {/* ═══ Profile Tab ═══ */}
-      {tab === "profile" && (
-        <AgentProfileTab agentId={id} />
-      )}
-
       {/* ═══ Settings Tab (owner only) ═══ */}
       {tab === "settings" && isOwner && (
         <div className="space-y-6">
           <TelegramSettings agentId={id} owner={owner} connected={telegramConnected} onSaved={refreshTelegram} />
+          <AgentProfileSection agentId={id} />
         </div>
       )}
     </div>
@@ -508,7 +503,7 @@ function TraitBar({ name, value, low, high }: { name: string; value: number; low
   );
 }
 
-function AgentProfileTab({
+function AgentProfileSection({
   agentId,
 }: {
   agentId: string;
