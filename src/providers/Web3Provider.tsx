@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { createAppKit } from '@reown/appkit/react';
-import { WagmiProvider } from 'wagmi';
+import { type State, WagmiProvider } from 'wagmi';
 import { reconnect } from '@wagmi/core';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { sepolia } from '@reown/appkit/networks';
@@ -28,7 +28,7 @@ createAppKit({
   },
 });
 
-export function Web3Provider({ children }: { children: React.ReactNode }) {
+export function Web3Provider({ children, initialState }: { children: React.ReactNode; initialState?: State }) {
   // SSR-safe QueryClient 생성 - 모듈 레벨이 아닌 컴포넌트 내부에서 생성
   const [queryClient] = React.useState(() => new QueryClient());
 
@@ -43,7 +43,7 @@ export function Web3Provider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <WagmiProvider config={wagmiAdapter.wagmiConfig}>
+    <WagmiProvider config={wagmiAdapter.wagmiConfig} initialState={initialState}>
       <QueryClientProvider client={queryClient}>
         <WalletConnectionProvider>
           {children}

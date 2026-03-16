@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { Geist, Geist_Mono } from "next/font/google";
 import { GeistPixelSquare } from "geist/font/pixel";
+import { cookieToInitialState } from "wagmi";
 import { Web3Provider } from "@/providers/Web3Provider";
 import { ThemeProvider } from "@/providers/ThemeProvider";
 import { SandboxProvider } from "@/contexts/SandboxContext";
+import { config } from "@/config/wagmi";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -28,11 +31,15 @@ const themeInitScript = `
 })();
 `;
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const headersList = await headers();
+  const cookies = headersList.get('cookie');
+  const initialState = cookieToInitialState(config, cookies);
+
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -44,7 +51,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} ${GeistPixelSquare.variable} antialiased`}
       >
         <ThemeProvider>
-          <Web3Provider>
+          <Web3Provider initialState={initialState}>
             <SandboxProvider>{children}</SandboxProvider>
           </Web3Provider>
         </ThemeProvider>
