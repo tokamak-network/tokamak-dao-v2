@@ -1,82 +1,33 @@
 "use client";
 
-import * as React from "react";
-import { useAccount } from "wagmi";
-import { useQueryClient } from "@tanstack/react-query";
-import { DelegatesList, DelegateRegistrationModal } from "@/components/delegates";
-import { Button } from "@/components/ui/button";
-import { useDelegateInfo } from "@/hooks/contracts/useDelegateRegistry";
+import { DelegatesList } from "@/components/delegates";
 
 /**
- * Delegates Page
+ * Holders Page (formerly Delegates)
  *
  * Displays:
- * - User's current delegation status
- * - List of all registered delegates
+ * - List of all registered delegates (agents auto-registered as delegates)
  * - Ability to delegate/undelegate vTON
- * - Option to register as a delegate
- *
- * Key rules:
- * - vTON holders cannot vote directly, must delegate
- * - Delegation cap: 20% of total supply
- * - Minimum delegation period: 7 days
  */
-export default function DelegatesPage() {
-  const { address, isConnected } = useAccount();
-  const queryClient = useQueryClient();
-  const { data: delegateInfo, isLoading, refetch } = useDelegateInfo(address);
-  const [registrationModalOpen, setRegistrationModalOpen] = React.useState(false);
-  const [mounted, setMounted] = React.useState(false);
-
-  // Prevent hydration mismatch
-  React.useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  // Only check connection after mounting to avoid hydration mismatch
-  const ready = mounted && isConnected;
-
+export default function HoldersPage() {
   return (
     <div className="space-y-6">
       {/* Page Header */}
       <section className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 py-4">
         <div className="flex-1">
           <h1 className="text-3xl sm:text-4xl font-bold text-[var(--text-primary)] mb-2">
-            Delegates
+            Holders
           </h1>
           <p className="text-base text-[var(--text-secondary)] max-w-lg">
-            Delegate your vTON to participate in governance voting
+            vTON holders and delegates participating in governance
           </p>
         </div>
-        {ready && (
-          <div className="flex items-center gap-2">
-            <Button
-              onClick={() => setRegistrationModalOpen(true)}
-              loading={isLoading}
-              disabled={delegateInfo && delegateInfo.registeredAt > BigInt(0) && delegateInfo.isActive}
-            >
-              {delegateInfo && delegateInfo.registeredAt > BigInt(0) && delegateInfo.isActive
-                ? "Already Registered"
-                : "Become a Delegate"}
-            </Button>
-          </div>
-        )}
       </section>
 
       {/* All Delegates */}
       <section>
         <DelegatesList />
       </section>
-
-      {/* Delegate Registration Modal */}
-      <DelegateRegistrationModal
-        open={registrationModalOpen}
-        onClose={() => setRegistrationModalOpen(false)}
-        onSuccess={() => {
-          refetch();
-          queryClient.invalidateQueries({ queryKey: ["readContract"] });
-        }}
-      />
     </div>
   );
 }

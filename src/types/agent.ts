@@ -37,3 +37,12 @@ export interface Agent {
   metadata: AgentMetadata | null;
   chainId: number;
 }
+
+export interface PersonalAgent {
+  id: number;
+  owner: string;
+  chainId: number;
+  agentWalletAddress: string | null;
+  telegramConnected: boolean;
+  createdAt: string;
+}

@@ -1,33 +1,31 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
 import { Button } from "@/components/ui/button";
 import { AgentList } from "@/components/agents/AgentList";
-import { useIsRegisteredDelegate } from "@/hooks/contracts/useDelegateRegistry";
 import { useHasAgent } from "@/hooks/contracts/useAgentRegistry";
+import { useAgentSetupStatus } from "@/hooks/useAgentSetupStatus";
+import { CreateAgentWizard } from "@/components/agents/CreateAgentWizard";
 
-function RegisterAgentButton() {
+function CreateAgentButton() {
   const { isConnected, address } = useAccount();
-  const { data: isDelegate, isLoading: isDelegateLoading } = useIsRegisteredDelegate(address);
-  const { hasAgent, agentId, isLoading: isHasAgentLoading } = useHasAgent(address);
+  const { hasAgent, agentId, isLoading } = useHasAgent(address);
+  const setupStatus = useAgentSetupStatus(address);
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const router = useRouter();
 
-  // Not connected — show button, form will prompt wallet connection
   if (!isConnected) {
     return (
-      <Button asChild>
-        <Link href="/agents/register">
-          <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-          </svg>
-          Register Agent
-        </Link>
+      <Button disabled>
+        Connect Wallet
       </Button>
     );
   }
 
-  // Loading
-  if (isDelegateLoading || isHasAgentLoading) {
+  if (isLoading || setupStatus.isLoading) {
     return (
       <Button disabled>
         <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
@@ -35,8 +33,8 @@ function RegisterAgentButton() {
     );
   }
 
-  // Already has agent
-  if (hasAgent) {
+  // Agent exists and setup complete → link to detail page
+  if (hasAgent && setupStatus.firstIncompleteStep === "complete") {
     const agentHref = agentId != null ? `/agents/${agentId}` : "/agents";
     return (
       <Button variant="secondary" asChild>
@@ -45,28 +43,33 @@ function RegisterAgentButton() {
     );
   }
 
-  // Not a delegate
-  if (!isDelegate) {
-    return (
-      <Button variant="secondary" disabled title="Only delegates can register agents">
-        <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-        </svg>
-        Register Agent
-      </Button>
-    );
-  }
+  // Agent exists but setup incomplete → "Continue Setup"
+  // No agent → "Create My Agent"
+  const label = hasAgent ? "Continue Setup" : "Create My Agent";
 
-  // Delegate without agent — can register
   return (
-    <Button asChild>
-      <Link href="/agents/register">
-        <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-        </svg>
-        Register Agent
-      </Link>
-    </Button>
+    <>
+      <Button onClick={() => setWizardOpen(true)}>
+        {hasAgent ? (
+          label
+        ) : (
+          <>
+            <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            {label}
+          </>
+        )}
+      </Button>
+      <CreateAgentWizard
+        open={wizardOpen}
+        onClose={() => setWizardOpen(false)}
+        onComplete={(id) => {
+          setWizardOpen(false);
+          router.push(`/agents/${id}`);
+        }}
+      />
+    </>
   );
 }
 
@@ -80,10 +83,10 @@ export default function AgentsPage() {
             Agents
           </h1>
           <p className="text-base text-[var(--text-secondary)] max-w-lg">
-            Register AI agents that vote on your behalf (ERC-8004)
+            Create an AI agent that votes on your behalf via Telegram
           </p>
         </div>
-        <RegisterAgentButton />
+        <CreateAgentButton />
       </section>
 
       {/* Agent List */}
