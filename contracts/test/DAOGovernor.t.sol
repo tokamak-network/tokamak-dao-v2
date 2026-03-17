@@ -243,7 +243,7 @@ contract DAOGovernorTest is Test {
                            PROPOSAL STATES
     //////////////////////////////////////////////////////////////*/
 
-    function test_ProposalStatePending() public {
+    function test_ProposalStateActiveImmediately() public {
         address[] memory targets = new address[](1);
         targets[0] = address(governor);
         uint256[] memory values = new uint256[](1);
@@ -253,7 +253,8 @@ contract DAOGovernorTest is Test {
         vm.prank(user1);
         uint256 proposalId = governor.propose(targets, values, calldatas, "Test", 0);
 
-        assertEq(uint256(governor.state(proposalId)), uint256(IDAOGovernor.ProposalState.Pending));
+        // With votingDelay=0, proposal is immediately Active (no Pending state)
+        assertEq(uint256(governor.state(proposalId)), uint256(IDAOGovernor.ProposalState.Active));
     }
 
     function test_ProposalStateActive() public {
@@ -403,7 +404,8 @@ contract DAOGovernorTest is Test {
         vm.prank(user1);
         uint256 proposalId = governor.propose(targets, values, calldatas, "Test", 0);
 
-        assertEq(uint256(governor.state(proposalId)), uint256(IDAOGovernor.ProposalState.Pending));
+        // With votingDelay=0, proposal is immediately Active
+        assertEq(uint256(governor.state(proposalId)), uint256(IDAOGovernor.ProposalState.Active));
 
         // Guardian cancels
         vm.prank(guardian);
@@ -756,11 +758,7 @@ contract DAOGovernorTest is Test {
         vm.prank(user1);
         uint256 proposalId = governor.propose(targets, values, calldatas, "Set value to 42", 0);
 
-        // Verify Pending state
-        assertEq(uint256(governor.state(proposalId)), uint256(IDAOGovernor.ProposalState.Pending));
-
-        // Roll to voting period, verify Active
-        vm.roll(block.number + governor.votingDelay() + 1);
+        // With votingDelay=0, proposal is immediately Active
         assertEq(uint256(governor.state(proposalId)), uint256(IDAOGovernor.ProposalState.Active));
 
         // Cast For vote
@@ -1174,9 +1172,7 @@ contract DAOGovernorTest is Test {
         vm.expectRevert(IDAOGovernor.InvalidParameter.selector);
         governor.setQuorum(10_001);
 
-        // setVotingDelay: value > 0
-        vm.expectRevert(IDAOGovernor.InvalidParameter.selector);
-        governor.setVotingDelay(0);
+        // setVotingDelay: MIN_VOTING_DELAY is 0, so 0 is valid (tested below)
 
         // setVotingPeriod: value > 0
         vm.expectRevert(IDAOGovernor.InvalidParameter.selector);
@@ -1327,7 +1323,7 @@ contract DAOGovernorTest is Test {
     function test_VotingDelayUpdatedEvent() public {
         vm.prank(owner);
         vm.expectEmit(true, true, true, true);
-        emit IDAOGovernor.VotingDelayUpdated(7_200, 14_400);
+        emit IDAOGovernor.VotingDelayUpdated(0, 14_400);
         governor.setVotingDelay(14_400);
     }
 
@@ -1791,24 +1787,8 @@ contract DAOGovernorTest is Test {
         governor.propose(targets, values, calldatas, "Duplicate test", 0);
     }
 
-    function test_VotingBeforeVoteStartReverts() public {
-        vm.prank(delegate1);
-        registry.registerDelegate("Delegate1", "Philosophy", "Interests");
-
-        address[] memory targets = new address[](1);
-        targets[0] = address(governor);
-        uint256[] memory values = new uint256[](1);
-        bytes[] memory calldatas = new bytes[](1);
-        calldatas[0] = abi.encodeWithSignature("setQuorum(uint256)", 500);
-
-        vm.prank(user1);
-        uint256 proposalId = governor.propose(targets, values, calldatas, "Early vote", 0);
-
-        // Don't advance blocks — still in Pending state
-        vm.prank(delegate1);
-        vm.expectRevert(DAOGovernor.VotingNotStarted.selector);
-        governor.castVote(proposalId, IDAOGovernor.VoteType.For);
-    }
+    // test_VotingBeforeVoteStartReverts removed: with votingDelay=0, proposals are
+    // immediately Active so voting never reverts due to not-yet-started state.
 
     function test_QueueOnNonSucceededReverts() public {
         address[] memory targets = new address[](1);
@@ -2305,11 +2285,11 @@ contract DAOGovernorTest is Test {
                     PARAMETER MINIMUM ENFORCEMENT TESTS
     //////////////////////////////////////////////////////////////*/
 
-    function test_SetVotingDelayBelowMinReverts() public {
-        uint256 belowMin = governor.MIN_VOTING_DELAY() - 1;
+    function test_SetVotingDelayZeroAllowed() public {
+        // MIN_VOTING_DELAY is 0, so setting to 0 is valid
         vm.prank(owner);
-        vm.expectRevert(IDAOGovernor.InvalidParameter.selector);
-        governor.setVotingDelay(belowMin);
+        governor.setVotingDelay(0);
+        assertEq(governor.votingDelay(), 0);
     }
 
     function test_SetVotingPeriodBelowMinReverts() public {

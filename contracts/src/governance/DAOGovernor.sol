@@ -74,8 +74,8 @@ contract DAOGovernor is IDAOGovernor, Ownable, Pausable, ReentrancyGuard, EIP712
     /// @notice Basis points denominator
     uint256 public constant BASIS_POINTS = 10_000;
 
-    /// @notice Default voting delay (1 day in blocks, ~12s/block)
-    uint256 public constant DEFAULT_VOTING_DELAY = 7_200;
+    /// @notice Default voting delay (0 = immediate voting)
+    uint256 public constant DEFAULT_VOTING_DELAY = 0;
 
     /// @notice Default voting period (7 days in blocks, ~50400 blocks)
     uint256 public constant DEFAULT_VOTING_PERIOD = 50_400;
@@ -95,8 +95,8 @@ contract DAOGovernor is IDAOGovernor, Ownable, Pausable, ReentrancyGuard, EIP712
     /// @notice Default maturity period (7 days in blocks, ~12s/block)
     uint256 public constant DEFAULT_MATURITY_PERIOD = 50_400;
 
-    /// @notice Minimum voting delay (~6 hours in blocks, ~12s/block)
-    uint256 public constant MIN_VOTING_DELAY = 1_800;
+    /// @notice Minimum voting delay (0 = immediate voting allowed)
+    uint256 public constant MIN_VOTING_DELAY = 0;
 
     /// @notice Minimum voting period (~1 day in blocks, ~12s/block)
     uint256 public constant MIN_VOTING_PERIOD = 7_200;
