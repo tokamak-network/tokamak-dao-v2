@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { IERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { Checkpoints } from "@openzeppelin/contracts/utils/structs/Checkpoints.sol";
 
@@ -93,20 +94,18 @@ contract DelegateRegistry is IDelegateRegistry, Ownable, ReentrancyGuard {
         string calldata votingPhilosophy,
         string calldata interests
     ) external override {
-        if (bytes(profile).length == 0) revert EmptyProfile();
-        if (_delegates[msg.sender].registeredAt != 0) revert AlreadyRegisteredDelegate();
+        _registerDelegateFor(msg.sender, profile, votingPhilosophy, interests);
+    }
 
-        _delegates[msg.sender] = DelegateInfo({
-            profile: profile,
-            votingPhilosophy: votingPhilosophy,
-            interests: interests,
-            registeredAt: block.timestamp,
-            isActive: true
-        });
-
-        _delegateList.push(msg.sender);
-
-        emit DelegateRegistered(msg.sender, profile, votingPhilosophy, interests);
+    /// @inheritdoc IDelegateRegistry
+    function registerDelegateFor(
+        address delegateAddr,
+        string calldata profile,
+        string calldata votingPhilosophy,
+        string calldata interests
+    ) external override {
+        if (delegateAddr == address(0)) revert ZeroAddress();
+        _registerDelegateFor(delegateAddr, profile, votingPhilosophy, interests);
     }
 
     /// @inheritdoc IDelegateRegistry
@@ -153,35 +152,37 @@ contract DelegateRegistry is IDelegateRegistry, Ownable, ReentrancyGuard {
 
     /// @inheritdoc IDelegateRegistry
     function delegate(address delegateAddr, uint256 amount) external override nonReentrant {
-        if (delegateAddr == address(0)) revert ZeroAddress();
-        if (amount == 0) revert ZeroAmount();
+        _delegate(msg.sender, delegateAddr, amount);
+    }
 
-        DelegateInfo storage info = _delegates[delegateAddr];
-        if (info.registeredAt == 0 || !info.isActive) revert DelegateNotActive();
+    /// @inheritdoc IDelegateRegistry
+    function delegateWithPermit(
+        address delegateAddr,
+        uint256 amount,
+        uint256 deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) external override nonReentrant {
+        IERC20Permit(address(vTON)).permit(msg.sender, address(this), amount, deadline, v, r, s);
+        _delegate(msg.sender, delegateAddr, amount);
+    }
 
-        // Transfer vTON to this contract
-        vTON.safeTransferFrom(msg.sender, address(this), amount);
-
-        // Update delegation info
-        DelegationInfo storage delegation = _delegations[msg.sender][delegateAddr];
-        delegation.delegate = delegateAddr;
-        delegation.amount += amount;
-        delegation.delegatedAt = block.timestamp;
-
-        // Set expiry if auto-expiry is enabled
-        if (autoExpiryPeriod > 0) {
-            delegation.expiresAt = block.timestamp + autoExpiryPeriod;
-        }
-
-        // Update totals
-        _totalDelegated[delegateAddr] += amount;
-        _totalDelegatedBy[msg.sender] += amount;
-        _totalDelegatedAll += amount;
-
-        // Update voting power checkpoint
-        _updateVotingPowerCheckpoint(delegateAddr);
-
-        emit Delegated(msg.sender, delegateAddr, amount, delegation.expiresAt);
+    /// @inheritdoc IDelegateRegistry
+    function registerDelegateForAndDelegateWithPermit(
+        address delegateAddr,
+        string calldata profile,
+        string calldata votingPhilosophy,
+        string calldata interests,
+        uint256 amount,
+        uint256 deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) external override nonReentrant {
+        _registerDelegateFor(delegateAddr, profile, votingPhilosophy, interests);
+        IERC20Permit(address(vTON)).permit(msg.sender, address(this), amount, deadline, v, r, s);
+        _delegate(msg.sender, delegateAddr, amount);
     }
 
     /// @inheritdoc IDelegateRegistry
@@ -394,6 +395,62 @@ contract DelegateRegistry is IDelegateRegistry, Ownable, ReentrancyGuard {
     /*//////////////////////////////////////////////////////////////
                           INTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
+
+    /// @dev Register an address as a delegate
+    function _registerDelegateFor(
+        address delegateAddr,
+        string calldata profile,
+        string calldata votingPhilosophy,
+        string calldata interests
+    ) internal {
+        if (bytes(profile).length == 0) revert EmptyProfile();
+        if (_delegates[delegateAddr].registeredAt != 0) revert AlreadyRegisteredDelegate();
+
+        _delegates[delegateAddr] = DelegateInfo({
+            profile: profile,
+            votingPhilosophy: votingPhilosophy,
+            interests: interests,
+            registeredAt: block.timestamp,
+            isActive: true
+        });
+
+        _delegateList.push(delegateAddr);
+
+        emit DelegateRegistered(delegateAddr, profile, votingPhilosophy, interests);
+    }
+
+    /// @dev Delegate vTON from a delegator to a delegate
+    function _delegate(address delegator, address delegateAddr, uint256 amount) internal {
+        if (delegateAddr == address(0)) revert ZeroAddress();
+        if (amount == 0) revert ZeroAmount();
+
+        DelegateInfo storage info = _delegates[delegateAddr];
+        if (info.registeredAt == 0 || !info.isActive) revert DelegateNotActive();
+
+        // Transfer vTON to this contract
+        vTON.safeTransferFrom(delegator, address(this), amount);
+
+        // Update delegation info
+        DelegationInfo storage delegation = _delegations[delegator][delegateAddr];
+        delegation.delegate = delegateAddr;
+        delegation.amount += amount;
+        delegation.delegatedAt = block.timestamp;
+
+        // Set expiry if auto-expiry is enabled
+        if (autoExpiryPeriod > 0) {
+            delegation.expiresAt = block.timestamp + autoExpiryPeriod;
+        }
+
+        // Update totals
+        _totalDelegated[delegateAddr] += amount;
+        _totalDelegatedBy[delegator] += amount;
+        _totalDelegatedAll += amount;
+
+        // Update voting power checkpoint
+        _updateVotingPowerCheckpoint(delegateAddr);
+
+        emit Delegated(delegator, delegateAddr, amount, delegation.expiresAt);
+    }
 
     /// @dev Update voting power checkpoint for a delegate
     function _updateVotingPowerCheckpoint(address delegateAddr) internal {

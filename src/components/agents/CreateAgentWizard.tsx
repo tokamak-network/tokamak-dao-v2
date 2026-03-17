@@ -1,13 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { useAccount, useChainId, useBalance, useReadContract, useWriteContract, useWaitForTransactionReceipt, useSendTransaction } from "wagmi";
+import { useAccount, useChainId, useBalance, useReadContract, useWriteContract, useWaitForTransactionReceipt, useSignTypedData } from "wagmi";
 import { parseEther, formatEther } from "viem";
 import { Modal, ModalBody, ModalFooter } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { Input, Label, HelperText } from "@/components/ui/input";
-import { useVTONBalance, useVTONAllowance } from "@/hooks/contracts/useVTON";
-import { getContractAddresses, areContractsDeployed, VOTE_RELAY_FUND_ABI, VTON_ABI, DELEGATE_REGISTRY_ABI } from "@/constants/contracts";
+import { useVTONBalance } from "@/hooks/contracts/useVTON";
+import { getContractAddresses, areContractsDeployed, VOTE_RELAY_FUND_ABI, DELEGATE_REGISTRY_ABI } from "@/constants/contracts";
 import { SEPOLIA_CHAIN_ID } from "@/constants/erc8004";
 import { useAgentSetupStatus, type WizardStep } from "@/hooks/useAgentSetupStatus";
 import { formatVTON } from "@/lib/utils";
@@ -134,7 +134,7 @@ function CreateStep({
         </p>
         <ul className="text-xs text-[var(--text-tertiary)] space-y-1 list-disc list-inside">
           <li>A dedicated wallet will be generated for voting</li>
-          <li>The agent auto-registers as a delegate on-chain</li>
+          <li>You will register the agent as a delegate in the next step</li>
           <li>No private keys leave the server</li>
         </ul>
       </div>
@@ -180,7 +180,7 @@ function ProgressStepRow({ label, status }: { label: string; status: "pending" |
   );
 }
 
-const DELEGATE_STEP_ORDER = ["funding", "registering", "approving", "delegating"] as const;
+const DELEGATE_STEP_ORDER = ["signing", "confirming"] as const;
 
 function ProgressSteps({ step, needsRegistration }: { step: string; needsRegistration: boolean }) {
   const stepIdx = DELEGATE_STEP_ORDER.indexOf(step as typeof DELEGATE_STEP_ORDER[number]);
@@ -194,47 +194,64 @@ function ProgressSteps({ step, needsRegistration }: { step: string; needsRegistr
 
   return (
     <div className="p-3 bg-[var(--bg-tertiary)] rounded-lg text-xs space-y-2">
-      {needsRegistration && (
-        <>
-          <ProgressStepRow label="Fund agent wallet (0.0005 ETH)" status={getStatus("funding")} />
-          <ProgressStepRow label="Register agent as delegate" status={getStatus("registering")} />
-        </>
-      )}
-      <ProgressStepRow label="Approve vTON spending" status={getStatus("approving")} />
-      <ProgressStepRow label="Delegate to Agent" status={getStatus("delegating")} />
+      <ProgressStepRow label="Sign permit" status={getStatus("signing")} />
+      <ProgressStepRow label={needsRegistration ? "Register & Delegate" : "Delegate"} status={getStatus("confirming")} />
     </div>
   );
 }
 
 // ─── Delegate Step ──────────────────────────────────────
 
+// ERC-2612 Permit constants for vTON
+const PERMIT_TYPES = {
+  Permit: [
+    { name: "owner", type: "address" },
+    { name: "spender", type: "address" },
+    { name: "value", type: "uint256" },
+    { name: "nonce", type: "uint256" },
+    { name: "deadline", type: "uint256" },
+  ],
+} as const;
+
+const VTON_PERMIT_ABI = [
+  {
+    name: "nonces",
+    type: "function",
+    stateMutability: "view",
+    inputs: [{ name: "owner", type: "address" }],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    name: "DOMAIN_SEPARATOR",
+    type: "function",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "bytes32" }],
+  },
+] as const;
+
 function DelegateStep({
-  agentId,
   agentWalletAddress,
   onDelegated,
 }: {
-  agentId: number;
   agentWalletAddress: string;
   onDelegated: () => void;
 }) {
   const { address } = useAccount();
   const sepoliaAddresses = getContractAddresses(SEPOLIA_CHAIN_ID);
   const { data: vtonBalance } = useVTONBalance(address);
-  const { data: allowance } = useVTONAllowance(
-    address,
-    sepoliaAddresses.delegateRegistry
-  );
 
   const [amount, setAmount] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
-  const [step, setStep] = React.useState<"idle" | "funding" | "registering" | "approving" | "delegating">("idle");
+  const [step, setStep] = React.useState<"idle" | "signing" | "confirming">("idle");
+  const [generalError, setGeneralError] = React.useState<string | null>(null);
 
-  const { data: txHash, isPending, writeContract, writeContractAsync, error: writeError, reset: resetWrite } = useWriteContract();
+  const { signTypedDataAsync } = useSignTypedData();
+  const { data: txHash, isPending, writeContract, error: writeError, reset: resetWrite } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
-  const { sendTransactionAsync } = useSendTransaction();
 
   // Check if agent is registered as delegate
-  const { data: isRegistered, isLoading: isCheckingRegistration } = useReadContract({
+  const { data: isRegistered } = useReadContract({
     address: sepoliaAddresses.delegateRegistry,
     abi: DELEGATE_REGISTRY_ABI,
     functionName: "isRegisteredDelegate",
@@ -242,17 +259,27 @@ function DelegateStep({
     chainId: SEPOLIA_CHAIN_ID,
   });
 
+  // Read vTON nonce for permit
+  const { data: nonce } = useReadContract({
+    address: sepoliaAddresses.vton as `0x${string}`,
+    abi: VTON_PERMIT_ABI,
+    functionName: "nonces",
+    args: address ? [address] : undefined,
+    chainId: SEPOLIA_CHAIN_ID,
+    query: { enabled: !!address },
+  });
+
   const balance = vtonBalance ?? BigInt(0);
 
-  // After delegate confirmed → next step
+  // After tx confirmed → next step
   React.useEffect(() => {
-    if (isSuccess && step === "delegating") {
+    if (isSuccess && step === "confirming") {
       const t = setTimeout(onDelegated, 1500);
       return () => clearTimeout(t);
     }
   }, [isSuccess, step, onDelegated]);
 
-  // Reset step on error
+  // Reset step on write error
   React.useEffect(() => {
     if (writeError) setStep("idle");
   }, [writeError]);
@@ -261,6 +288,7 @@ function DelegateStep({
     const value = e.target.value;
     setAmount(value);
     setError(null);
+    setGeneralError(null);
     if (value) {
       try {
         const parsed = parseEther(value);
@@ -275,99 +303,108 @@ function DelegateStep({
   const handleMax = () => {
     setAmount(formatEther(balance));
     setError(null);
+    setGeneralError(null);
   };
 
   const handleSubmit = async () => {
-    if (!amount || error) return;
+    if (!amount || error || !address) return;
     const parsedAmount = parseEther(amount);
-    const currentAllowance = allowance ?? BigInt(0);
-    const { waitForTransactionReceipt } = await import("@wagmi/core");
-    const { config } = await import("@/config/wagmi");
+    const deadline = BigInt(Math.floor(Date.now() / 1000) + 3600); // 1 hour
 
     try {
       resetWrite();
+      setGeneralError(null);
 
-      // Step 0: If agent not registered, owner funds agent wallet → server registers
-      if (!isRegistered) {
-        setStep("funding");
-        // Owner sends 0.0005 ETH to agent wallet for registerDelegate gas
-        const fundTx = await sendTransactionAsync({
-          to: agentWalletAddress as `0x${string}`,
-          value: parseEther("0.0005"),
+      // Step 1: Sign permit (off-chain, no gas)
+      setStep("signing");
+      const signature = await signTypedDataAsync({
+        domain: {
+          name: "Tokamak Network Governance Token",
+          version: "1",
           chainId: SEPOLIA_CHAIN_ID,
-        });
-        await waitForTransactionReceipt(config, { hash: fundTx, chainId: SEPOLIA_CHAIN_ID });
-
-        // Now call server to registerDelegate (agent wallet now has gas)
-        setStep("registering");
-        const regRes = await fetch("/api/agents/register-delegate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ agentId }),
-        });
-        const regData = await regRes.json();
-        if (!regRes.ok || !regData.success) {
-          setError(regData.error || "Failed to register agent as delegate");
-          setStep("idle");
-          return;
-        }
-      }
-
-      // Step 1: Approve if needed
-      if (currentAllowance < parsedAmount) {
-        setStep("approving");
-        const approveTx = await writeContractAsync({
-          address: sepoliaAddresses.vton as `0x${string}`,
-          abi: VTON_ABI,
-          functionName: "approve",
-          args: [sepoliaAddresses.delegateRegistry as `0x${string}`, parsedAmount],
-          chainId: SEPOLIA_CHAIN_ID,
-        });
-        await waitForTransactionReceipt(config, { hash: approveTx, chainId: SEPOLIA_CHAIN_ID });
-      }
-
-      // Step 2: Delegate with explicit chainId
-      setStep("delegating");
-      writeContract({
-        address: sepoliaAddresses.delegateRegistry as `0x${string}`,
-        abi: DELEGATE_REGISTRY_ABI,
-        functionName: "delegate",
-        args: [agentWalletAddress as `0x${string}`, parsedAmount],
-        chainId: SEPOLIA_CHAIN_ID,
+          verifyingContract: sepoliaAddresses.vton as `0x${string}`,
+        },
+        types: PERMIT_TYPES,
+        primaryType: "Permit",
+        message: {
+          owner: address,
+          spender: sepoliaAddresses.delegateRegistry as `0x${string}`,
+          value: parsedAmount,
+          nonce: nonce ?? BigInt(0),
+          deadline,
+        },
       });
-    } catch {
+
+      // Parse signature into v, r, s
+      const r = `0x${signature.slice(2, 66)}` as `0x${string}`;
+      const s = `0x${signature.slice(66, 130)}` as `0x${string}`;
+      const v = parseInt(signature.slice(130, 132), 16);
+
+      // Step 2: Send single transaction (register + permit + delegate OR permit + delegate)
+      setStep("confirming");
+      if (!isRegistered) {
+        writeContract({
+          address: sepoliaAddresses.delegateRegistry as `0x${string}`,
+          abi: DELEGATE_REGISTRY_ABI,
+          functionName: "registerDelegateForAndDelegateWithPermit",
+          args: [
+            agentWalletAddress as `0x${string}`,
+            "DAO Agent",
+            "Automated voting agent",
+            "governance",
+            parsedAmount,
+            deadline,
+            v,
+            r,
+            s,
+          ],
+          chainId: SEPOLIA_CHAIN_ID,
+        });
+      } else {
+        writeContract({
+          address: sepoliaAddresses.delegateRegistry as `0x${string}`,
+          abi: DELEGATE_REGISTRY_ABI,
+          functionName: "delegateWithPermit",
+          args: [
+            agentWalletAddress as `0x${string}`,
+            parsedAmount,
+            deadline,
+            v,
+            r,
+            s,
+          ],
+          chainId: SEPOLIA_CHAIN_ID,
+        });
+      }
+    } catch (e) {
       setStep("idle");
+      const msg = e instanceof Error ? e.message : "";
+      if (msg.includes("User rejected") || msg.includes("user rejected")) {
+        setGeneralError("Signature was rejected by user.");
+      }
     }
   };
 
   const isProcessing = isPending || isConfirming || (step !== "idle" && !writeError && !isSuccess);
 
   const getButtonText = () => {
-    if (isSuccess && step === "delegating") return "Delegated!";
-    if (step === "funding") return "Confirm ETH Transfer...";
-    if (step === "registering") return "Registering Agent...";
-    if (step === "approving") {
-      if (isConfirming) return "Confirming Approval...";
-      if (isPending) return "Approve in Wallet...";
-      return "Approving...";
+    if (isSuccess && step === "confirming") return "Delegated!";
+    if (step === "signing") return "Sign Permit in Wallet...";
+    if (step === "confirming") {
+      if (isConfirming) return "Confirming...";
+      if (isPending) return "Confirm in Wallet...";
+      return !isRegistered ? "Registering & Delegating..." : "Delegating...";
     }
-    if (step === "delegating") {
-      if (isConfirming) return "Confirming Delegation...";
-      if (isPending) return "Delegate in Wallet...";
-      return "Delegating...";
-    }
-    try {
-      const parsed = amount ? parseEther(amount) : BigInt(0);
-      if (parsed > 0 && (allowance ?? BigInt(0)) < parsed) return "Approve & Delegate";
-    } catch { /* ignore */ }
-    return "Delegate vTON";
+    return !isRegistered ? "Register & Delegate" : "Sign & Delegate";
   };
 
   return (
     <div className="space-y-4">
       <div className="rounded-[var(--radius-lg)] bg-[var(--bg-tertiary)] p-4">
         <p className="text-sm text-[var(--text-secondary)]">
-          Delegate vTON to your agent so it can vote on your behalf. Minimum 1 vTON.
+          {!isRegistered
+            ? "Register your agent as a delegate and delegate vTON so it can vote on your behalf. Minimum 1 vTON."
+            : "Delegate vTON to your agent so it can vote on your behalf. Minimum 1 vTON."}
         </p>
       </div>
 
@@ -407,11 +444,12 @@ function DelegateStep({
         {error && <HelperText error>{error}</HelperText>}
         {writeError && (
           <HelperText error>
-            {writeError.message.includes("user rejected")
-              ? "Transaction was rejected."
-              : `Transaction failed: ${writeError.message.slice(0, 60)}...`}
+            {writeError.message.includes("User rejected") || writeError.message.includes("user rejected")
+              ? "Transaction was rejected by user."
+              : "Transaction failed. Please try again."}
           </HelperText>
         )}
+        {generalError && <HelperText error>{generalError}</HelperText>}
       </div>
 
       {/* Progress Steps */}
@@ -419,7 +457,7 @@ function DelegateStep({
         <ProgressSteps step={step} needsRegistration={!isRegistered} />
       )}
 
-      {isSuccess && step === "delegating" && (
+      {isSuccess && step === "confirming" && (
         <div className="p-3 bg-[var(--status-success-bg)] border border-[var(--status-success-border)] rounded-lg text-center">
           <p className="text-sm text-[var(--status-success-fg)] font-medium">Delegation successful!</p>
         </div>
@@ -427,7 +465,7 @@ function DelegateStep({
 
       <Button
         onClick={handleSubmit}
-        disabled={!amount || !!error || isProcessing || (isSuccess && step === "delegating") || balance === BigInt(0)}
+        disabled={!amount || !!error || isProcessing || (isSuccess && step === "confirming") || balance === BigInt(0)}
         loading={isProcessing}
         className="w-full"
       >
@@ -885,9 +923,8 @@ export function CreateAgentWizard({ open, onClose, onComplete }: CreateAgentWiza
           </div>
         ) : currentStep === "create" ? (
           <CreateStep onCreated={handleCreated} />
-        ) : currentStep === "delegate" && agentId && agentWalletAddress ? (
+        ) : currentStep === "delegate" && agentWalletAddress ? (
           <DelegateStep
-            agentId={agentId}
             agentWalletAddress={agentWalletAddress}
             onDelegated={handleDelegated}
           />

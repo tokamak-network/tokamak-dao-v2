@@ -68,6 +68,18 @@ interface IDelegateRegistry {
         string calldata interests
     ) external;
 
+    /// @notice Register another address as a delegate (e.g. owner registers an agent)
+    /// @param delegateAddr The address to register as delegate
+    /// @param profile Identity or pseudonym
+    /// @param votingPhilosophy Voting philosophy and decision criteria
+    /// @param interests Interests disclosure (affiliations, investments, etc.)
+    function registerDelegateFor(
+        address delegateAddr,
+        string calldata profile,
+        string calldata votingPhilosophy,
+        string calldata interests
+    ) external;
+
     /// @notice Update delegate information
     /// @param profile New profile
     /// @param votingPhilosophy New voting philosophy
@@ -88,6 +100,44 @@ interface IDelegateRegistry {
     /// @param delegate The delegate address
     /// @param amount Amount of vTON to delegate
     function delegate(address delegate, uint256 amount) external;
+
+    /// @notice Delegate vTON using ERC-2612 permit (approve + delegate in 1 tx)
+    /// @param delegate The delegate address
+    /// @param amount Amount of vTON to delegate
+    /// @param deadline Permit signature deadline
+    /// @param v Signature v
+    /// @param r Signature r
+    /// @param s Signature s
+    function delegateWithPermit(
+        address delegate,
+        uint256 amount,
+        uint256 deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) external;
+
+    /// @notice Register a delegate and delegate vTON with permit in 1 tx
+    /// @param delegate The address to register as delegate
+    /// @param profile Identity or pseudonym
+    /// @param votingPhilosophy Voting philosophy
+    /// @param interests Interests disclosure
+    /// @param amount Amount of vTON to delegate
+    /// @param deadline Permit signature deadline
+    /// @param v Signature v
+    /// @param r Signature r
+    /// @param s Signature s
+    function registerDelegateForAndDelegateWithPermit(
+        address delegate,
+        string calldata profile,
+        string calldata votingPhilosophy,
+        string calldata interests,
+        uint256 amount,
+        uint256 deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) external;
 
     /// @notice Withdraw delegation from a delegate
     /// @param delegate The delegate address

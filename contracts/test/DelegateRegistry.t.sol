@@ -851,6 +851,186 @@ contract DelegateRegistryTest is Test {
         assertEq(delegates.length, 2);
     }
 
+    /*//////////////////////////////////////////////////////////////
+                    REGISTER DELEGATE FOR TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_RegisterDelegateFor() public {
+        vm.prank(user1);
+        registry.registerDelegateFor(delegate1, "Alice", "Long-term value", "No conflicts");
+
+        IDelegateRegistry.DelegateInfo memory info = registry.getDelegateInfo(delegate1);
+        assertEq(info.profile, "Alice");
+        assertEq(info.votingPhilosophy, "Long-term value");
+        assertEq(info.interests, "No conflicts");
+        assertTrue(info.isActive);
+        assertGt(info.registeredAt, 0);
+        assertTrue(registry.isRegisteredDelegate(delegate1));
+    }
+
+    function test_RegisterDelegateForRevertsIfAlreadyRegistered() public {
+        vm.prank(delegate1);
+        registry.registerDelegate("Alice", "Philosophy", "Interests");
+
+        vm.prank(user1);
+        vm.expectRevert(DelegateRegistry.AlreadyRegisteredDelegate.selector);
+        registry.registerDelegateFor(delegate1, "Alice2", "Philosophy2", "Interests2");
+    }
+
+    function test_RegisterDelegateForRevertsWithEmptyProfile() public {
+        vm.prank(user1);
+        vm.expectRevert(DelegateRegistry.EmptyProfile.selector);
+        registry.registerDelegateFor(delegate1, "", "Philosophy", "Interests");
+    }
+
+    function test_RegisterDelegateForRevertsOnZeroAddress() public {
+        vm.prank(user1);
+        vm.expectRevert(DelegateRegistry.ZeroAddress.selector);
+        registry.registerDelegateFor(address(0), "Alice", "Philosophy", "Interests");
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                    PERMIT DELEGATION TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_DelegateWithPermit() public {
+        // Register delegate1
+        vm.prank(delegate1);
+        registry.registerDelegate("Alice", "Philosophy", "Interests");
+
+        uint256 amount = 1000 ether;
+        uint256 deadline = block.timestamp + 1 hours;
+
+        // Create a user with a known private key for signing
+        uint256 userPk = 0xA11CE;
+        address userAddr = vm.addr(userPk);
+
+        // Mint tokens to the user
+        vm.prank(owner);
+        token.mint(userAddr, INITIAL_BALANCE);
+
+        // Build EIP-712 permit digest
+        bytes32 PERMIT_TYPEHASH = keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
+        bytes32 domainSeparator = token.DOMAIN_SEPARATOR();
+        uint256 nonce = token.nonces(userAddr);
+
+        bytes32 structHash = keccak256(abi.encode(
+            PERMIT_TYPEHASH,
+            userAddr,
+            address(registry),
+            amount,
+            nonce,
+            deadline
+        ));
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(userPk, digest);
+
+        // Call delegateWithPermit
+        vm.prank(userAddr);
+        registry.delegateWithPermit(delegate1, amount, deadline, v, r, s);
+
+        // Verify delegation
+        assertEq(registry.getTotalDelegated(delegate1), amount);
+        assertEq(token.balanceOf(userAddr), INITIAL_BALANCE - amount);
+        assertEq(token.balanceOf(address(registry)), amount);
+
+        IDelegateRegistry.DelegationInfo memory delegation = registry.getDelegation(userAddr, delegate1);
+        assertEq(delegation.delegate, delegate1);
+        assertEq(delegation.amount, amount);
+    }
+
+    function test_RegisterDelegateForAndDelegateWithPermit() public {
+        uint256 amount = 500 ether;
+        uint256 deadline = block.timestamp + 1 hours;
+
+        // Create a user with a known private key for signing
+        uint256 userPk = 0xB0B;
+        address userAddr = vm.addr(userPk);
+
+        // Mint tokens to the user
+        vm.prank(owner);
+        token.mint(userAddr, INITIAL_BALANCE);
+
+        // Build EIP-712 permit digest
+        bytes32 PERMIT_TYPEHASH = keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
+        bytes32 domainSeparator = token.DOMAIN_SEPARATOR();
+        uint256 nonce = token.nonces(userAddr);
+
+        bytes32 structHash = keccak256(abi.encode(
+            PERMIT_TYPEHASH,
+            userAddr,
+            address(registry),
+            amount,
+            nonce,
+            deadline
+        ));
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(userPk, digest);
+
+        // delegate1 is not registered yet
+        assertFalse(registry.isRegisteredDelegate(delegate1));
+
+        // Call registerDelegateForAndDelegateWithPermit
+        vm.prank(userAddr);
+        registry.registerDelegateForAndDelegateWithPermit(
+            delegate1,
+            "Agent",
+            "Automated voting",
+            "governance",
+            amount,
+            deadline,
+            v, r, s
+        );
+
+        // Verify registration
+        assertTrue(registry.isRegisteredDelegate(delegate1));
+        IDelegateRegistry.DelegateInfo memory info = registry.getDelegateInfo(delegate1);
+        assertEq(info.profile, "Agent");
+
+        // Verify delegation
+        assertEq(registry.getTotalDelegated(delegate1), amount);
+        assertEq(token.balanceOf(userAddr), INITIAL_BALANCE - amount);
+    }
+
+    function test_DelegateWithPermitRevertsOnExpiredDeadline() public {
+        // Register delegate1
+        vm.prank(delegate1);
+        registry.registerDelegate("Alice", "Philosophy", "Interests");
+
+        uint256 amount = 1000 ether;
+        uint256 deadline = block.timestamp - 1; // Already expired
+
+        uint256 userPk = 0xDEAD;
+        address userAddr = vm.addr(userPk);
+
+        vm.prank(owner);
+        token.mint(userAddr, INITIAL_BALANCE);
+
+        // Build permit digest with expired deadline
+        bytes32 PERMIT_TYPEHASH = keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
+        bytes32 domainSeparator = token.DOMAIN_SEPARATOR();
+        uint256 nonce = token.nonces(userAddr);
+
+        bytes32 structHash = keccak256(abi.encode(
+            PERMIT_TYPEHASH,
+            userAddr,
+            address(registry),
+            amount,
+            nonce,
+            deadline
+        ));
+        bytes32 digest = keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(userPk, digest);
+
+        // Should revert with ERC2612ExpiredSignature
+        vm.prank(userAddr);
+        vm.expectRevert();
+        registry.delegateWithPermit(delegate1, amount, deadline, v, r, s);
+    }
+
     function test_GetTotalDelegatedByPerUserIsolation() public {
         vm.prank(delegate1);
         registry.registerDelegate("Alice", "Philosophy", "Interests");

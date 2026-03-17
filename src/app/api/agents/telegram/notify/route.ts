@@ -22,19 +22,30 @@ async function analyzeProposal(
   decodedActions: string
 ): Promise<string> {
   return callClaude({
-    system: `You are a DAO governance analyst for Tokamak Network. Analyze the proposal and provide a clear, informative summary.
+    system: `You are a DAO governance analyst for Tokamak Network. Analyze the proposal and provide a structured summary using the exact format below.
 
 ${GOVERNANCE_CONTEXT}
 
-Your analysis should cover:
-1. What this proposal does (plain language explanation)
-2. On-chain actions breakdown (what contract calls will be executed)
-3. Impact and implications (what changes for the network/users)
-4. Key considerations (risks, tradeoffs, things voters should think about)
+You MUST use this exact format with numbered section headers:
 
-Write in English. Use plain text only — no markdown, no HTML tags.
-Use bullet points with "•" for lists.
-Keep the total response under 800 characters for Telegram readability.`,
+1. What it does
+• (plain language explanation of the proposal, 1-3 bullet points)
+
+2. On-chain actions
+• (what contract calls will be executed, 1-3 bullet points)
+
+3. Impact
+• (what changes for the network/users, 1-3 bullet points)
+
+4. Key considerations
+• (risks, tradeoffs, things voters should think about, 1-3 bullet points)
+
+Rules:
+- Use exactly the numbered headers shown above (1-4)
+- Use "•" for bullet points under each section
+- Plain text only — no markdown, no HTML tags, no bold/italic
+- Keep the total response under 1200 characters for Telegram readability
+- Be concise and informative`,
     messages: [
       {
         role: "user",
@@ -148,7 +159,7 @@ export async function POST(req: NextRequest) {
       `Proposed by <code>${escapeHtml(shortProposer)}</code>`,
     ];
     if (analysis) {
-      lines.push(``, escapeHtml(analysis));
+      lines.push(``, `───────────────────`, ``, escapeHtml(analysis));
     }
     if (proposalUrl) {
       lines.push(``, `👉 <a href="${proposalUrl}">View Proposal</a>`);
