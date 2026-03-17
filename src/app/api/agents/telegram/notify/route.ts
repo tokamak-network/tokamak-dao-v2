@@ -199,7 +199,8 @@ export async function POST(req: NextRequest) {
           messages: [
             {
               role: "assistant",
-              content: `[proposalId:${proposalId}]\n${analysis}`,
+              content: analysis,
+              proposal_id: String(proposalId),
             },
           ],
           trait_deltas: null,

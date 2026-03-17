@@ -121,8 +121,10 @@ export async function castAgentVote(
         error: `투표 가능한 상태가 아닙니다. 현재 상태: ${stateNames[Number(state)] || "Unknown"}`,
       };
     }
-  } catch {
-    return { success: false, error: "안건 상태를 확인할 수 없습니다." };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("Proposal state check failed:", { proposalId: proposalId.toString(), error: msg });
+    return { success: false, error: `안건 상태를 확인할 수 없습니다. (proposalId: ${proposalId.toString().slice(0, 20)}...)` };
   }
 
   // 5. Check voting power (delegated amount)

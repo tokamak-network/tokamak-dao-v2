@@ -89,12 +89,8 @@ export async function POST(req: NextRequest) {
         .eq("agent_id", agentId);
     }
 
-    // Handle /start command
+    // Handle /start command — just acknowledge silently
     if (userText === "/start") {
-      await sendTelegramMessage(botToken, {
-        chatId,
-        text: "안녕하세요! Tokamak DAO Agent입니다. 새로운 안건이 올라오면 요약과 분석을 보내드리겠습니다.",
-      });
       return NextResponse.json({ ok: true });
     }
 
@@ -178,7 +174,7 @@ async function handleCallbackQuery(
     }
 
     // Resolve shortId → proposalId from agent_conversations
-    const { data: conv } = await agentSupabase
+    const { data: conv, error: convError } = await agentSupabase
       .from("agent_conversations")
       .select("context_id, messages")
       .eq("agent_id", agentId)
@@ -188,31 +184,48 @@ async function handleCallbackQuery(
       .limit(1)
       .single();
 
+    if (convError) {
+      console.error("Failed to find conversation for vote:", {
+        agentId,
+        proposalShortId,
+        error: convError.message,
+      });
+    }
+
     // Extract real proposalId from conversation messages
     let proposalId: bigint | null = null;
     if (conv?.messages) {
       const messages = conv.messages as Array<{ role: string; content: string; proposal_id?: string }>;
       for (const msg of messages) {
+        // Check explicit proposal_id field
         if (msg.proposal_id) {
           proposalId = BigInt(msg.proposal_id);
+          break;
+        }
+        // Parse from content: [proposalId:12345]
+        const match = msg.content?.match(/\[proposalId:(\d+)\]/);
+        if (match) {
+          proposalId = BigInt(match[1]);
           break;
         }
       }
     }
 
     if (!proposalId) {
-      // Fallback: try shortId as the proposalId directly
-      try {
-        proposalId = BigInt(proposalShortId);
-      } catch {
-        if (chatId) {
-          await sendTelegramMessage(botToken, {
-            chatId,
-            text: "❌ 안건 ID를 확인할 수 없습니다.",
-          });
-        }
-        return NextResponse.json({ ok: true });
+      console.error("Could not resolve proposalId:", {
+        agentId,
+        proposalShortId,
+        hasConv: !!conv,
+        messagesCount: conv?.messages ? (conv.messages as unknown[]).length : 0,
+        messages: conv?.messages,
+      });
+      if (chatId) {
+        await sendTelegramMessage(botToken, {
+          chatId,
+          text: "❌ 안건 ID를 확인할 수 없습니다. 새로 알림을 받은 안건에서 다시 시도해주세요.",
+        });
       }
+      return NextResponse.json({ ok: true });
     }
 
     // Save vote preference
