@@ -25,7 +25,38 @@ function CreateAgentButton() {
     );
   }
 
-  if (isLoading || setupStatus.isLoading) {
+  if (isLoading) {
+    return (
+      <Button disabled>
+        <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+      </Button>
+    );
+  }
+
+  // No agent → show Create button immediately (don't wait for setupStatus)
+  if (!hasAgent) {
+    return (
+      <>
+        <Button onClick={() => setWizardOpen(true)}>
+          <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
+          Create My Agent
+        </Button>
+        <CreateAgentWizard
+          open={wizardOpen}
+          onClose={() => setWizardOpen(false)}
+          onComplete={(id) => {
+            setWizardOpen(false);
+            router.push(`/agents/${id}`);
+          }}
+        />
+      </>
+    );
+  }
+
+  // Agent exists — need setupStatus to determine complete vs incomplete
+  if (setupStatus.isLoading) {
     return (
       <Button disabled>
         <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
@@ -34,7 +65,7 @@ function CreateAgentButton() {
   }
 
   // Agent exists and setup complete → link to detail page
-  if (hasAgent && setupStatus.firstIncompleteStep === "complete") {
+  if (setupStatus.firstIncompleteStep === "complete") {
     const agentHref = agentId != null ? `/agents/${agentId}` : "/agents";
     return (
       <Button variant="secondary" asChild>
@@ -44,22 +75,10 @@ function CreateAgentButton() {
   }
 
   // Agent exists but setup incomplete → "Continue Setup"
-  // No agent → "Create My Agent"
-  const label = hasAgent ? "Continue Setup" : "Create My Agent";
-
   return (
     <>
       <Button onClick={() => setWizardOpen(true)}>
-        {hasAgent ? (
-          label
-        ) : (
-          <>
-            <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
-            {label}
-          </>
-        )}
+        Continue Setup
       </Button>
       <CreateAgentWizard
         open={wizardOpen}
