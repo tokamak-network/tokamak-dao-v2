@@ -348,7 +348,7 @@ contract DeploySepoliaScript is Script {
 
         // 15. Optional test parameters (must be set BEFORE ownership transfer)
         if (enableTestParams) {
-            governor.setVotingDelay(1_800);         // Minimum allowed (~6 hours)
+            governor.setVotingDelay(0);              // Immediate voting (no pending period)
             governor.setVotingPeriod(7_200);        // Minimum allowed (~1 day)
             governor.setMaturityPeriod(0);          // Disable maturity requirement
             console.log("[WARN] Test parameters enabled on deployment");
