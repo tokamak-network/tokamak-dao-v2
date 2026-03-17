@@ -23,7 +23,7 @@ export interface CreateAgentWizardProps {
 const STEPS: { id: WizardStep; label: string }[] = [
   { id: "create", label: "Create" },
   { id: "delegate", label: "Delegate vTON" },
-  { id: "deposit", label: "Deposit ETH" },
+  { id: "deposit", label: "Add Gas" },
   { id: "telegram", label: "Telegram" },
 ];
 
@@ -899,7 +899,7 @@ export function CreateAgentWizard({ open, onClose, onComplete }: CreateAgentWiza
     switch (currentStep) {
       case "create": return "Create Your Agent";
       case "delegate": return "Delegate vTON";
-      case "deposit": return "Deposit Gas (ETH)";
+      case "deposit": return "Add Gas (ETH)";
       case "telegram": return "Connect Telegram";
       case "complete": return "Setup Complete";
     }
