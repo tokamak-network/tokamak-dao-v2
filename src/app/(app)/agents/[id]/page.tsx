@@ -2,42 +2,21 @@
 
 import { use, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useAccount, useConfig, useReadContract, useReadContracts, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { useAccount, useConfig, useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { waitForTransactionReceipt as wagmiWaitForReceipt } from "@wagmi/core";
 import { parseEther, formatEther } from "viem";
-import { identityRegistryAbi, getRegistryAddress, SEPOLIA_CHAIN_ID } from "@/constants/erc8004";
+import { SEPOLIA_CHAIN_ID } from "@/constants/erc8004";
 import { DELEGATE_REGISTRY_ABI, CONTRACT_ADDRESSES, VOTE_RELAY_FUND_ABI, DAO_GOVERNOR_ABI, VTON_ABI } from "@/constants/contracts";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Modal, ModalBody, ModalFooter } from "@/components/ui/modal";
-import type { AgentMetadata } from "@/types/agent";
 
 const CHAIN_ID = SEPOLIA_CHAIN_ID;
-const registryAddress = getRegistryAddress(CHAIN_ID);
-
-function resolveImage(url: string) {
-  if (url.startsWith("ipfs://")) return `https://ipfs.io/ipfs/${url.slice(7)}`;
-  return url;
-}
 
 function shortenAddress(addr: string) {
   return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
-}
-
-function parseAgentURI(uri: string): AgentMetadata | null {
-  try {
-    if (uri.startsWith("data:application/json;base64,")) {
-      const base64 = uri.slice("data:application/json;base64,".length);
-      const json = decodeURIComponent(escape(atob(base64)));
-      return JSON.parse(json);
-    }
-    if (uri.startsWith("{")) return JSON.parse(uri);
-    return null;
-  } catch {
-    return null;
-  }
 }
 
 // ─── Section helpers ─────────────────────────────────────
@@ -76,9 +55,17 @@ function BackLink() {
 
 // ─── Tabs ────────────────────────────────────────────────
 
-type TabId = "overview" | "capabilities" | "settings";
+type TabId = "overview" | "settings";
 
 // ─── Page ────────────────────────────────────────────────
+
+interface AgentData {
+  id: number;
+  owner: string;
+  telegramConnected: boolean;
+  agentWalletAddress: string | null;
+  createdAt: string;
+}
 
 export default function AgentDetailPage({
   params,
@@ -86,96 +73,39 @@ export default function AgentDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  const agentId = BigInt(id);
   const { address } = useAccount();
   const [tab, setTab] = useState<TabId>("overview");
-  const [telegramConnected, setTelegramConnected] = useState(false);
-  const [agentWalletAddress, setAgentWalletAddress] = useState<string | null>(null);
+  const [agent, setAgent] = useState<AgentData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const refreshTelegram = useCallback(() => {
+  const fetchAgent = useCallback(() => {
+    setIsLoading(true);
     fetch(`/api/agents?agentId=${id}`)
       .then((res) => res.json())
       .then((data) => {
-        setTelegramConnected(!!data.telegramConnected);
-        setAgentWalletAddress(data.agentWalletAddress || null);
+        if (data.id) {
+          setAgent({
+            id: data.id,
+            owner: data.owner,
+            telegramConnected: !!data.telegramConnected,
+            agentWalletAddress: data.agentWalletAddress || null,
+            createdAt: data.createdAt,
+          });
+        } else {
+          setAgent(null);
+        }
       })
-      .catch(() => {});
+      .catch(() => setAgent(null))
+      .finally(() => setIsLoading(false));
   }, [id]);
 
-  useEffect(() => { refreshTelegram(); }, [refreshTelegram]);
+  useEffect(() => { fetchAgent(); }, [fetchAgent]);
 
-  const { data: results, isLoading } = useReadContracts({
-    contracts: [
-      {
-        address: registryAddress,
-        abi: identityRegistryAbi,
-        functionName: "ownerOf",
-        args: [agentId],
-        chainId: CHAIN_ID,
-      },
-      {
-        address: registryAddress,
-        abi: identityRegistryAbi,
-        functionName: "tokenURI",
-        args: [agentId],
-        chainId: CHAIN_ID,
-      },
-    ],
-  });
-
-  const owner = results?.[0]?.status === "success" ? (results[0].result as string) : null;
-  const agentURI = results?.[1]?.status === "success" ? (results[1].result as string) : null;
-  // Resolve metadata: sync for data URIs, async fetch for IPFS
-  const syncMeta = useMemo(() => (agentURI ? parseAgentURI(agentURI) : null), [agentURI]);
-  const [ipfsMeta, setIpfsMeta] = useState<AgentMetadata | null>(null);
-
-  useEffect(() => {
-    if (!agentURI || !agentURI.startsWith("ipfs://")) {
-      setIpfsMeta(null);
-      return;
-    }
-    let cancelled = false;
-    fetch(resolveImage(agentURI))
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => { if (!cancelled) setIpfsMeta(data); })
-      .catch(() => { if (!cancelled) setIpfsMeta(null); });
-    return () => { cancelled = true; };
-  }, [agentURI]);
-
-  const meta = syncMeta ?? ipfsMeta;
-
-  const name = meta?.name || `Agent #${id}`;
-
-  const allSkills = useMemo(() => [
-    ...new Set([
-      ...(meta?.skills ?? []),
-      ...(meta?.services?.flatMap((svc) => svc.skills ?? []) ?? []),
-    ]),
-  ], [meta]);
-
-  const allDomains = useMemo(() => [
-    ...new Set([
-      ...(meta?.domains ?? []),
-      ...(meta?.services?.flatMap((svc) => svc.domains ?? []) ?? []),
-    ]),
-  ], [meta]);
-
-  const protocols = useMemo(() => {
-    const p: string[] = [];
-    meta?.services?.forEach((svc) => {
-      const n = svc.name.toUpperCase();
-      if (n.includes("MCP")) p.push("MCP");
-      if (n.includes("A2A")) p.push("A2A");
-    });
-    return [...new Set(p)];
-  }, [meta]);
-
-  const isOwner = !!(address && owner && address.toLowerCase() === owner.toLowerCase());
+  const isOwner = !!(address && agent?.owner && address.toLowerCase() === agent.owner.toLowerCase());
 
   const tabs = useMemo(() => {
     const base: { id: TabId; label: string }[] = [
       { id: "overview", label: "Overview" },
-      { id: "capabilities", label: "Capabilities" },
     ];
     if (isOwner) base.push({ id: "settings", label: "Settings" });
     return base;
@@ -196,14 +126,13 @@ export default function AgentDetailPage({
               <div className="h-4 w-2/3 rounded bg-[var(--bg-tertiary)]" />
             </div>
           </div>
-          <div className="h-64 rounded-[var(--radius-xl)] bg-[var(--bg-tertiary)]" />
         </div>
       </div>
     );
   }
 
   // Not found
-  if (!owner) {
+  if (!agent) {
     return (
       <div className="space-y-6">
         <BackLink />
@@ -216,15 +145,17 @@ export default function AgentDetailPage({
     );
   }
 
+  const name = `Agent #${id}`;
+
   return (
     <div className="space-y-6">
       <BackLink />
 
-      {/* ═══ Header ═══ */}
+      {/* Header */}
       <div className="flex items-start gap-6">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={meta?.image ? resolveImage(meta.image) : `https://api.dicebear.com/9.x/bottts/svg?seed=${owner.toLowerCase()}`}
+          src={`https://api.dicebear.com/9.x/bottts/svg?seed=${agent.owner.toLowerCase()}`}
           alt={name}
           className="h-20 w-20 rounded-[var(--radius-xl)] object-cover bg-[var(--surface-secondary)]"
         />
@@ -232,28 +163,17 @@ export default function AgentDetailPage({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-3xl font-bold text-[var(--text-primary)]">{name}</h1>
-            {meta?.active !== undefined && (
-              <Badge variant={meta.active ? "success" : "error"} size="sm">
-                {meta.active ? "Active" : "Inactive"}
-              </Badge>
-            )}
-            {meta?.x402Support && (
-              <Badge variant="info" size="sm">x402</Badge>
-            )}
-            {protocols.map((p) => (
-              <Badge key={p} variant="primary" size="sm">{p}</Badge>
-            ))}
-            {telegramConnected && (
+            {agent.telegramConnected && (
               <Badge variant="info" size="sm">Telegram</Badge>
             )}
           </div>
           <p className="mt-2 text-[var(--text-secondary)]">
-            {meta?.description || "No description available"}
+            Personal voting agent for {shortenAddress(agent.owner)}
           </p>
         </div>
       </div>
 
-      {/* ═══ Tabs ═══ */}
+      {/* Tabs */}
       <div className="border-b border-[var(--border-primary)]">
         <nav className="flex gap-6">
           {tabs.map((t) => (
@@ -272,201 +192,52 @@ export default function AgentDetailPage({
         </nav>
       </div>
 
-      {/* ═══ Overview Tab ═══ */}
+      {/* Overview Tab */}
       {tab === "overview" && (
         <div className="space-y-6">
           <Section title="Identity">
             <dl className="space-y-3 text-sm">
-              <InfoRow label="Token ID">
+              <InfoRow label="Agent ID">
                 <span className="font-mono">{id}</span>
               </InfoRow>
               <InfoRow label="Owner">
                 <a
-                  href={`${explorerBase}/address/${owner}`}
+                  href={`${explorerBase}/address/${agent.owner}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="font-mono text-[var(--text-brand)] hover:underline"
                 >
-                  {shortenAddress(owner)}
+                  {shortenAddress(agent.owner)}
                 </a>
               </InfoRow>
-              <InfoRow label="Contract">
-                <a
-                  href={`${explorerBase}/address/${registryAddress}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-mono text-xs text-[var(--text-brand)] hover:underline"
-                >
-                  {shortenAddress(registryAddress)}
-                </a>
-              </InfoRow>
-              <InfoRow label="Chain">Sepolia</InfoRow>
-              {meta?.type && (
-                <InfoRow label="Type">
-                  <span className="font-mono text-xs">{meta.type}</span>
+              {agent.agentWalletAddress && (
+                <InfoRow label="Agent Wallet">
+                  <a
+                    href={`${explorerBase}/address/${agent.agentWalletAddress}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-mono text-[var(--text-brand)] hover:underline"
+                  >
+                    {shortenAddress(agent.agentWalletAddress)}
+                  </a>
                 </InfoRow>
               )}
+              <InfoRow label="Chain">Sepolia</InfoRow>
+              <InfoRow label="Created">
+                {new Date(agent.createdAt).toLocaleDateString()}
+              </InfoRow>
             </dl>
           </Section>
-
-          {/* Services */}
-          {meta?.services && meta.services.length > 0 && (
-            <Section title="Services">
-              <div className="space-y-3">
-                {meta.services.map((svc, i) => (
-                  <div key={i} className="rounded-[var(--radius-lg)] border border-[var(--border-primary)] p-4">
-                    <div className="flex items-center justify-between">
-                      <h3 className="font-medium text-[var(--text-primary)]">{svc.name}</h3>
-                      {svc.version && (
-                        <span className="text-xs text-[var(--text-tertiary)]">v{svc.version}</span>
-                      )}
-                    </div>
-                    <p className="mt-1 break-all font-mono text-xs text-[var(--text-secondary)]">
-                      {svc.endpoint}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </Section>
-          )}
-
-          {/* Social Links */}
-          {meta?.socials && Object.values(meta.socials).some(Boolean) && (
-            <Section title="Links">
-              <div className="flex flex-wrap gap-3">
-                {meta.socials.website && (
-                  <a href={meta.socials.website} target="_blank" rel="noopener noreferrer"
-                    className="rounded-[var(--radius-lg)] border border-[var(--border-primary)] px-4 py-2 text-sm text-[var(--text-secondary)] transition hover:border-[var(--border-secondary)] hover:text-[var(--text-primary)]">
-                    Website
-                  </a>
-                )}
-                {meta.socials.github && (
-                  <a href={meta.socials.github} target="_blank" rel="noopener noreferrer"
-                    className="rounded-[var(--radius-lg)] border border-[var(--border-primary)] px-4 py-2 text-sm text-[var(--text-secondary)] transition hover:border-[var(--border-secondary)] hover:text-[var(--text-primary)]">
-                    GitHub
-                  </a>
-                )}
-                {meta.socials.twitter && (
-                  <a href={meta.socials.twitter} target="_blank" rel="noopener noreferrer"
-                    className="rounded-[var(--radius-lg)] border border-[var(--border-primary)] px-4 py-2 text-sm text-[var(--text-secondary)] transition hover:border-[var(--border-secondary)] hover:text-[var(--text-primary)]">
-                    Twitter
-                  </a>
-                )}
-                {meta.socials.discord && (
-                  <a href={meta.socials.discord} target="_blank" rel="noopener noreferrer"
-                    className="rounded-[var(--radius-lg)] border border-[var(--border-primary)] px-4 py-2 text-sm text-[var(--text-secondary)] transition hover:border-[var(--border-secondary)] hover:text-[var(--text-primary)]">
-                    Discord
-                  </a>
-                )}
-                {meta.socials.email && (
-                  <a href={`mailto:${meta.socials.email}`}
-                    className="rounded-[var(--radius-lg)] border border-[var(--border-primary)] px-4 py-2 text-sm text-[var(--text-secondary)] transition hover:border-[var(--border-secondary)] hover:text-[var(--text-primary)]">
-                    Email
-                  </a>
-                )}
-              </div>
-            </Section>
-          )}
-
-          {/* Agent URI */}
-          {agentURI && (
-            <details className="rounded-[var(--radius-xl)] border border-[var(--border-primary)] bg-[var(--surface-secondary)]">
-              <summary className="cursor-pointer px-6 py-4 text-sm font-semibold text-[var(--text-primary)] hover:text-[var(--text-brand)]">
-                Agent URI
-              </summary>
-              <div className="border-t border-[var(--border-primary)] px-6 py-4">
-                <p className="break-all font-mono text-xs text-[var(--text-secondary)]">
-                  {agentURI.length > 500 ? `${agentURI.slice(0, 500)}...` : agentURI}
-                </p>
-              </div>
-            </details>
-          )}
         </div>
       )}
 
-      {/* ═══ Capabilities Tab ═══ */}
-      {tab === "capabilities" && (
-        <div className="space-y-6">
-          <Section title="Skills">
-            {allSkills.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {allSkills.map((skill) => (
-                  <span key={skill} className="rounded-full bg-[var(--color-primary-500)]/20 px-3 py-1 text-sm text-[var(--text-brand)]">
-                    {skill}
-                  </span>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-[var(--text-tertiary)]">No skills configured</p>
-            )}
-          </Section>
-
-          <Section title="Domains">
-            {allDomains.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {allDomains.map((domain) => (
-                  <span key={domain} className="rounded-full bg-purple-500/20 px-3 py-1 text-sm text-purple-400">
-                    {domain}
-                  </span>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-[var(--text-tertiary)]">No domains configured</p>
-            )}
-          </Section>
-
-          <Section title="Trust Models">
-            {meta?.supportedTrust && meta.supportedTrust.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {meta.supportedTrust.map((trust) => (
-                  <span key={trust} className="rounded-full bg-[var(--status-warning-bg)] px-3 py-1 text-sm text-[var(--status-warning-fg)]">
-                    {trust}
-                  </span>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-[var(--text-tertiary)]">No trust models configured</p>
-            )}
-          </Section>
-
-          {meta?.tags && meta.tags.length > 0 && (
-            <Section title="Search Tags">
-              <div className="flex flex-wrap gap-2">
-                {meta.tags.map((tag) => (
-                  <span key={tag} className="rounded-full bg-[var(--surface-primary)] border border-[var(--border-primary)] px-3 py-1 text-sm text-[var(--text-secondary)]">
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            </Section>
-          )}
-
-          <Section title="Agent Settings">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-[var(--text-tertiary)]">Status</span>
-                <Badge variant={meta?.active ? "success" : "error"} size="sm">
-                  {meta?.active ? "Active" : "Inactive"}
-                </Badge>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-[var(--text-tertiary)]">x402 Payment Support</span>
-                <Badge variant={meta?.x402Support ? "info" : "default"} size="sm">
-                  {meta?.x402Support ? "Enabled" : "Disabled"}
-                </Badge>
-              </div>
-            </div>
-          </Section>
-        </div>
-      )}
-
-      {/* ═══ Settings Tab (owner only) ═══ */}
+      {/* Settings Tab (owner only) */}
       {tab === "settings" && isOwner && (
         <div className="space-y-6">
-          {agentWalletAddress && (
-            <AgentWalletSection walletAddress={agentWalletAddress} agentId={id} />
+          {agent.agentWalletAddress && (
+            <AgentWalletSection walletAddress={agent.agentWalletAddress} agentId={id} />
           )}
-          <TelegramSettings agentId={id} owner={owner} connected={telegramConnected} onSaved={refreshTelegram} />
+          <TelegramSettings agentId={id} owner={agent.owner} connected={agent.telegramConnected} onSaved={fetchAgent} />
           <AgentProfileSection agentId={id} />
         </div>
       )}
@@ -525,7 +296,6 @@ function AgentWalletSection({ walletAddress, agentId }: { walletAddress: string;
         chainId: SEPOLIA_CHAIN_ID,
       });
 
-      // Wait for approve confirmation using wagmi
       await waitForReceipt(approveTx);
 
       // Step 2: Delegate
@@ -542,7 +312,6 @@ function AgentWalletSection({ walletAddress, agentId }: { walletAddress: string;
     }
   };
 
-  // Reset delegate step on success or error
   useEffect(() => {
     if (isSuccess || writeError) setDelegateStep("idle");
   }, [isSuccess, writeError]);
@@ -572,7 +341,6 @@ function AgentWalletSection({ walletAddress, agentId }: { walletAddress: string;
     });
   };
 
-  // Refetch balance after successful tx
   useEffect(() => {
     if (isSuccess) refetchBalance();
   }, [isSuccess, refetchBalance]);
@@ -763,7 +531,6 @@ function PendingBallotsSection({ agentId, agentAddress }: { agentId: string; age
         chainId: SEPOLIA_CHAIN_ID,
       });
 
-      // Mark as submitted
       await fetch("/api/agents/pending-ballots", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },

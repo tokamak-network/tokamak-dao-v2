@@ -12,11 +12,6 @@ function truncateAddress(addr: string) {
   return `${addr.slice(0, 6)}\u2026${addr.slice(-4)}`;
 }
 
-function resolveImage(url: string) {
-  if (url.startsWith("ipfs://")) return `https://ipfs.io/ipfs/${url.slice(7)}`;
-  return url;
-}
-
 function getChainName(chainId?: number): string {
   switch (chainId) {
     case SEPOLIA_CHAIN_ID:
@@ -29,38 +24,27 @@ function getChainName(chainId?: number): string {
 }
 
 function AgentRow({ agent }: { agent: AgentListItem }) {
-  const meta = agent.metadata;
-  const name = meta?.name || `Agent #${agent.agentId.toString()}`;
-  const description = meta?.description;
-  const isActive = meta?.active;
-
   return (
     <tr className="border-b border-[var(--border-default)] last:border-b-0 hover:bg-[var(--bg-secondary)] transition-colors">
       {/* AGENT */}
       <td className="py-4 px-5">
         <Link
-          href={`/agents/${agent.agentId.toString()}`}
+          href={`/agents/${agent.agentId}`}
           className="flex items-center gap-3 min-w-0"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={meta?.image ? resolveImage(meta.image) : `https://api.dicebear.com/9.x/bottts/svg?seed=${agent.owner.toLowerCase()}`}
+            src={`https://api.dicebear.com/9.x/bottts/svg?seed=${agent.owner.toLowerCase()}`}
             alt=""
             className="h-10 w-10 rounded-[var(--radius-lg)] object-cover bg-[var(--surface-secondary)] shrink-0"
           />
           <div className="min-w-0">
             <span className="text-sm font-semibold text-[var(--text-primary)] truncate block">
-              {name}
+              Agent #{agent.agentId}
             </span>
-            {description ? (
-              <p className="text-xs text-[var(--text-secondary)] truncate mt-0.5">
-                {description}
-              </p>
-            ) : (
-              <p className="text-xs text-[var(--text-tertiary)] italic mt-0.5">
-                No description
-              </p>
-            )}
+            <p className="text-xs text-[var(--text-secondary)] truncate mt-0.5">
+              {agent.agentWalletAddress ? truncateAddress(agent.agentWalletAddress) : "No wallet"}
+            </p>
           </div>
         </Link>
       </td>
@@ -80,27 +64,20 @@ function AgentRow({ agent }: { agent: AgentListItem }) {
         </span>
       </td>
 
-      {/* REPUTATION */}
-      <td className="py-4 px-5">
-        <div className="flex items-center justify-center gap-1">
-          <span className="text-amber-400">&#9733;</span>
-          <span className="text-sm font-semibold text-[var(--text-primary)]">0</span>
-          <span className="text-sm text-[var(--text-tertiary)]">/100</span>
-        </div>
-      </td>
-
-      {/* FEEDBACK */}
+      {/* TELEGRAM */}
       <td className="py-4 px-5 text-center">
-        <span className="text-sm text-[var(--text-primary)]">0</span>
+        {agent.telegramConnected ? (
+          <Badge variant="success" size="sm">Connected</Badge>
+        ) : (
+          <Badge variant="default" size="sm">Not Set</Badge>
+        )}
       </td>
 
-      {/* STATUS */}
+      {/* CREATED */}
       <td className="py-4 px-5 text-right">
-        {isActive ? (
-          <Badge variant="success" size="sm">Active</Badge>
-        ) : (
-          <Badge variant="default" size="sm">Inactive</Badge>
-        )}
+        <span className="text-sm text-[var(--text-tertiary)]">
+          {new Date(agent.createdAt).toLocaleDateString()}
+        </span>
       </td>
     </tr>
   );
@@ -113,18 +90,9 @@ export function AgentList() {
     if (!searchQuery) return agents;
     const query = searchQuery.toLowerCase();
     return agents.filter((agent) => {
-      const name = agent.metadata?.name?.toLowerCase() ?? "";
-      const description = agent.metadata?.description?.toLowerCase() ?? "";
       const owner = agent.owner.toLowerCase();
-      const skills = agent.metadata?.skills ?? [];
-      const domains = agent.metadata?.domains ?? [];
-      return (
-        name.includes(query) ||
-        description.includes(query) ||
-        owner.includes(query) ||
-        skills.some((s) => s.toLowerCase().includes(query)) ||
-        domains.some((d) => d.toLowerCase().includes(query))
-      );
+      const wallet = agent.agentWalletAddress?.toLowerCase() ?? "";
+      return owner.includes(query) || wallet.includes(query);
     });
   }, [agents, searchQuery]);
 
@@ -152,7 +120,7 @@ export function AgentList() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <Input
-          placeholder="Search by name, address, skill..."
+          placeholder="Search by address..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="w-80"
@@ -185,30 +153,27 @@ export function AgentList() {
           <table className="w-full table-fixed">
             <thead>
               <tr className="border-b border-[var(--border-default)] bg-[var(--bg-secondary)]">
-                <th className="py-3 px-5 text-left text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider w-[40%]">
+                <th className="py-3 px-5 text-left text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider w-[35%]">
                   Agent
                 </th>
-                <th className="py-3 px-5 text-left text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider w-[10%]">
+                <th className="py-3 px-5 text-left text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider w-[12%]">
                   Chain
                 </th>
-                <th className="py-3 px-5 text-left text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider w-[14%]">
+                <th className="py-3 px-5 text-left text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider w-[18%]">
                   Owner
                 </th>
-                <th className="py-3 px-5 text-center text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider w-[14%]">
-                  Reputation
+                <th className="py-3 px-5 text-center text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider w-[15%]">
+                  Telegram
                 </th>
-                <th className="py-3 px-5 text-center text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider w-[11%]">
-                  Feedback
-                </th>
-                <th className="py-3 px-5 text-right text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider w-[11%]">
-                  Status
+                <th className="py-3 px-5 text-right text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider w-[20%]">
+                  Created
                 </th>
               </tr>
             </thead>
             <tbody>
               {filteredAgents.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-sm text-[var(--text-tertiary)]">
+                  <td colSpan={5} className="py-12 text-center text-sm text-[var(--text-tertiary)]">
                     {agents.length === 0
                       ? "No agents registered yet"
                       : "No agents found matching your search"}
@@ -216,7 +181,7 @@ export function AgentList() {
                 </tr>
               ) : (
                 filteredAgents.map((agent) => (
-                  <AgentRow key={agent.agentId.toString()} agent={agent} />
+                  <AgentRow key={agent.agentId} agent={agent} />
                 ))
               )}
             </tbody>
