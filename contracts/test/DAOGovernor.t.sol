@@ -71,9 +71,6 @@ contract DAOGovernorTest is Test {
 
         timelock.setGovernor(address(governor));
 
-        // Set maturity period to 0 for existing tests (test maturity separately)
-        governor.setMaturityPeriod(0);
-
         vm.stopPrank();
 
         // Setup approvals
@@ -1038,35 +1035,27 @@ contract DAOGovernorTest is Test {
         // Roll to voting period
         vm.roll(block.number + governor.votingDelay() + 1);
 
-        // Cast vote
+        // Cast vote — uses live getTotalDelegated (120k including user3 delegation)
         vm.prank(delegate1);
         governor.castVote(proposalId, IDAOGovernor.VoteType.For);
 
         // Roll past voting period
         vm.roll(block.number + governor.votingPeriod() + 1);
 
-        // Should be Succeeded (totalVotes=130k votes > requiredQuorum=800)
+        // Should be Succeeded (totalVotes=120k > requiredQuorum=800)
         assertEq(uint256(governor.state(proposalId)), uint256(IDAOGovernor.ProposalState.Succeeded));
     }
 
     /*//////////////////////////////////////////////////////////////
-                    DELEGATION MATURITY TESTS (H2)
+                    LIVE VOTING POWER TESTS
     //////////////////////////////////////////////////////////////*/
 
-    function test_DelegationMaturityEnforced() public {
-        // Set maturity period to minimum allowed value for testing
-        uint256 maturity = governor.MIN_MATURITY_PERIOD();
-        vm.prank(owner);
-        governor.setMaturityPeriod(maturity);
-
+    function test_DelegationBeforeProposalHasVotingPower() public {
         // Register delegate
         vm.prank(delegate1);
         registry.registerDelegate("Delegate1", "Philosophy", "Interests");
 
-        // Roll to block 2*maturity so we have room
-        vm.roll(maturity * 2);
-
-        // Delegate just before proposal creation
+        // Delegate before proposal creation
         vm.prank(user1);
         registry.delegate(delegate1, 10_000 ether);
         vm.prank(user2);
@@ -1075,11 +1064,7 @@ contract DAOGovernorTest is Test {
         vm.prank(owner);
         registry.setGovernor(address(governor));
 
-        // Create proposal at current block
-        // snapshot = currentBlock - maturity
-        // But delegation was made at currentBlock, which is AFTER snapshot
-        // So voting power at snapshot = 0
-
+        // Create proposal
         address[] memory targets = new address[](1);
         targets[0] = address(governor);
         uint256[] memory values = new uint256[](1);
@@ -1087,17 +1072,17 @@ contract DAOGovernorTest is Test {
         calldatas[0] = abi.encodeWithSignature("setQuorum(uint256)", 500);
 
         vm.prank(user1);
-        uint256 proposalId = governor.propose(targets, values, calldatas, "Maturity test", 0);
+        uint256 proposalId = governor.propose(targets, values, calldatas, "Live voting power test", 0);
 
         // Roll to voting period
         vm.roll(block.number + governor.votingDelay() + 1);
 
-        // Cast vote — weight should be 0 (delegation after snapshot)
+        // Cast vote — weight should reflect current delegation (20k)
         vm.prank(delegate1);
         governor.castVote(proposalId, IDAOGovernor.VoteType.For);
 
         IDAOGovernor.Proposal memory proposal = governor.getProposal(proposalId);
-        assertEq(proposal.forVotes, 0);
+        assertEq(proposal.forVotes, 20_000 ether);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -1399,18 +1384,6 @@ contract DAOGovernorTest is Test {
         vm.expectEmit(true, true, true, true);
         emit IDAOGovernor.GracePeriodUpdated(14 days, 21 days);
         governor.setGracePeriod(21 days);
-    }
-
-    /*//////////////////////////////////////////////////////////////
-                    ADMIN FUNCTIONS: setMaturityPeriod EVENT
-    //////////////////////////////////////////////////////////////*/
-
-    function test_SetMaturityPeriodEmitsEvent() public {
-        uint256 minPeriod = governor.MIN_MATURITY_PERIOD();
-        vm.prank(owner);
-        vm.expectEmit(true, true, true, true);
-        emit IDAOGovernor.MaturityPeriodUpdated(0, minPeriod);
-        governor.setMaturityPeriod(minPeriod);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -2297,21 +2270,6 @@ contract DAOGovernorTest is Test {
         vm.prank(owner);
         vm.expectRevert(IDAOGovernor.InvalidParameter.selector);
         governor.setVotingPeriod(belowMin);
-    }
-
-    function test_SetMaturityPeriodBelowMinReverts() public {
-        // Non-zero value below minimum should revert
-        uint256 belowMin = governor.MIN_MATURITY_PERIOD() - 1;
-        vm.prank(owner);
-        vm.expectRevert(IDAOGovernor.InvalidParameter.selector);
-        governor.setMaturityPeriod(belowMin);
-    }
-
-    function test_SetMaturityPeriodZeroAllowed() public {
-        // 0 is allowed (disables maturity check)
-        vm.prank(owner);
-        governor.setMaturityPeriod(0);
-        assertEq(governor.maturityPeriod(), 0);
     }
 
     /*//////////////////////////////////////////////////////////////

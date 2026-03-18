@@ -99,18 +99,8 @@ export async function castAgentVote(
     // If hasVoted check fails, continue anyway
   }
 
-  // 4. Check proposal state and get snapshot block
-  let snapshotBlock: bigint;
+  // 4. Check proposal state
   try {
-    const proposal = await publicClient.readContract({
-      address: addresses.daoGovernor as `0x${string}`,
-      abi: DAO_GOVERNOR_ABI,
-      functionName: "getProposal",
-      args: [proposalId],
-    }) as { snapshotBlock: bigint; voteStart: bigint; voteEnd: bigint };
-
-    snapshotBlock = proposal.snapshotBlock;
-
     const proposalState = await publicClient.readContract({
       address: addresses.daoGovernor as `0x${string}`,
       abi: DAO_GOVERNOR_ABI,
@@ -131,20 +121,20 @@ export async function castAgentVote(
     return { success: false, error: `Could not check proposal state. (proposalId: ${proposalId.toString().slice(0, 20)}...)` };
   }
 
-  // 5. Check voting power at proposal snapshot block
+  // 5. Check current voting power (total delegated to this agent)
   let votingPower: bigint;
   try {
     votingPower = (await publicClient.readContract({
       address: addresses.delegateRegistry as `0x${string}`,
       abi: DELEGATE_REGISTRY_ABI,
-      functionName: "getVotingPower",
-      args: [account.address, snapshotBlock, snapshotBlock],
+      functionName: "getTotalDelegated",
+      args: [account.address],
     })) as bigint;
 
     if (votingPower === 0n) {
       return {
         success: false,
-        error: "No voting power at proposal snapshot. Delegation must exist 7+ days before proposal creation.",
+        error: "No delegated voting power. Please delegate vTON to this Agent first.",
       };
     }
   } catch {

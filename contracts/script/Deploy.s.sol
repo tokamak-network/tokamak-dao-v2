@@ -350,7 +350,6 @@ contract DeploySepoliaScript is Script {
         if (enableTestParams) {
             governor.setVotingDelay(0);              // Immediate voting (no pending period)
             governor.setVotingPeriod(7_200);        // Minimum allowed (~1 day)
-            governor.setMaturityPeriod(0);          // Disable maturity requirement
             console.log("[WARN] Test parameters enabled on deployment");
         }
 

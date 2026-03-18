@@ -322,8 +322,7 @@ contract DelegateRegistry is IDelegateRegistry, Ownable, ReentrancyGuard {
     }
 
     /// @inheritdoc IDelegateRegistry
-    /// @dev snapshotBlock is currently unused — maturity enforcement is handled at the Governor level
-    ///      by setting blockNumber = block.number - maturityPeriod. Kept for interface compatibility.
+    /// @dev snapshotBlock is unused. Kept for interface compatibility.
     function getVotingPower(
         address delegateAddr,
         uint256 blockNumber,

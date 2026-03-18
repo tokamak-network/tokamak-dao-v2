@@ -92,17 +92,11 @@ contract DAOGovernor is IDAOGovernor, Ownable, Pausable, ReentrancyGuard, EIP712
     /// @notice Maximum burn rate (100% = 10000 basis points)
     uint16 public constant MAX_BURN_RATE = 10_000;
 
-    /// @notice Default maturity period (7 days in blocks, ~12s/block)
-    uint256 public constant DEFAULT_MATURITY_PERIOD = 50_400;
-
     /// @notice Minimum voting delay (0 = immediate voting allowed)
     uint256 public constant MIN_VOTING_DELAY = 0;
 
     /// @notice Minimum voting period (~1 day in blocks, ~12s/block)
     uint256 public constant MIN_VOTING_PERIOD = 7_200;
-
-    /// @notice Minimum maturity period (~1 day in blocks, ~12s/block)
-    uint256 public constant MIN_MATURITY_PERIOD = 7_200;
 
     /*//////////////////////////////////////////////////////////////
                                  STATE
@@ -146,9 +140,6 @@ contract DAOGovernor is IDAOGovernor, Ownable, Pausable, ReentrancyGuard, EIP712
 
     /// @notice Pass rate in basis points (5000 = 50%, requires > passRate to pass)
     uint256 public passRate;
-
-    /// @notice Delegation maturity period in blocks (delegations must be this old to count)
-    uint256 public maturityPeriod;
 
     /// @notice Proposal counter
     uint256 private _proposalCount;
@@ -210,7 +201,6 @@ contract DAOGovernor is IDAOGovernor, Ownable, Pausable, ReentrancyGuard, EIP712
         proposalThreshold = DEFAULT_PROPOSAL_THRESHOLD;
         gracePeriod = DEFAULT_GRACE_PERIOD;
         passRate = DEFAULT_PASS_RATE;
-        maturityPeriod = DEFAULT_MATURITY_PERIOD;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -253,7 +243,6 @@ contract DAOGovernor is IDAOGovernor, Ownable, Pausable, ReentrancyGuard, EIP712
         // Check proposal doesn't already exist
         if (_proposals[proposalId].snapshotBlock != 0) revert InvalidProposal();
 
-        uint256 snapshot = block.number > maturityPeriod ? block.number - maturityPeriod : 0;
         uint256 voteStart = block.number + votingDelay;
         uint256 voteEnd = voteStart + votingPeriod;
 
@@ -264,7 +253,7 @@ contract DAOGovernor is IDAOGovernor, Ownable, Pausable, ReentrancyGuard, EIP712
         proposal.values = values;
         proposal.calldatas = calldatas;
         proposal.description = description;
-        proposal.snapshotBlock = snapshot;
+        proposal.snapshotBlock = block.number;
         proposal.voteStart = voteStart;
         proposal.voteEnd = voteEnd;
         proposal.burnRate = 0;
@@ -282,7 +271,7 @@ contract DAOGovernor is IDAOGovernor, Ownable, Pausable, ReentrancyGuard, EIP712
             values,
             calldatas,
             description,
-            snapshot,
+            block.number,
             voteStart,
             voteEnd,
             0
@@ -622,15 +611,6 @@ contract DAOGovernor is IDAOGovernor, Ownable, Pausable, ReentrancyGuard, EIP712
         emit GracePeriodUpdated(oldPeriod, newPeriod);
     }
 
-    /// @notice Set maturity period
-    /// @param newPeriod New period in blocks (0 to disable, otherwise >= MIN_MATURITY_PERIOD)
-    function setMaturityPeriod(uint256 newPeriod) external onlyOwner {
-        if (newPeriod != 0 && newPeriod < MIN_MATURITY_PERIOD) revert IDAOGovernor.InvalidParameter();
-        uint256 oldPeriod = maturityPeriod;
-        maturityPeriod = newPeriod;
-        emit MaturityPeriodUpdated(oldPeriod, newPeriod);
-    }
-
     /// @notice Set pass rate
     /// @param newRate New rate in basis points (5000 = 50%)
     function setPassRate(uint256 newRate) external onlyOwner {
@@ -663,9 +643,8 @@ contract DAOGovernor is IDAOGovernor, Ownable, Pausable, ReentrancyGuard, EIP712
             revert NotDelegate();
         }
 
-        // Get voting power (only delegations made 7+ days before snapshot)
-        uint256 weight =
-            delegateRegistry.getVotingPower(voter, proposal.snapshotBlock, proposal.snapshotBlock);
+        // Get current voting power (total delegated to this voter)
+        uint256 weight = delegateRegistry.getTotalDelegated(voter);
 
         // Record vote
         _hasVoted[proposalId][voter] = true;

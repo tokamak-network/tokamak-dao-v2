@@ -116,9 +116,6 @@ interface IDAOGovernor {
     /// @notice Emitted when voting period is updated
     event VotingPeriodUpdated(uint256 oldPeriod, uint256 newPeriod);
 
-    /// @notice Emitted when maturity period is updated
-    event MaturityPeriodUpdated(uint256 oldPeriod, uint256 newPeriod);
-
     /// @notice Emitted when timelock address is updated
     event TimelockUpdated(address oldTimelock, address newTimelock);
 
