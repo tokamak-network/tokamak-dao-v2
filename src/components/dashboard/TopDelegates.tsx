@@ -60,7 +60,7 @@ export function TopDelegates() {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle>Top Holders</CardTitle>
+        <CardTitle>Top Voters</CardTitle>
         <Link
           href="/delegates"
           className="text-sm text-[var(--text-brand)] hover:underline"
@@ -79,7 +79,7 @@ export function TopDelegates() {
         )}
         {isDeployed && topDelegates.length === 0 && (
           <div className="text-center py-4 text-[var(--text-tertiary)]">
-            <p className="text-sm">No holders yet</p>
+            <p className="text-sm">No voters yet</p>
             <p className="text-xs mt-1">
               Be the first to delegate your voting power
             </p>
