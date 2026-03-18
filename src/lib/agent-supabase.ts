@@ -11,6 +11,9 @@ function getAgentSupabase(): SupabaseClient {
     const url = process.env.NEXT_PUBLIC_AGENT_SUPABASE_URL!;
     const anonKey = process.env.NEXT_PUBLIC_AGENT_SUPABASE_KEY!;
     const serviceKey = process.env.AGENT_SUPABASE_SERVICE_KEY;
+    if (!serviceKey) {
+      console.warn("[agent-supabase] AGENT_SUPABASE_SERVICE_KEY is not set, falling back to anon key — writes may fail due to RLS");
+    }
     _client = createClient(url, serviceKey || anonKey);
   }
   return _client;

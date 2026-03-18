@@ -680,8 +680,11 @@ function TelegramStep({
     }
   };
 
+  const [saveError, setSaveError] = React.useState<string | null>(null);
+
   const handleSave = async () => {
     setSaving(true);
+    setSaveError(null);
     try {
       const res = await fetch("/api/agents", {
         method: "PATCH",
@@ -691,9 +694,11 @@ function TelegramStep({
       const data = await res.json();
       if (res.ok && data.success) {
         setSubStep("wait-start");
+      } else {
+        setSaveError(data.error || "Failed to save bot token");
       }
     } catch {
-      // ignore
+      setSaveError("Network error. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -857,6 +862,12 @@ function TelegramStep({
           </div>
         )}
       </div>
+
+      {saveError && (
+        <div className="rounded-[var(--radius-md)] px-3 py-2 text-sm bg-[var(--status-error-bg)] text-[var(--status-error-fg)]">
+          {saveError}
+        </div>
+      )}
 
       <Button
         onClick={handleSave}

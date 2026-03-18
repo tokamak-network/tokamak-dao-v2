@@ -135,15 +135,25 @@ export async function PATCH(req: NextRequest) {
       await deleteWebhook(telegramBotToken).catch(() => {});
     }
 
-    const { error } = await agentSupabase
+    const { data, error } = await agentSupabase
       .from("agents")
       .update({
         telegram_bot_token: telegramBotToken || null,
       })
-      .eq("agent_id", Number(agentId));
+      .eq("agent_id", Number(agentId))
+      .select("agent_id, telegram_bot_token");
 
     if (error) {
+      console.error("[PATCH /api/agents] Supabase error:", error);
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    if (!data || data.length === 0) {
+      console.error("[PATCH /api/agents] No rows updated for agent_id:", agentId);
+      return NextResponse.json(
+        { error: "Agent not found or update failed" },
+        { status: 404 }
+      );
     }
 
     return NextResponse.json({ success: true });
