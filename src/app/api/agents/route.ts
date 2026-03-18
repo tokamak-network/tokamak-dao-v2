@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { agentSupabase } from "@/lib/agent-supabase";
 import { generateAgentWallet, getSmartAccountAddress, decryptPrivateKey } from "@/lib/agent-wallet";
+import { deleteWebhook } from "@/lib/telegram";
 
 export async function GET(req: NextRequest) {
   const agentId = req.nextUrl.searchParams.get("agentId");
@@ -127,6 +128,11 @@ export async function PATCH(req: NextRequest) {
         { error: "agentId is required" },
         { status: 400 }
       );
+    }
+
+    // Delete existing webhook so /start messages go to getUpdates queue
+    if (telegramBotToken) {
+      await deleteWebhook(telegramBotToken).catch(() => {});
     }
 
     const { error } = await agentSupabase
