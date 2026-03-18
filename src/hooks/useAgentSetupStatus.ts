@@ -95,23 +95,22 @@ export function useAgentSetupStatus(ownerAddress?: `0x${string}`): AgentSetupSta
     return (delegation.amount ?? BigInt(0)) > BigInt(0);
   }, [delegationData]);
 
-  // Check Smart Account ETH balance for gas
-  const smartAccAddr = smartAccountAddress as `0x${string}` | undefined;
-  const { data: smartAccountBalance, isLoading: balanceLoading } = useBalance({
-    address: smartAccAddr,
+  // Check EOA wallet ETH balance for gas
+  const { data: walletBalance, isLoading: balanceLoading } = useBalance({
+    address: walletAddr,
     chainId: SEPOLIA_CHAIN_ID,
     query: {
-      enabled: !!smartAccAddr,
+      enabled: !!walletAddr,
       refetchInterval: 10000,
     },
   });
 
   const hasGasDeposit = useMemo(() => {
-    if (!smartAccountBalance) return false;
-    return smartAccountBalance.value > 0n;
-  }, [smartAccountBalance]);
+    if (!walletBalance) return false;
+    return walletBalance.value > 0n;
+  }, [walletBalance]);
 
-  const isLoading = apiLoading || (!!walletAddr && delegationLoading) || (!!smartAccAddr && balanceLoading);
+  const isLoading = apiLoading || (!!walletAddr && delegationLoading) || (!!walletAddr && balanceLoading);
 
   const firstIncompleteStep: WizardStep = useMemo(() => {
     if (!agentId) return "create";

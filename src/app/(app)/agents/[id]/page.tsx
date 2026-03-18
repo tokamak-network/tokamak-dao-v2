@@ -251,8 +251,8 @@ export default function AgentDetailPage({
           {agent.agentWalletAddress && (
             <AgentWalletSection walletAddress={agent.agentWalletAddress} agentId={id} />
           )}
-          {agent.smartAccountAddress && (
-            <GasDepositSection smartAccountAddress={agent.smartAccountAddress} />
+          {agent.agentWalletAddress && (
+            <GasDepositSection walletAddress={agent.agentWalletAddress} />
           )}
           <TelegramSettings agentId={id} owner={agent.owner} connected={agent.telegramConnected} onSaved={fetchAgent} />
           <AgentProfileSection agentId={id} />
@@ -394,12 +394,12 @@ function AgentWalletSection({ walletAddress, agentId }: { walletAddress: string;
 
 // ─── Gas Deposit Section ─────────────────────────────────
 
-function GasDepositSection({ smartAccountAddress }: { smartAccountAddress: string }) {
+function GasDepositSection({ walletAddress }: { walletAddress: string }) {
   const [amount, setAmount] = useState("0.01");
   const [copied, setCopied] = useState(false);
 
   const { data: balance } = useBalance({
-    address: smartAccountAddress as `0x${string}`,
+    address: walletAddress as `0x${string}`,
     chainId: CHAIN_ID,
   });
 
@@ -407,7 +407,7 @@ function GasDepositSection({ smartAccountAddress }: { smartAccountAddress: strin
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(smartAccountAddress);
+    navigator.clipboard.writeText(walletAddress);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -415,7 +415,7 @@ function GasDepositSection({ smartAccountAddress }: { smartAccountAddress: strin
   const handleDeposit = () => {
     if (!amount || parseFloat(amount) <= 0) return;
     sendTransaction({
-      to: smartAccountAddress as `0x${string}`,
+      to: walletAddress as `0x${string}`,
       value: parseEther(amount),
       chainId: CHAIN_ID,
     });
@@ -424,24 +424,24 @@ function GasDepositSection({ smartAccountAddress }: { smartAccountAddress: strin
   const currentBalance = balance ? formatEther(balance.value) : "0";
 
   return (
-    <Section title="Gas Deposit (Smart Account)">
+    <Section title="Gas Deposit">
       <div className="space-y-4">
         <p className="text-sm text-[var(--text-secondary)]">
-          The agent&apos;s Smart Account pays gas from its own ETH balance. Deposit ETH here to fund voting transactions.
+          The agent pays gas from its wallet&apos;s ETH balance. Deposit ETH here to fund voting transactions.
         </p>
 
         <div className="space-y-2">
-          <label className="block text-xs text-[var(--text-tertiary)]">Smart Account Address</label>
+          <label className="block text-xs text-[var(--text-tertiary)]">Agent Wallet Address</label>
           <div className="flex items-center gap-2">
             <code className="flex-1 rounded-[var(--radius-md)] bg-[var(--bg-tertiary)] px-3 py-2 text-sm font-mono text-[var(--text-primary)] break-all">
-              {smartAccountAddress}
+              {walletAddress}
             </code>
             <Button variant="secondary" size="sm" onClick={handleCopy}>
               {copied ? "Copied!" : "Copy"}
             </Button>
           </div>
           <a
-            href={`https://sepolia.etherscan.io/address/${smartAccountAddress}`}
+            href={`https://sepolia.etherscan.io/address/${walletAddress}`}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-block text-xs text-[var(--text-brand)] hover:underline"

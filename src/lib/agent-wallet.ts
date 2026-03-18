@@ -143,5 +143,6 @@ export async function createSmartAccountClientForAgent(privateKey: `0x${string}`
     account: smartAccount,
     chain: sepolia,
     bundlerTransport: http(pimlicoUrl),
+    client: publicClient,
   });
 }

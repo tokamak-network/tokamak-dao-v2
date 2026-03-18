@@ -1,14 +1,14 @@
 /**
- * Agent On-Chain Voting via EIP-712 Signature + ERC-4337 Account Abstraction
+ * Agent On-Chain Voting via EIP-712 Signature
  *
- * Single flow: EOA signs EIP-712 Ballot → Smart Account submits castVoteBySig
- * via self-funded gas (owner deposits ETH to Smart Account address).
+ * EOA signs EIP-712 Ballot → EOA submits castVoteBySig directly.
+ * Gas is paid from the EOA's own ETH balance (funded by the owner).
  */
 
-import { formatEther, encodeFunctionData } from "viem";
+import { formatEther } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { agentSupabase } from "@/lib/agent-supabase";
-import { decryptPrivateKey, getSepoliaPublicClient, createSmartAccountClientForAgent } from "@/lib/agent-wallet";
+import { decryptPrivateKey, getSepoliaPublicClient, getAgentWalletClient } from "@/lib/agent-wallet";
 import {
   CONTRACT_ADDRESSES,
   DELEGATE_REGISTRY_ABI,
@@ -164,18 +164,16 @@ export async function castAgentVote(
     return { success: false, error: `Signing failed: ${message.slice(0, 100)}` };
   }
 
-  // 7. Submit via ERC-4337 Smart Account with self-funded gas
+  // 7. Submit castVoteBySig directly from EOA wallet
   try {
-    const smartAccountClient = await createSmartAccountClientForAgent(privateKey);
+    const walletClient = getAgentWalletClient(privateKey);
 
-    const txHash = await smartAccountClient.sendTransaction({
-      to: addresses.daoGovernor as `0x${string}`,
-      data: encodeFunctionData({
-        abi: DAO_GOVERNOR_ABI,
-        functionName: "castVoteBySig",
-        args: [proposalId, support, v, r, s],
-      }),
-      value: 0n,
+    const txHash = await walletClient.writeContract({
+      address: addresses.daoGovernor as `0x${string}`,
+      abi: DAO_GOVERNOR_ABI,
+      functionName: "castVoteBySig",
+      args: [proposalId, support, v, r, s],
+      chain: walletClient.chain,
     });
 
     const receipt = await publicClient.waitForTransactionReceipt({
@@ -194,7 +192,7 @@ export async function castAgentVote(
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error("AA castVoteBySig failed:", message);
+    console.error("castVoteBySig failed:", message);
     return { success: false, error: `Vote transaction failed: ${message.slice(0, 100)}` };
   }
 }

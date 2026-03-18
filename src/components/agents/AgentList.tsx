@@ -39,11 +39,10 @@ function AgentRow({ agent }: { agent: AgentListItem }) {
   const addresses = getContractAddresses(SEPOLIA_CHAIN_ID);
   const walletAddr = agent.agentWalletAddress as `0x${string}` | undefined;
 
-  const smartAccAddr = agent.smartAccountAddress as `0x${string}` | undefined;
-  const { data: smartAccountBalance } = useBalance({
-    address: smartAccAddr,
+  const { data: walletBalance } = useBalance({
+    address: walletAddr,
     chainId: SEPOLIA_CHAIN_ID,
-    query: { enabled: !!smartAccAddr },
+    query: { enabled: !!walletAddr },
   });
 
   const { data: delegatedVTON } = useReadContract({
@@ -99,7 +98,7 @@ function AgentRow({ agent }: { agent: AgentListItem }) {
       {/* GAS */}
       <td className="py-4 px-5 text-right">
         <span className="text-sm font-medium text-[var(--text-primary)]">
-          {smartAccountBalance ? parseFloat(formatEther(smartAccountBalance.value)).toFixed(4) : "—"}
+          {walletBalance ? parseFloat(formatEther(walletBalance.value)).toFixed(4) : "—"}
         </span>
         <span className="text-xs text-[var(--text-tertiary)] ml-1">ETH</span>
       </td>

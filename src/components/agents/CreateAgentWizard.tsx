@@ -97,7 +97,7 @@ function StepIndicator({ currentStep }: { currentStep: WizardStep }) {
 function CreateStep({
   onCreated,
 }: {
-  onCreated: (agentId: number, walletAddress: string, smartAccountAddress: string) => void;
+  onCreated: (agentId: number, walletAddress: string) => void;
 }) {
   const { address } = useAccount();
   const [creating, setCreating] = React.useState(false);
@@ -115,7 +115,7 @@ function CreateStep({
       });
       const data = await res.json();
       if (data.success && data.id) {
-        onCreated(data.id, data.agentWalletAddress || "", data.smartAccountAddress || "");
+        onCreated(data.id, data.agentWalletAddress || "");
       } else {
         setError(data.error || "Failed to create agent");
       }
@@ -478,10 +478,10 @@ function DelegateStep({
 // ─── Deposit Step ────────────────────────────────────────
 
 function DepositStep({
-  smartAccountAddress,
+  agentWalletAddress,
   onDeposited,
 }: {
-  smartAccountAddress: string;
+  agentWalletAddress: string;
   onDeposited: () => void;
 }) {
   const [amount, setAmount] = React.useState("0.01");
@@ -489,7 +489,7 @@ function DepositStep({
   const [copied, setCopied] = React.useState(false);
 
   const { data: balance, isLoading: balanceLoading } = useBalance({
-    address: smartAccountAddress as `0x${string}`,
+    address: agentWalletAddress as `0x${string}`,
     chainId: SEPOLIA_CHAIN_ID,
     query: { refetchInterval: 5000 },
   });
@@ -522,7 +522,7 @@ function DepositStep({
     if (!amount || error) return;
     try {
       sendTransaction({
-        to: smartAccountAddress as `0x${string}`,
+        to: agentWalletAddress as `0x${string}`,
         value: parseEther(amount),
         chainId: SEPOLIA_CHAIN_ID,
       });
@@ -532,7 +532,7 @@ function DepositStep({
   };
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(smartAccountAddress);
+    navigator.clipboard.writeText(agentWalletAddress);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -551,19 +551,19 @@ function DepositStep({
     <div className="space-y-4">
       <div className="rounded-[var(--radius-lg)] bg-[var(--bg-tertiary)] p-4 space-y-2">
         <p className="text-sm text-[var(--text-secondary)]">
-          Deposit ETH to your agent&apos;s Smart Account to fund gas for voting transactions.
+          Deposit ETH to your agent&apos;s wallet to fund gas for voting transactions.
         </p>
         <p className="text-xs text-[var(--text-tertiary)]">
-          The agent uses an ERC-4337 Smart Account. Gas is paid from this account&apos;s ETH balance, not yours.
+          The agent pays gas from this wallet&apos;s ETH balance when casting votes.
         </p>
       </div>
 
-      {/* Smart Account Address */}
+      {/* Agent Wallet Address */}
       <div className="space-y-1.5">
-        <label className="block text-xs text-[var(--text-tertiary)]">Smart Account Address</label>
+        <label className="block text-xs text-[var(--text-tertiary)]">Agent Wallet Address</label>
         <div className="flex items-center gap-2">
           <code className="flex-1 rounded-[var(--radius-md)] bg-[var(--bg-tertiary)] px-3 py-2 text-xs font-mono text-[var(--text-primary)] break-all">
-            {smartAccountAddress}
+            {agentWalletAddress}
           </code>
           <Button variant="secondary" size="xs" onClick={handleCopy}>
             {copied ? "Copied!" : "Copy"}
@@ -879,7 +879,6 @@ export function CreateAgentWizard({ open, onClose, onComplete }: CreateAgentWiza
   // Local state for the wizard session
   const [agentId, setAgentId] = React.useState<number | null>(null);
   const [agentWalletAddress, setAgentWalletAddress] = React.useState<string | null>(null);
-  const [smartAccountAddress, setSmartAccountAddress] = React.useState<string | null>(null);
   const [currentStep, setCurrentStep] = React.useState<WizardStep>("create");
   const [isClosable, setIsClosable] = React.useState(true);
 
@@ -888,10 +887,9 @@ export function CreateAgentWizard({ open, onClose, onComplete }: CreateAgentWiza
     if (open && !setupStatus.isLoading) {
       setAgentId(setupStatus.agentId);
       setAgentWalletAddress(setupStatus.agentWalletAddress);
-      setSmartAccountAddress(setupStatus.smartAccountAddress);
       setCurrentStep(setupStatus.firstIncompleteStep);
     }
-  }, [open, setupStatus.isLoading, setupStatus.agentId, setupStatus.agentWalletAddress, setupStatus.smartAccountAddress, setupStatus.firstIncompleteStep]);
+  }, [open, setupStatus.isLoading, setupStatus.agentId, setupStatus.agentWalletAddress, setupStatus.firstIncompleteStep]);
 
   // Reset when closed
   React.useEffect(() => {
@@ -905,10 +903,9 @@ export function CreateAgentWizard({ open, onClose, onComplete }: CreateAgentWiza
     onClose();
   };
 
-  const handleCreated = (id: number, wallet: string, smartAccount: string) => {
+  const handleCreated = (id: number, wallet: string) => {
     setAgentId(id);
     setAgentWalletAddress(wallet);
-    setSmartAccountAddress(smartAccount);
     setCurrentStep("delegate");
   };
 
@@ -960,9 +957,9 @@ export function CreateAgentWizard({ open, onClose, onComplete }: CreateAgentWiza
             agentWalletAddress={agentWalletAddress}
             onDelegated={handleDelegated}
           />
-        ) : currentStep === "deposit" && smartAccountAddress ? (
+        ) : currentStep === "deposit" && agentWalletAddress ? (
           <DepositStep
-            smartAccountAddress={smartAccountAddress}
+            agentWalletAddress={agentWalletAddress}
             onDeposited={handleDeposited}
           />
         ) : currentStep === "telegram" && agentId ? (
