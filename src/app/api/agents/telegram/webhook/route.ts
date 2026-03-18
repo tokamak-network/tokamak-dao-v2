@@ -123,7 +123,7 @@ export async function POST(req: NextRequest) {
     // General message - guide user
     await sendTelegramMessage(botToken, {
       chatId,
-      text: "새로운 안건이 올라오면 분석을 보내드리겠습니다. 안건 분석 메시지에 답장하시면 더 자세히 논의할 수 있습니다.",
+      text: "I'll send you analysis when new proposals come up. Reply to a proposal analysis message to discuss further.",
     });
     return NextResponse.json({ ok: true });
   } catch (err) {
@@ -156,16 +156,16 @@ async function handleCallbackQuery(
     const messageId = callbackQuery.message?.message_id;
 
     const voteLabels: Record<string, string> = {
-      f: "👍 For (찬성)",
-      a: "👎 Against (반대)",
-      x: "🤚 Abstain (기권)",
+      f: "👍 For",
+      a: "👎 Against",
+      x: "🤚 Abstain",
     };
 
     // Answer callback immediately to remove loading state
     await answerCallbackQuery(
       botToken,
       callbackQuery.id,
-      `${voteLabels[voteCode] || voteCode} — 온체인 투표를 실행합니다...`
+      `${voteLabels[voteCode] || voteCode} — Submitting on-chain vote...`
     );
 
     // Remove buttons
@@ -222,7 +222,7 @@ async function handleCallbackQuery(
       if (chatId) {
         await sendTelegramMessage(botToken, {
           chatId,
-          text: "❌ 안건 ID를 확인할 수 없습니다. 새로 알림을 받은 안건에서 다시 시도해주세요.",
+          text: "❌ Could not resolve proposal ID. Please try again from a newly notified proposal.",
         });
       }
       return NextResponse.json({ ok: true });
@@ -246,51 +246,37 @@ async function handleCallbackQuery(
     if (chatId) {
       await sendTelegramMessage(botToken, {
         chatId,
-        text: `⏳ <b>${voteLabels[voteCode]}</b> — 온체인 투표를 실행 중입니다...`,
+        text: `⏳ <b>${voteLabels[voteCode]}</b> — Submitting on-chain vote...`,
       });
 
       try {
         const support = voteCodeToSupport(voteCode);
         const result = await castAgentVote(agentId, proposalId, support);
 
-        if (result.success && result.pending) {
-          const appUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://dao.tokamak.network"}/agents/${agentId}`;
-          await sendTelegramMessage(botToken, {
-            chatId,
-            text: [
-              `✍️ <b>${voteLabels[voteCode]}</b> 서명 완료!`,
-              ``,
-              `투표권: ${result.votingPower} vTON`,
-              `⚠️ Agent 가스비 잔액이 부족합니다.`,
-              `프론트엔드에서 투표를 제출해주세요.`,
-              ``,
-              `<a href="${appUrl}">투표 제출하러 가기 →</a>`,
-            ].join("\n"),
-          });
-        } else if (result.success) {
+        if (result.success) {
           const explorerUrl = `https://sepolia.etherscan.io/tx/${result.txHash}`;
           await sendTelegramMessage(botToken, {
             chatId,
             text: [
-              `✅ <b>${voteLabels[voteCode]}</b> 온체인 투표 완료!`,
+              `✅ <b>${voteLabels[voteCode]}</b> On-chain vote complete!`,
               ``,
-              `투표권: ${result.votingPower} vTON`,
-              `<a href="${explorerUrl}">트랜잭션 확인 →</a>`,
+              `Voting power: ${result.votingPower} vTON`,
+              `<a href="${explorerUrl}">View transaction →</a>`,
               ``,
-              `이 선택에 대해 더 논의하고 싶으시면 답장해주세요.`,
+              `Reply to discuss this choice further.`,
             ].join("\n"),
           });
         } else {
           await sendTelegramMessage(botToken, {
             chatId,
-            text: `❌ 온체인 투표 실패: ${result.error}\n\n투표 의향은 기록되었습니다. 이 선택에 대해 더 논의하고 싶으시면 답장해주세요.`,
+            text: `❌ On-chain vote failed: ${result.error}\n\nYour vote preference has been recorded. Reply to discuss this choice further.`,
           });
         }
       } catch (err) {
         console.error("Agent vote error:", err);
         await sendTelegramMessage(botToken, {
           chatId,
-          text: `❌ 투표 실행 중 오류가 발생했습니다.\n\n투표 의향은 기록되었습니다.`,
+          text: `❌ An error occurred while submitting the vote.\n\nYour vote preference has been recorded.`,
         });
       }
     }

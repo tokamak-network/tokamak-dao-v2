@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { useReadContract, useChainId } from "wagmi";
+import { useReadContract, useBalance, useChainId } from "wagmi";
 import {
   getContractAddresses,
   areContractsDeployed,
   DELEGATE_REGISTRY_ABI,
-  VOTE_RELAY_FUND_ABI,
 } from "@/constants/contracts";
+import { SEPOLIA_CHAIN_ID } from "@/constants/erc8004";
 
 export type WizardStep = "create" | "delegate" | "deposit" | "telegram" | "complete";
 
@@ -15,6 +15,7 @@ export interface AgentSetupStatus {
   isLoading: boolean;
   agentId: number | null;
   agentWalletAddress: string | null;
+  smartAccountAddress: string | null;
   telegramTokenSaved: boolean;
   telegramConnected: boolean;
   hasDelegation: boolean;
@@ -31,6 +32,7 @@ export function useAgentSetupStatus(ownerAddress?: `0x${string}`): AgentSetupSta
   // API state
   const [agentId, setAgentId] = useState<number | null>(null);
   const [agentWalletAddress, setAgentWalletAddress] = useState<string | null>(null);
+  const [smartAccountAddress, setSmartAccountAddress] = useState<string | null>(null);
   const [telegramTokenSaved, setTelegramTokenSaved] = useState(false);
   const [telegramConnected, setTelegramConnected] = useState(false);
   const [apiLoading, setApiLoading] = useState(false);
@@ -41,6 +43,7 @@ export function useAgentSetupStatus(ownerAddress?: `0x${string}`): AgentSetupSta
     if (!ownerAddress) {
       setAgentId(null);
       setAgentWalletAddress(null);
+      setSmartAccountAddress(null);
       setTelegramTokenSaved(false);
       setTelegramConnected(false);
       return;
@@ -53,11 +56,13 @@ export function useAgentSetupStatus(ownerAddress?: `0x${string}`): AgentSetupSta
         if (data.id) {
           setAgentId(data.id);
           setAgentWalletAddress(data.agentWalletAddress || null);
+          setSmartAccountAddress(data.smartAccountAddress || null);
           setTelegramTokenSaved(!!data.telegramTokenSaved);
           setTelegramConnected(!!data.telegramConnected);
         } else {
           setAgentId(null);
           setAgentWalletAddress(null);
+          setSmartAccountAddress(null);
           setTelegramTokenSaved(false);
           setTelegramConnected(false);
         }
@@ -65,6 +70,7 @@ export function useAgentSetupStatus(ownerAddress?: `0x${string}`): AgentSetupSta
       .catch(() => {
         setAgentId(null);
         setAgentWalletAddress(null);
+        setSmartAccountAddress(null);
         setTelegramTokenSaved(false);
         setTelegramConnected(false);
       })
@@ -83,30 +89,29 @@ export function useAgentSetupStatus(ownerAddress?: `0x${string}`): AgentSetupSta
     },
   });
 
-  // On-chain: VoteRelayFund.balances(agentWallet)
-  const voteRelayFundAddress = addresses.voteRelayFund;
-  const { data: gasBalance, isLoading: gasLoading } = useReadContract({
-    address: voteRelayFundAddress,
-    abi: VOTE_RELAY_FUND_ABI,
-    functionName: "balances",
-    args: walletAddr ? [walletAddr] : undefined,
-    query: {
-      enabled: isDeployed && !!voteRelayFundAddress && !!walletAddr,
-    },
-  });
-
   const hasDelegation = useMemo(() => {
     if (!delegationData) return false;
     const delegation = delegationData as { amount?: bigint };
     return (delegation.amount ?? BigInt(0)) > BigInt(0);
   }, [delegationData]);
 
-  const hasGasDeposit = useMemo(() => {
-    if (gasBalance === undefined || gasBalance === null) return false;
-    return (gasBalance as bigint) > BigInt(0);
-  }, [gasBalance]);
+  // Check Smart Account ETH balance for gas
+  const smartAccAddr = smartAccountAddress as `0x${string}` | undefined;
+  const { data: smartAccountBalance, isLoading: balanceLoading } = useBalance({
+    address: smartAccAddr,
+    chainId: SEPOLIA_CHAIN_ID,
+    query: {
+      enabled: !!smartAccAddr,
+      refetchInterval: 10000,
+    },
+  });
 
-  const isLoading = apiLoading || (!!walletAddr && (delegationLoading || gasLoading));
+  const hasGasDeposit = useMemo(() => {
+    if (!smartAccountBalance) return false;
+    return smartAccountBalance.value > 0n;
+  }, [smartAccountBalance]);
+
+  const isLoading = apiLoading || (!!walletAddr && delegationLoading) || (!!smartAccAddr && balanceLoading);
 
   const firstIncompleteStep: WizardStep = useMemo(() => {
     if (!agentId) return "create";
@@ -124,6 +129,7 @@ export function useAgentSetupStatus(ownerAddress?: `0x${string}`): AgentSetupSta
     isLoading,
     agentId,
     agentWalletAddress,
+    smartAccountAddress,
     telegramTokenSaved,
     telegramConnected,
     hasDelegation,

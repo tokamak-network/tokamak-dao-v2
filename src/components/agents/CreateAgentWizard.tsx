@@ -1,13 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { useAccount, useChainId, useBalance, useReadContract, useWriteContract, useWaitForTransactionReceipt, useSignTypedData } from "wagmi";
+import { useAccount, useReadContract, useWriteContract, useWaitForTransactionReceipt, useSignTypedData, useBalance, useSendTransaction } from "wagmi";
 import { parseEther, formatEther } from "viem";
 import { Modal, ModalBody, ModalFooter } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { Input, Label, HelperText } from "@/components/ui/input";
 import { useVTONBalance } from "@/hooks/contracts/useVTON";
-import { getContractAddresses, areContractsDeployed, VOTE_RELAY_FUND_ABI, DELEGATE_REGISTRY_ABI } from "@/constants/contracts";
+import { getContractAddresses, DELEGATE_REGISTRY_ABI } from "@/constants/contracts";
 import { SEPOLIA_CHAIN_ID } from "@/constants/erc8004";
 import { useAgentSetupStatus, type WizardStep } from "@/hooks/useAgentSetupStatus";
 import { formatVTON } from "@/lib/utils";
@@ -22,8 +22,8 @@ export interface CreateAgentWizardProps {
 
 const STEPS: { id: WizardStep; label: string }[] = [
   { id: "create", label: "Create" },
-  { id: "delegate", label: "Delegate vTON" },
-  { id: "deposit", label: "Add Gas" },
+  { id: "delegate", label: "Delegate" },
+  { id: "deposit", label: "Gas" },
   { id: "telegram", label: "Telegram" },
 ];
 
@@ -97,7 +97,7 @@ function StepIndicator({ currentStep }: { currentStep: WizardStep }) {
 function CreateStep({
   onCreated,
 }: {
-  onCreated: (agentId: number, walletAddress: string) => void;
+  onCreated: (agentId: number, walletAddress: string, smartAccountAddress: string) => void;
 }) {
   const { address } = useAccount();
   const [creating, setCreating] = React.useState(false);
@@ -115,7 +115,7 @@ function CreateStep({
       });
       const data = await res.json();
       if (data.success && data.id) {
-        onCreated(data.id, data.agentWalletAddress || "");
+        onCreated(data.id, data.agentWalletAddress || "", data.smartAccountAddress || "");
       } else {
         setError(data.error || "Failed to create agent");
       }
@@ -475,54 +475,43 @@ function DelegateStep({
   );
 }
 
-// ─── Deposit Step ───────────────────────────────────────
+// ─── Deposit Step ────────────────────────────────────────
 
 function DepositStep({
-  agentWalletAddress,
+  smartAccountAddress,
   onDeposited,
 }: {
-  agentWalletAddress: string;
+  smartAccountAddress: string;
   onDeposited: () => void;
 }) {
-  const { address } = useAccount();
-  const chainId = useChainId();
-  const contractAddresses = getContractAddresses(chainId);
-  const isDeployed = areContractsDeployed(chainId);
-  const voteRelayFundAddress = contractAddresses.voteRelayFund;
-
-  const { data: ethBalance } = useBalance({ address });
-
-  const [amount, setAmount] = React.useState("");
+  const [amount, setAmount] = React.useState("0.01");
   const [error, setError] = React.useState<string | null>(null);
+  const [copied, setCopied] = React.useState(false);
 
-  const {
-    data: hash,
-    isPending,
-    writeContract,
-    error: writeError,
-    reset,
-  } = useWriteContract();
+  const { data: balance, isLoading: balanceLoading } = useBalance({
+    address: smartAccountAddress as `0x${string}`,
+    chainId: SEPOLIA_CHAIN_ID,
+    query: { refetchInterval: 5000 },
+  });
 
-  const { isLoading: isConfirming, isSuccess: isConfirmed } =
-    useWaitForTransactionReceipt({ hash });
+  const { sendTransaction, data: txHash, isPending, error: sendError } = useSendTransaction();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
 
+  // Auto-advance after successful deposit
   React.useEffect(() => {
-    if (isConfirmed) {
+    if (isSuccess) {
       const t = setTimeout(onDeposited, 1500);
       return () => clearTimeout(t);
     }
-  }, [isConfirmed, onDeposited]);
+  }, [isSuccess, onDeposited]);
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setAmount(value);
+    setAmount(e.target.value);
     setError(null);
-    if (value) {
+    if (e.target.value) {
       try {
-        const parsed = parseEther(value);
-        const bal = ethBalance?.value ?? BigInt(0);
-        if (parsed > bal) setError("Amount exceeds your ETH balance");
-        else if (parsed < parseEther("0.001")) setError("Minimum 0.001 ETH required");
+        const parsed = parseFloat(e.target.value);
+        if (parsed <= 0) setError("Amount must be greater than 0");
       } catch {
         setError("Invalid amount");
       }
@@ -530,73 +519,113 @@ function DepositStep({
   };
 
   const handleDeposit = () => {
-    if (!amount || error || !voteRelayFundAddress || !isDeployed) return;
-    reset();
-    writeContract({
-      address: voteRelayFundAddress,
-      abi: VOTE_RELAY_FUND_ABI,
-      functionName: "deposit",
-      args: [agentWalletAddress as `0x${string}`],
-      value: parseEther(amount),
-    });
+    if (!amount || error) return;
+    try {
+      sendTransaction({
+        to: smartAccountAddress as `0x${string}`,
+        value: parseEther(amount),
+        chainId: SEPOLIA_CHAIN_ID,
+      });
+    } catch {
+      setError("Failed to send transaction");
+    }
+  };
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(smartAccountAddress);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleSkip = () => {
+    if (balance && balance.value > 0n) {
+      onDeposited();
+    }
   };
 
   const isProcessing = isPending || isConfirming;
-
-  const getButtonText = () => {
-    if (isConfirmed) return "Deposited!";
-    if (isConfirming) return "Confirming...";
-    if (isPending) return "Confirm in Wallet...";
-    return "Deposit ETH";
-  };
+  const currentBalance = balance ? formatEther(balance.value) : "0";
+  const hasBalance = balance && balance.value > 0n;
 
   return (
     <div className="space-y-4">
-      <div className="rounded-[var(--radius-lg)] bg-[var(--bg-tertiary)] p-4">
+      <div className="rounded-[var(--radius-lg)] bg-[var(--bg-tertiary)] p-4 space-y-2">
         <p className="text-sm text-[var(--text-secondary)]">
-          Deposit ETH to cover gas fees for automatic vote relay. When the agent votes via Telegram,
-          the relayer submits the transaction and gets reimbursed from this fund.
+          Deposit ETH to your agent&apos;s Smart Account to fund gas for voting transactions.
+        </p>
+        <p className="text-xs text-[var(--text-tertiary)]">
+          The agent uses an ERC-4337 Smart Account. Gas is paid from this account&apos;s ETH balance, not yours.
         </p>
       </div>
 
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <Label htmlFor="deposit-amount">Amount</Label>
-          <span className="text-xs text-[var(--text-tertiary)]">
-            Balance: {ethBalance ? parseFloat(formatEther(ethBalance.value)).toFixed(4) : "—"} ETH
-          </span>
+      {/* Smart Account Address */}
+      <div className="space-y-1.5">
+        <label className="block text-xs text-[var(--text-tertiary)]">Smart Account Address</label>
+        <div className="flex items-center gap-2">
+          <code className="flex-1 rounded-[var(--radius-md)] bg-[var(--bg-tertiary)] px-3 py-2 text-xs font-mono text-[var(--text-primary)] break-all">
+            {smartAccountAddress}
+          </code>
+          <Button variant="secondary" size="xs" onClick={handleCopy}>
+            {copied ? "Copied!" : "Copy"}
+          </Button>
         </div>
+      </div>
+
+      {/* Current Balance */}
+      <div className="flex items-center justify-between rounded-[var(--radius-md)] bg-[var(--bg-tertiary)] px-3 py-2">
+        <span className="text-xs text-[var(--text-tertiary)]">Current Balance</span>
+        <span className="text-sm font-medium text-[var(--text-primary)]">
+          {balanceLoading ? (
+            <span className="inline-block h-3.5 w-16 animate-pulse rounded bg-[var(--border-secondary)]" />
+          ) : (
+            <>{currentBalance} ETH</>
+          )}
+        </span>
+      </div>
+
+      {/* Deposit Amount */}
+      <div className="space-y-2">
+        <Label htmlFor="deposit-amount">Deposit Amount (ETH)</Label>
         <Input
           id="deposit-amount"
           type="text"
           inputMode="decimal"
-          placeholder="e.g. 0.01"
+          placeholder="0.01"
           value={amount}
           onChange={handleAmountChange}
           error={!!error}
         />
         {error && <HelperText error>{error}</HelperText>}
-        {writeError && (
+        {sendError && (
           <HelperText error>
-            Transaction failed: {writeError.message.slice(0, 60)}...
+            {sendError.message.includes("User rejected") || sendError.message.includes("user rejected")
+              ? "Transaction was rejected by user."
+              : "Transaction failed. Please try again."}
           </HelperText>
         )}
       </div>
 
-      {isConfirmed && (
+      {isSuccess && (
         <div className="p-3 bg-[var(--status-success-bg)] border border-[var(--status-success-border)] rounded-lg text-center">
           <p className="text-sm text-[var(--status-success-fg)] font-medium">Deposit successful!</p>
         </div>
       )}
 
-      <Button
-        onClick={handleDeposit}
-        disabled={!amount || !!error || isProcessing || isConfirmed}
-        loading={isProcessing}
-        className="w-full"
-      >
-        {getButtonText()}
-      </Button>
+      <div className="flex gap-2">
+        <Button
+          onClick={handleDeposit}
+          disabled={!amount || !!error || isProcessing || isSuccess}
+          loading={isProcessing}
+          className="flex-1"
+        >
+          {isPending ? "Confirm in Wallet..." : isConfirming ? "Confirming..." : isSuccess ? "Deposited!" : "Deposit ETH"}
+        </Button>
+        {hasBalance && !isSuccess && (
+          <Button variant="secondary" onClick={handleSkip}>
+            Skip
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
@@ -850,6 +879,7 @@ export function CreateAgentWizard({ open, onClose, onComplete }: CreateAgentWiza
   // Local state for the wizard session
   const [agentId, setAgentId] = React.useState<number | null>(null);
   const [agentWalletAddress, setAgentWalletAddress] = React.useState<string | null>(null);
+  const [smartAccountAddress, setSmartAccountAddress] = React.useState<string | null>(null);
   const [currentStep, setCurrentStep] = React.useState<WizardStep>("create");
   const [isClosable, setIsClosable] = React.useState(true);
 
@@ -858,9 +888,10 @@ export function CreateAgentWizard({ open, onClose, onComplete }: CreateAgentWiza
     if (open && !setupStatus.isLoading) {
       setAgentId(setupStatus.agentId);
       setAgentWalletAddress(setupStatus.agentWalletAddress);
+      setSmartAccountAddress(setupStatus.smartAccountAddress);
       setCurrentStep(setupStatus.firstIncompleteStep);
     }
-  }, [open, setupStatus.isLoading, setupStatus.agentId, setupStatus.agentWalletAddress, setupStatus.firstIncompleteStep]);
+  }, [open, setupStatus.isLoading, setupStatus.agentId, setupStatus.agentWalletAddress, setupStatus.smartAccountAddress, setupStatus.firstIncompleteStep]);
 
   // Reset when closed
   React.useEffect(() => {
@@ -874,9 +905,10 @@ export function CreateAgentWizard({ open, onClose, onComplete }: CreateAgentWiza
     onClose();
   };
 
-  const handleCreated = (id: number, wallet: string) => {
+  const handleCreated = (id: number, wallet: string, smartAccount: string) => {
     setAgentId(id);
     setAgentWalletAddress(wallet);
+    setSmartAccountAddress(smartAccount);
     setCurrentStep("delegate");
   };
 
@@ -899,7 +931,7 @@ export function CreateAgentWizard({ open, onClose, onComplete }: CreateAgentWiza
     switch (currentStep) {
       case "create": return "Create Your Agent";
       case "delegate": return "Delegate vTON";
-      case "deposit": return "Add Gas (ETH)";
+      case "deposit": return "Fund Gas";
       case "telegram": return "Connect Telegram";
       case "complete": return "Setup Complete";
     }
@@ -928,9 +960,9 @@ export function CreateAgentWizard({ open, onClose, onComplete }: CreateAgentWiza
             agentWalletAddress={agentWalletAddress}
             onDelegated={handleDelegated}
           />
-        ) : currentStep === "deposit" && agentWalletAddress ? (
+        ) : currentStep === "deposit" && smartAccountAddress ? (
           <DepositStep
-            agentWalletAddress={agentWalletAddress}
+            smartAccountAddress={smartAccountAddress}
             onDeposited={handleDeposited}
           />
         ) : currentStep === "telegram" && agentId ? (

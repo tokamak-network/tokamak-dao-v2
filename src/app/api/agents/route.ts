@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { agentSupabase } from "@/lib/agent-supabase";
-import { generateAgentWallet } from "@/lib/agent-wallet";
+import { generateAgentWallet, getSmartAccountAddress, decryptPrivateKey } from "@/lib/agent-wallet";
 
 export async function GET(req: NextRequest) {
   const agentId = req.nextUrl.searchParams.get("agentId");
@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
 
   let query = agentSupabase
     .from("agents")
-    .select("agent_id, owner, telegram_bot_token, telegram_chat_id, agent_wallet_address, created_at");
+    .select("agent_id, owner, telegram_bot_token, telegram_chat_id, agent_wallet_address, smart_account_address, created_at");
 
   if (agentId) {
     query = query.eq("agent_id", Number(agentId));
@@ -32,6 +32,7 @@ export async function GET(req: NextRequest) {
     telegramTokenSaved: !!data.telegram_bot_token,
     telegramConnected: !!data.telegram_bot_token && !!data.telegram_chat_id,
     agentWalletAddress: data.agent_wallet_address || null,
+    smartAccountAddress: data.smart_account_address || null,
     createdAt: data.created_at,
   });
 }
@@ -53,7 +54,7 @@ export async function POST(req: NextRequest) {
     // Check if agent already exists for this owner + chain
     const { data: existing } = await agentSupabase
       .from("agents")
-      .select("agent_id, agent_wallet_address, created_at")
+      .select("agent_id, agent_wallet_address, smart_account_address, created_at")
       .eq("owner", normalizedOwner)
       .eq("chain_id", chain)
       .single();
@@ -63,19 +64,25 @@ export async function POST(req: NextRequest) {
         success: true,
         id: existing.agent_id,
         agentWalletAddress: existing.agent_wallet_address || null,
+        smartAccountAddress: existing.smart_account_address || null,
         createdAt: existing.created_at,
         existing: true,
       });
     }
 
-    // Generate agent wallet
-    let walletFields: { agent_wallet_address?: string; encrypted_private_key?: string } = {};
+    // Generate agent wallet + compute Smart Account address
+    let walletFields: { agent_wallet_address?: string; encrypted_private_key?: string; smart_account_address?: string } = {};
     try {
       const wallet = generateAgentWallet();
       walletFields = {
         agent_wallet_address: wallet.address,
         encrypted_private_key: wallet.encryptedPrivateKey,
       };
+
+      // Compute deterministic Smart Account address
+      const privateKey = decryptPrivateKey(wallet.encryptedPrivateKey);
+      const smartAccountAddr = await getSmartAccountAddress(privateKey);
+      walletFields.smart_account_address = smartAccountAddr;
     } catch {
       console.warn("Agent wallet generation skipped: AGENT_ENCRYPTION_KEY not set");
     }
@@ -99,6 +106,7 @@ export async function POST(req: NextRequest) {
       success: true,
       id: inserted.agent_id,
       agentWalletAddress: walletFields.agent_wallet_address || null,
+      smartAccountAddress: walletFields.smart_account_address || null,
       createdAt: inserted.created_at,
       existing: false,
     });

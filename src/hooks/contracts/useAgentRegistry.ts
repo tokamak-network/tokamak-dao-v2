@@ -10,6 +10,7 @@ export interface AgentListItem {
   agentId: number;
   owner: string;
   agentWalletAddress: string | null;
+  smartAccountAddress: string | null;
   telegramConnected: boolean;
   createdAt: string;
 }
@@ -19,6 +20,7 @@ interface SupabaseRow {
   chain_id: number;
   owner: string;
   agent_wallet_address: string | null;
+  smart_account_address: string | null;
   telegram_bot_token: string | null;
   created_at: string;
 }
@@ -35,7 +37,7 @@ export function useAgents() {
     setIsLoading(true);
     agentSupabase
       .from("agents")
-      .select("agent_id, chain_id, owner, agent_wallet_address, telegram_bot_token, created_at")
+      .select("agent_id, chain_id, owner, agent_wallet_address, smart_account_address, telegram_bot_token, created_at")
       .eq("chain_id", CHAIN_ID)
       .not("telegram_chat_id", "is", null)
       .order("created_at", { ascending: false })
@@ -49,6 +51,7 @@ export function useAgents() {
               agentId: row.agent_id,
               owner: row.owner,
               agentWalletAddress: row.agent_wallet_address,
+              smartAccountAddress: row.smart_account_address,
               telegramConnected: !!row.telegram_bot_token,
               createdAt: row.created_at,
             }))

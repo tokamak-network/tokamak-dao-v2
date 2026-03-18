@@ -2,11 +2,14 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useReadContract, useBalance } from "wagmi";
+import { formatEther } from "viem";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { useAgents, type AgentListItem } from "@/hooks/contracts/useAgentRegistry";
 import { SEPOLIA_CHAIN_ID } from "@/constants/erc8004";
+import { getContractAddresses, DELEGATE_REGISTRY_ABI } from "@/constants/contracts";
 
 function truncateAddress(addr: string) {
   return `${addr.slice(0, 6)}\u2026${addr.slice(-4)}`;
@@ -23,7 +26,35 @@ function getChainName(chainId?: number): string {
   }
 }
 
+function formatCompact(value: bigint): string {
+  const num = parseFloat(formatEther(value));
+  if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}M`;
+  if (num >= 1_000) return `${(num / 1_000).toFixed(1)}K`;
+  if (num >= 1) return num.toFixed(1);
+  if (num > 0) return num.toFixed(4);
+  return "0";
+}
+
 function AgentRow({ agent }: { agent: AgentListItem }) {
+  const addresses = getContractAddresses(SEPOLIA_CHAIN_ID);
+  const walletAddr = agent.agentWalletAddress as `0x${string}` | undefined;
+
+  const smartAccAddr = agent.smartAccountAddress as `0x${string}` | undefined;
+  const { data: smartAccountBalance } = useBalance({
+    address: smartAccAddr,
+    chainId: SEPOLIA_CHAIN_ID,
+    query: { enabled: !!smartAccAddr },
+  });
+
+  const { data: delegatedVTON } = useReadContract({
+    address: addresses.delegateRegistry as `0x${string}`,
+    abi: DELEGATE_REGISTRY_ABI,
+    functionName: "getTotalDelegated",
+    args: walletAddr ? [walletAddr] : undefined,
+    chainId: SEPOLIA_CHAIN_ID,
+    query: { enabled: !!walletAddr },
+  });
+
   return (
     <tr className="border-b border-[var(--border-default)] last:border-b-0 hover:bg-[var(--bg-secondary)] transition-colors">
       {/* AGENT */}
@@ -55,6 +86,22 @@ function AgentRow({ agent }: { agent: AgentListItem }) {
           <span className="inline-block size-1.5 rounded-full bg-current opacity-70" />
           {getChainName(SEPOLIA_CHAIN_ID)}
         </Badge>
+      </td>
+
+      {/* DELEGATED vTON */}
+      <td className="py-4 px-5 text-right">
+        <span className="text-sm font-medium text-[var(--text-primary)]">
+          {delegatedVTON != null ? formatCompact(delegatedVTON as bigint) : "—"}
+        </span>
+        <span className="text-xs text-[var(--text-tertiary)] ml-1">vTON</span>
+      </td>
+
+      {/* GAS */}
+      <td className="py-4 px-5 text-right">
+        <span className="text-sm font-medium text-[var(--text-primary)]">
+          {smartAccountBalance ? parseFloat(formatEther(smartAccountBalance.value)).toFixed(4) : "—"}
+        </span>
+        <span className="text-xs text-[var(--text-tertiary)] ml-1">ETH</span>
       </td>
 
       {/* OWNER */}
@@ -153,19 +200,25 @@ export function AgentList() {
           <table className="w-full table-fixed">
             <thead>
               <tr className="border-b border-[var(--border-default)] bg-[var(--bg-secondary)]">
-                <th className="py-3 px-5 text-left text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider w-[35%]">
+                <th className="py-3 px-5 text-left text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider w-[22%]">
                   Agent
                 </th>
-                <th className="py-3 px-5 text-left text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider w-[12%]">
+                <th className="py-3 px-5 text-left text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider w-[9%]">
                   Chain
                 </th>
-                <th className="py-3 px-5 text-left text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider w-[18%]">
+                <th className="py-3 px-5 text-right text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider w-[13%]">
+                  Delegated
+                </th>
+                <th className="py-3 px-5 text-right text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider w-[10%]">
+                  Gas
+                </th>
+                <th className="py-3 px-5 text-left text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider w-[14%]">
                   Owner
                 </th>
-                <th className="py-3 px-5 text-center text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider w-[15%]">
+                <th className="py-3 px-5 text-center text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider w-[10%]">
                   Telegram
                 </th>
-                <th className="py-3 px-5 text-right text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider w-[20%]">
+                <th className="py-3 px-5 text-right text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider w-[14%]">
                   Created
                 </th>
               </tr>
@@ -173,7 +226,7 @@ export function AgentList() {
             <tbody>
               {filteredAgents.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-12 text-center text-sm text-[var(--text-tertiary)]">
+                  <td colSpan={7} className="py-12 text-center text-sm text-[var(--text-tertiary)]">
                     {agents.length === 0
                       ? "No agents registered yet"
                       : "No agents found matching your search"}

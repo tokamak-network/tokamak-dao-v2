@@ -2,11 +2,11 @@
 
 import { use, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useAccount, useConfig, useReadContract, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { useAccount, useConfig, useWriteContract, useWaitForTransactionReceipt, useBalance, useSendTransaction } from "wagmi";
 import { waitForTransactionReceipt as wagmiWaitForReceipt } from "@wagmi/core";
 import { parseEther, formatEther } from "viem";
 import { SEPOLIA_CHAIN_ID } from "@/constants/erc8004";
-import { DELEGATE_REGISTRY_ABI, CONTRACT_ADDRESSES, VOTE_RELAY_FUND_ABI, DAO_GOVERNOR_ABI, VTON_ABI } from "@/constants/contracts";
+import { DELEGATE_REGISTRY_ABI, CONTRACT_ADDRESSES, VTON_ABI } from "@/constants/contracts";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -64,6 +64,7 @@ interface AgentData {
   owner: string;
   telegramConnected: boolean;
   agentWalletAddress: string | null;
+  smartAccountAddress: string | null;
   createdAt: string;
 }
 
@@ -89,6 +90,7 @@ export default function AgentDetailPage({
             owner: data.owner,
             telegramConnected: !!data.telegramConnected,
             agentWalletAddress: data.agentWalletAddress || null,
+            smartAccountAddress: data.smartAccountAddress || null,
             createdAt: data.createdAt,
           });
         } else {
@@ -222,6 +224,18 @@ export default function AgentDetailPage({
                   </a>
                 </InfoRow>
               )}
+              {agent.smartAccountAddress && (
+                <InfoRow label="Smart Account">
+                  <a
+                    href={`${explorerBase}/address/${agent.smartAccountAddress}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-mono text-[var(--text-brand)] hover:underline"
+                  >
+                    {shortenAddress(agent.smartAccountAddress)}
+                  </a>
+                </InfoRow>
+              )}
               <InfoRow label="Chain">Sepolia</InfoRow>
               <InfoRow label="Created">
                 {new Date(agent.createdAt).toLocaleDateString()}
@@ -237,6 +251,9 @@ export default function AgentDetailPage({
           {agent.agentWalletAddress && (
             <AgentWalletSection walletAddress={agent.agentWalletAddress} agentId={id} />
           )}
+          {agent.smartAccountAddress && (
+            <GasDepositSection smartAccountAddress={agent.smartAccountAddress} />
+          )}
           <TelegramSettings agentId={id} owner={agent.owner} connected={agent.telegramConnected} onSaved={fetchAgent} />
           <AgentProfileSection agentId={id} />
         </div>
@@ -250,8 +267,6 @@ export default function AgentDetailPage({
 function AgentWalletSection({ walletAddress, agentId }: { walletAddress: string; agentId: string }) {
   const [copied, setCopied] = useState(false);
   const [delegateAmount, setDelegateAmount] = useState("");
-  const [depositAmount, setDepositAmount] = useState("");
-  const [withdrawAmount, setWithdrawAmount] = useState("");
   const sepoliaAddresses = CONTRACT_ADDRESSES[SEPOLIA_CHAIN_ID];
   const config = useConfig();
 
@@ -262,17 +277,6 @@ function AgentWalletSection({ walletAddress, agentId }: { walletAddress: string;
 
   const { writeContract, writeContractAsync, data: txHash, isPending, error: writeError, reset: resetWrite } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
-
-  // Read VoteRelayFund balance
-  const voteRelayFundAddress = sepoliaAddresses.voteRelayFund;
-  const { data: gasFundBalance, refetch: refetchBalance } = useReadContract({
-    address: voteRelayFundAddress,
-    abi: VOTE_RELAY_FUND_ABI,
-    functionName: "balances",
-    args: [walletAddress as `0x${string}`],
-    chainId: SEPOLIA_CHAIN_ID,
-    query: { enabled: !!voteRelayFundAddress },
-  });
 
   const handleCopy = () => {
     navigator.clipboard.writeText(walletAddress);
@@ -315,35 +319,6 @@ function AgentWalletSection({ walletAddress, agentId }: { walletAddress: string;
   useEffect(() => {
     if (isSuccess || writeError) setDelegateStep("idle");
   }, [isSuccess, writeError]);
-
-  const handleDeposit = () => {
-    if (!depositAmount || parseFloat(depositAmount) <= 0 || !voteRelayFundAddress) return;
-    resetWrite();
-    writeContract({
-      address: voteRelayFundAddress,
-      abi: VOTE_RELAY_FUND_ABI,
-      functionName: "deposit",
-      args: [walletAddress as `0x${string}`],
-      value: parseEther(depositAmount),
-      chainId: SEPOLIA_CHAIN_ID,
-    });
-  };
-
-  const handleWithdraw = () => {
-    if (!withdrawAmount || parseFloat(withdrawAmount) <= 0 || !voteRelayFundAddress) return;
-    resetWrite();
-    writeContract({
-      address: voteRelayFundAddress,
-      abi: VOTE_RELAY_FUND_ABI,
-      functionName: "withdraw",
-      args: [walletAddress as `0x${string}`, parseEther(withdrawAmount)],
-      chainId: SEPOLIA_CHAIN_ID,
-    });
-  };
-
-  useEffect(() => {
-    if (isSuccess) refetchBalance();
-  }, [isSuccess, refetchBalance]);
 
   return (
     <>
@@ -413,184 +388,111 @@ function AgentWalletSection({ walletAddress, agentId }: { walletAddress: string;
           )}
         </div>
       </Section>
-
-      {/* Gas Deposit Section */}
-      {voteRelayFundAddress && (
-        <Section title="Gas Deposit (Vote Relay Fund)">
-          <div className="space-y-4">
-            <p className="text-sm text-[var(--text-secondary)]">
-              Deposit ETH to cover gas fees for automatic vote relay. When the Agent votes via Telegram, the relayer submits the transaction and gets reimbursed from this fund.
-            </p>
-
-            <div className="flex items-center justify-between rounded-[var(--radius-md)] bg-[var(--bg-tertiary)] px-4 py-3">
-              <span className="text-sm text-[var(--text-tertiary)]">Current Balance</span>
-              <span className="font-mono text-lg font-semibold text-[var(--text-primary)]">
-                {gasFundBalance !== undefined ? formatEther(gasFundBalance as bigint) : "—"} ETH
-              </span>
-            </div>
-
-            <div className="rounded-[var(--radius-lg)] border border-[var(--border-primary)] p-4 space-y-3">
-              <label className="block text-xs font-medium text-[var(--text-primary)]">Deposit ETH</label>
-              <div className="flex gap-2">
-                <Input
-                  type="number"
-                  value={depositAmount}
-                  onChange={(e) => setDepositAmount(e.target.value)}
-                  placeholder="e.g. 0.01"
-                  min="0"
-                  step="any"
-                />
-                <Button
-                  onClick={handleDeposit}
-                  disabled={!depositAmount || parseFloat(depositAmount) <= 0 || isPending || isConfirming}
-                >
-                  {isPending ? "Signing..." : isConfirming ? "Confirming..." : "Deposit"}
-                </Button>
-              </div>
-            </div>
-
-            <div className="rounded-[var(--radius-lg)] border border-[var(--border-primary)] p-4 space-y-3">
-              <label className="block text-xs font-medium text-[var(--text-primary)]">Withdraw ETH</label>
-              <div className="flex gap-2">
-                <Input
-                  type="number"
-                  value={withdrawAmount}
-                  onChange={(e) => setWithdrawAmount(e.target.value)}
-                  placeholder="e.g. 0.005"
-                  min="0"
-                  step="any"
-                />
-                <Button
-                  variant="secondary"
-                  onClick={handleWithdraw}
-                  disabled={!withdrawAmount || parseFloat(withdrawAmount) <= 0 || isPending || isConfirming}
-                >
-                  {isPending ? "Signing..." : isConfirming ? "Confirming..." : "Withdraw"}
-                </Button>
-              </div>
-            </div>
-
-            <div className="rounded-[var(--radius-md)] bg-[var(--status-info-bg)] px-3 py-2 text-xs text-[var(--status-info-fg)]">
-              If the fund has sufficient balance, votes are relayed automatically. Otherwise, the Agent signs and you can submit from here.
-            </div>
-          </div>
-        </Section>
-      )}
-
-      {/* Pending Ballots Section */}
-      <PendingBallotsSection agentId={agentId} agentAddress={walletAddress} />
     </>
   );
 }
 
-// ─── Pending Ballots Section ─────────────────────────────
+// ─── Gas Deposit Section ─────────────────────────────────
 
-interface PendingBallot {
-  id: string;
-  proposal_id: string;
-  support: number;
-  v: number;
-  r: string;
-  s: string;
-  created_at: string;
-}
+function GasDepositSection({ smartAccountAddress }: { smartAccountAddress: string }) {
+  const [amount, setAmount] = useState("0.01");
+  const [copied, setCopied] = useState(false);
 
-function PendingBallotsSection({ agentId, agentAddress }: { agentId: string; agentAddress: string }) {
-  const [ballots, setBallots] = useState<PendingBallot[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [submittingId, setSubmittingId] = useState<string | null>(null);
+  const { data: balance } = useBalance({
+    address: smartAccountAddress as `0x${string}`,
+    chainId: CHAIN_ID,
+  });
 
-  const sepoliaAddresses = CONTRACT_ADDRESSES[SEPOLIA_CHAIN_ID];
-  const { writeContractAsync } = useWriteContract();
+  const { sendTransaction, data: txHash, isPending, error: sendError } = useSendTransaction();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
 
-  const fetchBallots = useCallback(() => {
-    setLoading(true);
-    fetch(`/api/agents/pending-ballots?agentId=${agentId}`)
-      .then((res) => res.json())
-      .then((data) => setBallots(data.ballots || []))
-      .catch(() => setBallots([]))
-      .finally(() => setLoading(false));
-  }, [agentId]);
-
-  useEffect(() => { fetchBallots(); }, [fetchBallots]);
-
-  const handleSubmit = async (ballot: PendingBallot) => {
-    setSubmittingId(ballot.id);
-    try {
-      const txHash = await writeContractAsync({
-        address: sepoliaAddresses.daoGovernor as `0x${string}`,
-        abi: DAO_GOVERNOR_ABI,
-        functionName: "castVoteBySig",
-        args: [
-          BigInt(ballot.proposal_id),
-          ballot.support,
-          ballot.v,
-          ballot.r as `0x${string}`,
-          ballot.s as `0x${string}`,
-        ],
-        chainId: SEPOLIA_CHAIN_ID,
-      });
-
-      await fetch("/api/agents/pending-ballots", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ballotId: ballot.id, txHash }),
-      });
-
-      fetchBallots();
-    } catch (err) {
-      console.error("Submit ballot error:", err);
-    } finally {
-      setSubmittingId(null);
-    }
+  const handleCopy = () => {
+    navigator.clipboard.writeText(smartAccountAddress);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
-  const voteLabel = (support: number) => {
-    switch (support) {
-      case 0: return "Against";
-      case 1: return "For";
-      case 2: return "Abstain";
-      default: return "Unknown";
-    }
+  const handleDeposit = () => {
+    if (!amount || parseFloat(amount) <= 0) return;
+    sendTransaction({
+      to: smartAccountAddress as `0x${string}`,
+      value: parseEther(amount),
+      chainId: CHAIN_ID,
+    });
   };
 
-  if (loading) return null;
-  if (ballots.length === 0) return null;
+  const currentBalance = balance ? formatEther(balance.value) : "0";
 
   return (
-    <Section title="Pending Votes">
-      <div className="space-y-3">
+    <Section title="Gas Deposit (Smart Account)">
+      <div className="space-y-4">
         <p className="text-sm text-[var(--text-secondary)]">
-          These votes were signed by the Agent but need to be submitted on-chain. Click &quot;Submit&quot; to broadcast the transaction from your wallet.
+          The agent&apos;s Smart Account pays gas from its own ETH balance. Deposit ETH here to fund voting transactions.
         </p>
-        {ballots.map((ballot) => (
-          <div
-            key={ballot.id}
-            className="flex items-center justify-between rounded-[var(--radius-lg)] border border-[var(--border-primary)] p-4"
-          >
-            <div className="space-y-1">
-              <p className="text-sm font-medium text-[var(--text-primary)]">
-                Proposal #{ballot.proposal_id.slice(0, 8)}...
-              </p>
-              <div className="flex items-center gap-2 text-xs text-[var(--text-tertiary)]">
-                <Badge
-                  variant={ballot.support === 1 ? "success" : ballot.support === 0 ? "error" : "default"}
-                  size="sm"
-                >
-                  {voteLabel(ballot.support)}
-                </Badge>
-                <span>{new Date(ballot.created_at).toLocaleString()}</span>
-              </div>
-            </div>
-            <Button
-              size="sm"
-              onClick={() => handleSubmit(ballot)}
-              disabled={submittingId === ballot.id}
-            >
-              {submittingId === ballot.id ? "Submitting..." : "Submit"}
+
+        <div className="space-y-2">
+          <label className="block text-xs text-[var(--text-tertiary)]">Smart Account Address</label>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 rounded-[var(--radius-md)] bg-[var(--bg-tertiary)] px-3 py-2 text-sm font-mono text-[var(--text-primary)] break-all">
+              {smartAccountAddress}
+            </code>
+            <Button variant="secondary" size="sm" onClick={handleCopy}>
+              {copied ? "Copied!" : "Copy"}
             </Button>
           </div>
-        ))}
+          <a
+            href={`https://sepolia.etherscan.io/address/${smartAccountAddress}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-block text-xs text-[var(--text-brand)] hover:underline"
+          >
+            View on Etherscan →
+          </a>
+        </div>
+
+        <div className="flex items-center justify-between rounded-[var(--radius-md)] bg-[var(--bg-tertiary)] px-3 py-2">
+          <span className="text-xs text-[var(--text-tertiary)]">Current Balance</span>
+          <span className="text-sm font-medium text-[var(--text-primary)]">
+            {parseFloat(currentBalance).toFixed(6)} ETH
+          </span>
+        </div>
+
+        <div className="rounded-[var(--radius-lg)] border border-[var(--border-primary)] p-4 space-y-3">
+          <label className="block text-xs font-medium text-[var(--text-primary)]">Deposit ETH</label>
+          <p className="text-xs text-[var(--text-tertiary)]">
+            Send ETH to the Smart Account to cover gas costs for voting transactions.
+          </p>
+          <div className="flex gap-2">
+            <Input
+              type="number"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="0.01"
+              min="0"
+              step="any"
+            />
+            <Button
+              onClick={handleDeposit}
+              disabled={!amount || parseFloat(amount) <= 0 || isPending || isConfirming}
+            >
+              {isPending ? "Signing..." : isConfirming ? "Confirming..." : "Deposit"}
+            </Button>
+          </div>
+        </div>
+
+        {sendError && (
+          <div className="rounded-[var(--radius-md)] px-3 py-2 text-xs bg-[var(--status-error-bg)] text-[var(--status-error-fg)]">
+            {sendError.message.includes("user rejected")
+              ? "Transaction was rejected."
+              : `Error: ${sendError.message.slice(0, 100)}`}
+          </div>
+        )}
+
+        {isSuccess && (
+          <div className="rounded-[var(--radius-md)] px-3 py-2 text-xs bg-[var(--status-success-bg)] text-[var(--status-success-fg)]">
+            Deposit successful!
+          </div>
+        )}
       </div>
     </Section>
   );

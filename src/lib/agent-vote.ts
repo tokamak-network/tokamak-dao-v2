@@ -1,20 +1,18 @@
 /**
- * Agent On-Chain Voting via EIP-712 Signature Relay
+ * Agent On-Chain Voting via EIP-712 Signature + ERC-4337 Account Abstraction
  *
- * Two flows:
- * - Flow A: VoteRelayFund has balance → relayer calls relayVote() → auto gas reimbursement
- * - Flow B: No balance → sign ballot, save as pending → delegate submits from frontend
+ * Single flow: EOA signs EIP-712 Ballot → Smart Account submits castVoteBySig
+ * via self-funded gas (owner deposits ETH to Smart Account address).
  */
 
-import { formatEther } from "viem";
+import { formatEther, encodeFunctionData } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { agentSupabase } from "@/lib/agent-supabase";
-import { decryptPrivateKey, getSepoliaPublicClient, getRelayerWalletClient } from "@/lib/agent-wallet";
+import { decryptPrivateKey, getSepoliaPublicClient, createSmartAccountClientForAgent } from "@/lib/agent-wallet";
 import {
   CONTRACT_ADDRESSES,
   DELEGATE_REGISTRY_ABI,
   DAO_GOVERNOR_ABI,
-  VOTE_RELAY_FUND_ABI,
 } from "@/constants/contracts";
 
 const SEPOLIA_CHAIN_ID = 11155111;
@@ -36,9 +34,6 @@ const BALLOT_TYPES = {
   ],
 } as const;
 
-/** Estimated gas for castVoteBySig + overhead */
-const ESTIMATED_VOTE_GAS = 200_000n;
-
 /** Map vote code from Telegram callback to on-chain support value */
 export function voteCodeToSupport(code: string): number {
   switch (code) {
@@ -54,13 +49,11 @@ export interface CastVoteResult {
   txHash?: string;
   error?: string;
   votingPower?: string;
-  pending?: boolean;
 }
 
 /**
  * Execute an on-chain castVoteBySig transaction for an agent.
- * Flow A: VoteRelayFund has sufficient balance → relayVote() via VoteRelayFund
- * Flow B: No balance → save pending ballot for delegate to submit
+ * Uses ERC-4337 Smart Account with Pimlico Paymaster for gasless execution.
  */
 export async function castAgentVote(
   agentId: number,
@@ -99,7 +92,7 @@ export async function castAgentVote(
     });
 
     if (hasVoted) {
-      return { success: false, error: "이미 이 안건에 투표했습니다." };
+      return { success: false, error: "Already voted on this proposal." };
     }
   } catch {
     // If hasVoted check fails, continue anyway
@@ -118,13 +111,13 @@ export async function castAgentVote(
       const stateNames = ["Pending", "Active", "Canceled", "Defeated", "Succeeded", "Queued", "Expired", "Executed"];
       return {
         success: false,
-        error: `투표 가능한 상태가 아닙니다. 현재 상태: ${stateNames[Number(state)] || "Unknown"}`,
+        error: `Proposal is not in a votable state. Current state: ${stateNames[Number(state)] || "Unknown"}`,
       };
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("Proposal state check failed:", { proposalId: proposalId.toString(), error: msg });
-    return { success: false, error: `안건 상태를 확인할 수 없습니다. (proposalId: ${proposalId.toString().slice(0, 20)}...)` };
+    return { success: false, error: `Could not check proposal state. (proposalId: ${proposalId.toString().slice(0, 20)}...)` };
   }
 
   // 5. Check voting power (delegated amount)
@@ -140,11 +133,11 @@ export async function castAgentVote(
     if (votingPower === 0n) {
       return {
         success: false,
-        error: "위임받은 투표권이 없습니다. 먼저 이 Agent에게 vTON을 위임해주세요.",
+        error: "No delegated voting power. Please delegate vTON to this Agent first.",
       };
     }
   } catch {
-    return { success: false, error: "투표권을 확인할 수 없습니다." };
+    return { success: false, error: "Could not check voting power." };
   }
 
   // 6. Agent signs EIP-712 Ballot
@@ -168,93 +161,40 @@ export async function castAgentVote(
     v = parseInt(signature.slice(130, 132), 16);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    return { success: false, error: `서명 실패: ${message.slice(0, 100)}` };
+    return { success: false, error: `Signing failed: ${message.slice(0, 100)}` };
   }
 
-  // 7. Check VoteRelayFund balance (Flow A vs Flow B)
-  const voteRelayFundAddress = addresses.voteRelayFund;
-  let hasGasFund = false;
-
-  if (voteRelayFundAddress) {
-    try {
-      const balance = (await publicClient.readContract({
-        address: voteRelayFundAddress,
-        abi: VOTE_RELAY_FUND_ABI,
-        functionName: "balances",
-        args: [account.address],
-      })) as bigint;
-
-      // Estimate gas cost
-      const gasPrice = await publicClient.getGasPrice();
-      const estimatedCost = ESTIMATED_VOTE_GAS * gasPrice;
-
-      hasGasFund = balance >= estimatedCost;
-    } catch {
-      // VoteRelayFund not available, fall through to Flow B
-    }
-  }
-
-  // 8. Flow A: Relay via VoteRelayFund
-  if (hasGasFund && voteRelayFundAddress) {
-    try {
-      const relayerClient = getRelayerWalletClient();
-
-      const txHash = await relayerClient.writeContract({
-        address: voteRelayFundAddress,
-        abi: VOTE_RELAY_FUND_ABI,
-        functionName: "relayVote",
-        args: [
-          addresses.daoGovernor as `0x${string}`,
-          proposalId,
-          support,
-          v,
-          r,
-          s,
-          account.address,
-        ],
-      });
-
-      const receipt = await publicClient.waitForTransactionReceipt({
-        hash: txHash,
-        timeout: 60_000,
-      });
-
-      if (receipt.status === "reverted") {
-        return { success: false, error: "트랜잭션이 실패했습니다." };
-      }
-
-      return {
-        success: true,
-        txHash,
-        votingPower: formatEther(votingPower),
-      };
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      // If relay fails, fall through to Flow B
-      console.error("VoteRelayFund relay failed, falling back to pending:", message);
-    }
-  }
-
-  // 9. Flow B: Save pending ballot for delegate to submit
+  // 7. Submit via ERC-4337 Smart Account with self-funded gas
   try {
-    await agentSupabase.from("pending_ballots").insert({
-      agent_id: agentId,
-      agent_address: account.address,
-      proposal_id: proposalId.toString(),
-      support,
-      v,
-      r: r as string,
-      s: s as string,
-      status: "pending",
+    const smartAccountClient = await createSmartAccountClientForAgent(privateKey);
+
+    const txHash = await smartAccountClient.sendTransaction({
+      to: addresses.daoGovernor as `0x${string}`,
+      data: encodeFunctionData({
+        abi: DAO_GOVERNOR_ABI,
+        functionName: "castVoteBySig",
+        args: [proposalId, support, v, r, s],
+      }),
+      value: 0n,
     });
+
+    const receipt = await publicClient.waitForTransactionReceipt({
+      hash: txHash,
+      timeout: 60_000,
+    });
+
+    if (receipt.status === "reverted") {
+      return { success: false, error: "Transaction reverted." };
+    }
 
     return {
       success: true,
-      pending: true,
+      txHash,
       votingPower: formatEther(votingPower),
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    return { success: false, error: `투표 저장 실패: ${message.slice(0, 100)}` };
+    console.error("AA castVoteBySig failed:", message);
+    return { success: false, error: `Vote transaction failed: ${message.slice(0, 100)}` };
   }
 }

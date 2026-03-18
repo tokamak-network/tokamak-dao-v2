@@ -15,10 +15,10 @@ Profile Dimensions (0.0 to 1.0 scale):
 - Skin in the Game: ${traits.skin_in_game.toFixed(2)} (0=no cost to vote, 1=high cost)
 - Delegation Style: ${traits.delegation_style.toFixed(2)} (0=manual control, 1=full autonomy)
 
-Provide analysis in Korean. Structure your response as:
-1. 요약 (1-2 sentences technical summary)
-2. 주요 영향 (bullet points on how this affects relevant governance dimensions)
-3. 프로필 기반 추천 (personalized recommendation based on the profile)
+Provide analysis in English. Structure your response as:
+1. Summary (1-2 sentences technical summary)
+2. Key Impact (bullet points on how this affects relevant governance dimensions)
+3. Profile-Based Recommendation (personalized recommendation based on the profile)
 
 Keep the response concise and suitable for a Telegram message (max ~500 characters).
 Do not use markdown formatting. Use plain text with bullet points (•).`;
@@ -41,10 +41,10 @@ Each adjustment should be between -0.1 and +0.1.
 Only include dimensions that clearly showed a shift.
 
 You MUST respond with ONLY a valid JSON object:
-{"deltas": {<trait_key>: <delta number>}, "response": "<your conversational response in Korean>"}
+{"deltas": {<trait_key>: <delta number>}, "response": "<your conversational response in English>"}
 
 If no shift is detected, output:
-{"deltas": {}, "response": "<your conversational response in Korean>"}
+{"deltas": {}, "response": "<your conversational response in English>"}
 
 Do not include any other text before or after the JSON.`;
 }

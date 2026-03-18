@@ -9,6 +9,9 @@ import crypto from "crypto";
 import { createWalletClient, createPublicClient, http } from "viem";
 import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
 import { sepolia } from "viem/chains";
+import { createSmartAccountClient } from "permissionless";
+import { toSimpleSmartAccount } from "permissionless/accounts";
+import { entryPoint07Address } from "viem/account-abstraction";
 
 function getEncryptionKey(): Buffer {
   const key = process.env.AGENT_ENCRYPTION_KEY;
@@ -84,25 +87,61 @@ export function getAgentWalletClient(privateKey: `0x${string}`) {
 }
 
 /**
- * Create a viem WalletClient for the relayer (pays gas for castVoteBySig).
- */
-export function getRelayerWalletClient() {
-  const key = process.env.RELAYER_PRIVATE_KEY;
-  if (!key) throw new Error("RELAYER_PRIVATE_KEY is not set");
-  const account = privateKeyToAccount(key as `0x${string}`);
-  return createWalletClient({
-    account,
-    chain: sepolia,
-    transport: http(getSepoliaRpcUrl()),
-  });
-}
-
-/**
  * Create a viem PublicClient for reading Sepolia state.
  */
 export function getSepoliaPublicClient() {
   return createPublicClient({
     chain: sepolia,
     transport: http(getSepoliaRpcUrl()),
+  });
+}
+
+/**
+ * Compute the deterministic Smart Account (counterfactual) address for a given private key.
+ * This address can be funded with ETH by the owner before the account is deployed.
+ */
+export async function getSmartAccountAddress(privateKey: `0x${string}`): Promise<`0x${string}`> {
+  const publicClient = getSepoliaPublicClient();
+  const eoa = privateKeyToAccount(privateKey);
+
+  const smartAccount = await toSimpleSmartAccount({
+    client: publicClient,
+    owner: eoa,
+    entryPoint: {
+      address: entryPoint07Address,
+      version: "0.7",
+    },
+  });
+
+  return smartAccount.address;
+}
+
+/**
+ * Create a Smart Account Client for self-funded transactions.
+ * The Smart Account pays gas from its own ETH balance (funded by the owner).
+ * Pimlico is used only as a bundler to submit UserOps.
+ */
+export async function createSmartAccountClientForAgent(privateKey: `0x${string}`) {
+  const apiKey = process.env.PIMLICO_API_KEY;
+  if (!apiKey) throw new Error("PIMLICO_API_KEY is not set");
+
+  const pimlicoUrl = `https://api.pimlico.io/v2/sepolia/rpc?apikey=${apiKey}`;
+
+  const publicClient = getSepoliaPublicClient();
+  const eoa = privateKeyToAccount(privateKey);
+
+  const smartAccount = await toSimpleSmartAccount({
+    client: publicClient,
+    owner: eoa,
+    entryPoint: {
+      address: entryPoint07Address,
+      version: "0.7",
+    },
+  });
+
+  return createSmartAccountClient({
+    account: smartAccount,
+    chain: sepolia,
+    bundlerTransport: http(pimlicoUrl),
   });
 }

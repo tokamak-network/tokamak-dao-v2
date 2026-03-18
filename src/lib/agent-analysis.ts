@@ -20,9 +20,9 @@ export async function analyzeProposalForAgent(
   proposal: ProposalData
 ): Promise<string> {
   const proposalInfo = [
-    `제목: ${proposal.title}`,
-    `제안자: ${proposal.proposer}`,
-    proposal.description ? `설명: ${proposal.description}` : "",
+    `Title: ${proposal.title}`,
+    `Proposer: ${proposal.proposer}`,
+    proposal.description ? `Description: ${proposal.description}` : "",
   ]
     .filter(Boolean)
     .join("\n");
@@ -30,7 +30,7 @@ export async function analyzeProposalForAgent(
   const analysis = await callClaude({
     system: proposalAnalysisPrompt(traits),
     messages: [
-      { role: "user", content: `다음 안건을 분석해주세요:\n\n${proposalInfo}` },
+      { role: "user", content: `Please analyze the following proposal:\n\n${proposalInfo}` },
     ],
     maxTokens: 1024,
   });
@@ -57,7 +57,7 @@ export async function handleProposalDiscussion(
     .single();
 
   if (!profile) {
-    return "프로필을 찾을 수 없습니다. 먼저 프로파일링을 완료해주세요.";
+    return "Profile not found. Please complete profiling first.";
   }
 
   const traits = profile.traits as AgentTraits;
