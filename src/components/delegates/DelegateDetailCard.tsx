@@ -16,6 +16,7 @@ export interface DelegateDetailCardProps {
   onDelegate?: () => void;
   isCurrentDelegate?: boolean;
   delegateDisabled?: boolean;
+  delegatedTo?: { address: `0x${string}`; agentName?: string } | null;
 }
 
 /**
@@ -31,6 +32,7 @@ export function DelegateDetailCard({
   onDelegate,
   isCurrentDelegate,
   delegateDisabled,
+  delegatedTo,
 }: DelegateDetailCardProps) {
   const displayName = ensName || formatAddress(address);
   const formattedVotingPower =
@@ -66,6 +68,23 @@ export function DelegateDetailCard({
           <Badge variant="success" size="sm">Active</Badge>
         ) : (
           <Badge variant="default" size="sm">Inactive</Badge>
+        )}
+      </td>
+
+      {/* Delegated To */}
+      <td className="py-4 px-4">
+        {delegatedTo ? (
+          <Link
+            href={`/delegates/${delegatedTo.address}`}
+            className="flex items-center gap-2"
+          >
+            <AddressAvatar address={delegatedTo.address} size="sm" />
+            <span className="text-sm text-[var(--text-brand)]">
+              {delegatedTo.agentName || formatAddress(delegatedTo.address)}
+            </span>
+          </Link>
+        ) : (
+          <span className="text-sm text-[var(--text-tertiary)]">—</span>
         )}
       </td>
 

@@ -7,6 +7,9 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useAllDelegates, useTotalDelegated, useDelegateInfo } from "@/hooks/contracts/useDelegateRegistry";
 import { useVTONBalance } from "@/hooks/contracts/useVTON";
+import { useReadContracts, useChainId } from "wagmi";
+import { getContractAddresses, areContractsDeployed, DELEGATE_REGISTRY_ABI } from "@/constants/contracts";
+import { useAgents } from "@/hooks/contracts/useAgentRegistry";
 import { DelegateDetailCard } from "./DelegateDetailCard";
 import { DelegationModal } from "./DelegationModal";
 
@@ -35,11 +38,13 @@ function DelegateItem({
   address,
   isCurrentDelegate,
   delegateDisabled,
+  delegatedTo,
   onDelegate,
 }: {
   address: `0x${string}`;
   isCurrentDelegate: boolean;
   delegateDisabled?: boolean;
+  delegatedTo?: { address: `0x${string}`; agentName?: string } | null;
   onDelegate: (address: `0x${string}`) => void;
 }) {
   const { data: votingPower, isDeployed } = useTotalDelegated(address);
@@ -57,6 +62,7 @@ function DelegateItem({
       isActive={delegateInfo?.isActive}
       isCurrentDelegate={isCurrentDelegate}
       delegateDisabled={delegateDisabled}
+      delegatedTo={delegatedTo}
       onDelegate={() => onDelegate(address)}
     />
   );
@@ -70,10 +76,86 @@ export function DelegatesList() {
   const [searchQuery, setSearchQuery] = React.useState("");
   const [selectedDelegate, setSelectedDelegate] = React.useState<`0x${string}` | null>(null);
   const queryClient = useQueryClient();
+  const chainId = useChainId();
+  const contractAddresses = getContractAddresses(chainId);
 
   const { data: delegates, isLoading, isDeployed, refetch: refetchDelegates } = useAllDelegates();
   const { data: vtonBalance } = useVTONBalance(userAddress);
   const hasNoVTON = !vtonBalance || vtonBalance === BigInt(0);
+
+  // Fetch agents to identify agent wallet addresses
+  const { agents } = useAgents();
+  const agentWalletMap = React.useMemo(() => {
+    const map = new Map<string, string>();
+    agents.forEach((agent) => {
+      if (agent.agentWalletAddress) {
+        map.set(agent.agentWalletAddress.toLowerCase(), `Agent #${agent.agentId}`);
+      }
+    });
+    return map;
+  }, [agents]);
+
+  // Build batch getDelegation calls: for each voter, check delegation to each other delegate
+  const delegationContracts = React.useMemo(() => {
+    if (!isDeployed || !delegates || delegates.length === 0) return [];
+    const calls: Array<{
+      address: `0x${string}`;
+      abi: typeof DELEGATE_REGISTRY_ABI;
+      functionName: "getDelegation";
+      args: readonly [`0x${string}`, `0x${string}`];
+    }> = [];
+    for (const voter of delegates) {
+      for (const delegate of delegates) {
+        if (voter.toLowerCase() !== delegate.toLowerCase()) {
+          calls.push({
+            address: contractAddresses.delegateRegistry as `0x${string}`,
+            abi: DELEGATE_REGISTRY_ABI,
+            functionName: "getDelegation" as const,
+            args: [voter, delegate] as const,
+          });
+        }
+      }
+    }
+    return calls;
+  }, [isDeployed, delegates, contractAddresses.delegateRegistry]);
+
+  const { data: delegationResults } = useReadContracts({
+    contracts: delegationContracts,
+    query: {
+      enabled: delegationContracts.length > 0,
+    },
+  });
+
+  // Build a map: voter address → delegated-to info
+  const delegationMap = React.useMemo(() => {
+    const map = new Map<string, { address: `0x${string}`; agentName?: string }>();
+    if (!delegates || !delegationResults) return map;
+
+    let idx = 0;
+    for (const voter of delegates) {
+      for (const delegate of delegates) {
+        if (voter.toLowerCase() !== delegate.toLowerCase()) {
+          const result = delegationResults[idx];
+          if (result?.status === "success" && result.result) {
+            const delegation = result.result as {
+              delegate: `0x${string}`;
+              amount: bigint;
+              delegatedAt: bigint;
+              expiresAt: bigint;
+            };
+            if (delegation.amount > BigInt(0)) {
+              map.set(voter.toLowerCase(), {
+                address: delegate,
+                agentName: agentWalletMap.get(delegate.toLowerCase()),
+              });
+            }
+          }
+          idx++;
+        }
+      }
+    }
+    return map;
+  }, [delegates, delegationResults, agentWalletMap]);
 
   // Filter delegates by search query
   const filteredDelegates = React.useMemo(() => {
@@ -164,6 +246,9 @@ export function DelegatesList() {
                   <th className="py-3 px-4 text-left text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider">
                     Status
                   </th>
+                  <th className="py-3 px-4 text-left text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider">
+                    Delegated To
+                  </th>
                   <th className="py-3 px-4 text-right text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider">
                     <span className="sr-only">Action</span>
                   </th>
@@ -176,6 +261,7 @@ export function DelegatesList() {
                     address={address}
                     isCurrentDelegate={false}
                     delegateDisabled={hasNoVTON}
+                    delegatedTo={delegationMap.get(address.toLowerCase()) ?? null}
                     onDelegate={handleDelegate}
                   />
                 ))}
