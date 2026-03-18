@@ -34,11 +34,12 @@ const BALLOT_TYPES = {
   ],
 } as const;
 
-/** Map vote code from Telegram callback to on-chain support value */
+/** Map vote code from Telegram callback to on-chain VoteType enum value.
+ *  Contract: For=0, Against=1, Abstain=2 */
 export function voteCodeToSupport(code: string): number {
   switch (code) {
-    case "f": return 1; // For
-    case "a": return 0; // Against
+    case "f": return 0; // For
+    case "a": return 1; // Against
     case "x": return 2; // Abstain
     default: throw new Error(`Unknown vote code: ${code}`);
   }
@@ -53,7 +54,7 @@ export interface CastVoteResult {
 
 /**
  * Execute an on-chain castVoteBySig transaction for an agent.
- * Uses ERC-4337 Smart Account with Pimlico Paymaster for gasless execution.
+ * EOA signs EIP-712 Ballot and submits directly. Gas paid from EOA ETH balance.
  */
 export async function castAgentVote(
   agentId: number,
@@ -98,20 +99,30 @@ export async function castAgentVote(
     // If hasVoted check fails, continue anyway
   }
 
-  // 4. Check proposal state (1 = Active)
+  // 4. Check proposal state and get snapshot block
+  let snapshotBlock: bigint;
   try {
-    const state = await publicClient.readContract({
+    const proposal = await publicClient.readContract({
+      address: addresses.daoGovernor as `0x${string}`,
+      abi: DAO_GOVERNOR_ABI,
+      functionName: "getProposal",
+      args: [proposalId],
+    }) as { snapshotBlock: bigint; voteStart: bigint; voteEnd: bigint };
+
+    snapshotBlock = proposal.snapshotBlock;
+
+    const proposalState = await publicClient.readContract({
       address: addresses.daoGovernor as `0x${string}`,
       abi: DAO_GOVERNOR_ABI,
       functionName: "state",
       args: [proposalId],
     });
 
-    if (Number(state) !== 1) {
+    if (Number(proposalState) !== 1) {
       const stateNames = ["Pending", "Active", "Canceled", "Defeated", "Succeeded", "Queued", "Expired", "Executed"];
       return {
         success: false,
-        error: `Proposal is not in a votable state. Current state: ${stateNames[Number(state)] || "Unknown"}`,
+        error: `Proposal is not in a votable state. Current state: ${stateNames[Number(proposalState)] || "Unknown"}`,
       };
     }
   } catch (err) {
@@ -120,20 +131,20 @@ export async function castAgentVote(
     return { success: false, error: `Could not check proposal state. (proposalId: ${proposalId.toString().slice(0, 20)}...)` };
   }
 
-  // 5. Check voting power (delegated amount)
+  // 5. Check voting power at proposal snapshot block
   let votingPower: bigint;
   try {
     votingPower = (await publicClient.readContract({
       address: addresses.delegateRegistry as `0x${string}`,
       abi: DELEGATE_REGISTRY_ABI,
-      functionName: "getTotalDelegated",
-      args: [account.address],
+      functionName: "getVotingPower",
+      args: [account.address, snapshotBlock, snapshotBlock],
     })) as bigint;
 
     if (votingPower === 0n) {
       return {
         success: false,
-        error: "No delegated voting power. Please delegate vTON to this Agent first.",
+        error: "No voting power at proposal snapshot. Delegation must exist 7+ days before proposal creation.",
       };
     }
   } catch {
