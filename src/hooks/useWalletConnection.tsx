@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useAppKitAccount } from "@reown/appkit/react";
 import { useAccount, useSwitchChain } from "wagmi";
 import { sepolia } from "@reown/appkit/networks";
 import { SANDBOX_CHAIN_ID } from "@/config/wagmi";
@@ -25,12 +24,11 @@ const WalletConnectionContext = React.createContext<WalletConnectionContextValue
  * This ensures all components see the same connection state at the same time
  */
 export function WalletConnectionProvider({ children }: { children: React.ReactNode }) {
-  const { address, isConnected, status } = useAppKitAccount();
+  const { address, isConnected, status, chainId: walletChainId } = useAccount();
   const [isReady, setIsReady] = React.useState(false);
-  const { chainId: walletChainId } = useAccount();
   const { switchChain } = useSwitchChain();
 
-  // Mark as ready when AppKit reaches a stable state
+  // Mark as ready when wagmi reaches a stable state
   // status: 'connecting' | 'reconnecting' | 'connected' | 'disconnected'
   React.useEffect(() => {
     const isStable =
@@ -55,7 +53,7 @@ export function WalletConnectionProvider({ children }: { children: React.ReactNo
     () => ({
       isReady,
       isConnected,
-      address: address as `0x${string}` | undefined,
+      address,
     }),
     [isReady, isConnected, address]
   );

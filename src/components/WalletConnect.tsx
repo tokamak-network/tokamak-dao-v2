@@ -1,15 +1,15 @@
 'use client';
 
-import { useAppKit, useAppKitAccount, useAppKitNetwork } from '@reown/appkit/react';
-import { useBalance } from 'wagmi';
+import { useAppKit, useAppKitNetwork } from '@reown/appkit/react';
+import { useAccount, useBalance } from 'wagmi';
 import { formatEther } from 'viem';
 import { Button } from '@/components/ui/button';
 
 export function WalletConnect() {
   const { open } = useAppKit();
-  const { address, isConnected } = useAppKitAccount();
+  const { address, isConnected } = useAccount();
   const { caipNetwork } = useAppKitNetwork();
-  const { data: balance } = useBalance({ address: address as `0x${string}` | undefined });
+  const { data: balance } = useBalance({ address });
 
   return (
     <div className="flex flex-col items-center gap-6">

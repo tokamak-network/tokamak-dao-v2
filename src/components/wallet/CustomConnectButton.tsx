@@ -1,16 +1,17 @@
 "use client";
 
-import { useAppKit, useAppKitAccount, useAppKitNetwork } from "@reown/appkit/react";
+import { useAppKit, useAppKitNetwork } from "@reown/appkit/react";
+import { useAccount } from "wagmi";
 import { Button } from "@/components/ui/button";
 import { NetworkButton } from "./NetworkButton";
 import { AccountButton } from "./AccountButton";
 
 /**
- * CustomConnectButton - AppKit hooks 사용
+ * CustomConnectButton - wagmi useAccount for reliable persistence
  */
 export function CustomConnectButton() {
   const { open } = useAppKit();
-  const { address, isConnected, status } = useAppKitAccount();
+  const { address, isConnected, status } = useAccount();
   const { caipNetwork } = useAppKitNetwork();
 
   const ready = status !== "connecting" && status !== "reconnecting";
