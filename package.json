@@ -13,7 +13,9 @@
     "contracts:deploy:local": "./contracts/scripts/deploy-local.sh",
     "contracts:deploy:sepolia": "./contracts/scripts/deploy-sepolia.sh",
     "time-travel": "./contracts/scripts/time-travel.sh",
-    "faucet": "./contracts/scripts/faucet-local.sh"
+    "faucet": "./contracts/scripts/faucet-local.sh",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@metamask/sdk": "^0.34.0",
