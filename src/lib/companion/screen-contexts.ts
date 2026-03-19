@@ -23,8 +23,8 @@ const screenContexts: Record<string, ScreenContext> = {
       "I want to change the DAO quorum",
     ],
   },
-  "/delegates": {
-    route: "/delegates",
+  "/voters": {
+    route: "/voters",
     pageTitle: "Delegates",
     description: "List of delegates who can vote on proposals",
     suggestedQuestions: [

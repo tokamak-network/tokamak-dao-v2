@@ -64,7 +64,7 @@ const AgentsIcon = () => (
 
 const primaryNavItems = [
   { href: "/proposals", label: "Proposals", icon: <ProposalsIcon /> },
-  { href: "/delegates", label: "Voters", icon: <DelegatesIcon /> },
+  { href: "/voters", label: "Voters", icon: <DelegatesIcon /> },
   { href: "/agents", label: "Agents", icon: <AgentsIcon /> },
 ];
 

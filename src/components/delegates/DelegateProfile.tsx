@@ -76,7 +76,7 @@ export function DelegateProfile({ address }: { address: `0x${string}` }) {
     <div className="space-y-6">
       {/* Back link */}
       <Link
-        href="/delegates"
+        href="/voters"
         className="inline-flex items-center gap-2 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
       >
         <svg

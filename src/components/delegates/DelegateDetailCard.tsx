@@ -40,7 +40,7 @@ export function DelegateDetailCard({
       {/* Name */}
       <td className="py-4 px-4">
         <Link
-          href={`/delegates/${address}`}
+          href={`/voters/${address}`}
           className="flex items-center gap-3 min-w-0"
         >
           <AddressAvatar address={address} src={avatarUrl} size="md" />
@@ -70,7 +70,7 @@ export function DelegateDetailCard({
       <td className="py-4 px-4">
         {delegatedTo ? (
           <Link
-            href={`/delegates/${delegatedTo.address}`}
+            href={`/voters/${delegatedTo.address}`}
             className="flex items-center gap-2"
           >
             <AddressAvatar address={delegatedTo.address} size="sm" />

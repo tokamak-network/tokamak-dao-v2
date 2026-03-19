@@ -78,7 +78,7 @@ export function TopDelegates() {
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>Top Voters</CardTitle>
         <Link
-          href="/delegates"
+          href="/voters"
           className="text-sm text-[var(--text-brand)] hover:underline"
         >
           View all
