@@ -1,0 +1,25 @@
+type TokenHolder @entity(immutable: false) {
+  id: Bytes! # address
+  balance: BigInt!
+  delegations: [Delegation!]! @derivedFrom(field: "owner")
+}
+
+type Delegate @entity(immutable: false) {
+  id: Bytes! # address
+  profile: String!
+  votingPhilosophy: String!
+  interests: String!
+  registeredAt: BigInt!
+  isActive: Boolean!
+  totalDelegated: BigInt!
+  delegationsReceived: [Delegation!]! @derivedFrom(field: "delegate")
+}
+
+type Delegation @entity(immutable: false) {
+  id: Bytes! # concat(owner, delegate)
+  owner: TokenHolder!
+  delegate: Delegate!
+  amount: BigInt!
+  delegatedAt: BigInt!
+  expiresAt: BigInt!
+}

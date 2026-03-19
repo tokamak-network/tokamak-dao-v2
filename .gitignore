@@ -50,6 +50,11 @@ contracts/cache/
 contracts/out/
 contracts/broadcast/
 
+# subgraph
+subgraph/build/
+subgraph/generated/
+subgraph/node_modules/
+
 # Agent data (large compiled artifacts)
 data/agent/contracts-src/
 data/agent/contracts-out/

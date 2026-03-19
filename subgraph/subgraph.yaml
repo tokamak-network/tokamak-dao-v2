@@ -1,0 +1,60 @@
+specVersion: 1.0.0
+indexerHints:
+  prune: auto
+schema:
+  file: ./schema.graphql
+dataSources:
+  - kind: ethereum
+    name: vTON
+    network: sepolia
+    source:
+      address: "0xB69660c534576019a6b2A4dD656B3c8dFB67bDE4"
+      abi: vTON
+      startBlock: 10463145
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - TokenHolder
+      abis:
+        - name: vTON
+          file: ./abis/vTON.json
+      eventHandlers:
+        - event: Transfer(indexed address,indexed address,uint256)
+          handler: handleTransfer
+      file: ./src/vton.ts
+
+  - kind: ethereum
+    name: DelegateRegistry
+    network: sepolia
+    source:
+      address: "0xC1be2FE301efA20f179e56cc36F613658A492953"
+      abi: DelegateRegistry
+      startBlock: 10463145
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - Delegate
+        - Delegation
+      abis:
+        - name: DelegateRegistry
+          file: ./abis/DelegateRegistry.json
+      eventHandlers:
+        - event: DelegateRegistered(indexed address,string,string,string)
+          handler: handleDelegateRegistered
+        - event: DelegateUpdated(indexed address,string,string,string)
+          handler: handleDelegateUpdated
+        - event: DelegateDeactivated(indexed address)
+          handler: handleDelegateDeactivated
+        - event: DelegateReactivated(indexed address)
+          handler: handleDelegateReactivated
+        - event: Delegated(indexed address,indexed address,uint256,uint256)
+          handler: handleDelegated
+        - event: Undelegated(indexed address,indexed address,uint256)
+          handler: handleUndelegated
+        - event: DelegateVTONBurned(indexed address,uint256)
+          handler: handleDelegateVTONBurned
+      file: ./src/delegate-registry.ts
