@@ -6,23 +6,30 @@ import { Input } from "@/components/ui/input";
 import { useAllDelegates } from "@/hooks/contracts/useDelegateRegistry";
 import { useAgents } from "@/hooks/contracts/useAgentRegistry";
 import { useVTONVoters, useVoterDelegations } from "@/hooks/contracts/useVTONVoters";
+import { useSubgraphVoters, type SubgraphVoterInfo } from "@/hooks/subgraph/useSubgraphVoters";
 import { DelegateDetailCard } from "./DelegateDetailCard";
 
 /**
  * Voters List — shows vTON holders with their delegation status
+ * Uses subgraph when NEXT_PUBLIC_SUBGRAPH_URL is set, otherwise falls back to RPC.
  */
 export function DelegatesList() {
   const [searchQuery, setSearchQuery] = React.useState("");
 
-  // Fetch vTON holders (voters)
-  const { voters, isLoading, isDeployed } = useVTONVoters();
+  // Subgraph path
+  const {
+    voters: subgraphVoters,
+    isLoading: subgraphLoading,
+    isSubgraphEnabled,
+  } = useSubgraphVoters();
 
-  // Fetch registered delegates (agents) for delegation queries
+  // RPC fallback path — only runs when subgraph is not enabled
+  const { voters: rpcVoters, isLoading: rpcLoading, isDeployed } = useVTONVoters();
   const { data: delegates } = useAllDelegates();
-
-  // Fetch agents to identify agent wallet addresses
   const { agents } = useAgents();
+
   const agentWalletMap = React.useMemo(() => {
+    if (isSubgraphEnabled) return new Map<string, string>();
     const map = new Map<string, string>();
     agents.forEach((agent) => {
       if (agent.agentWalletAddress) {
@@ -30,20 +37,22 @@ export function DelegatesList() {
       }
     });
     return map;
-  }, [agents]);
+  }, [agents, isSubgraphEnabled]);
 
-  // Get voter addresses for delegation queries
   const voterAddresses = React.useMemo(
-    () => voters.map((v) => v.address),
-    [voters]
+    () => (isSubgraphEnabled ? [] : rpcVoters.map((v) => v.address)),
+    [rpcVoters, isSubgraphEnabled]
   );
 
-  // Batch query delegations: for each voter, check against all registered delegates
   const delegationMap = useVoterDelegations(
     voterAddresses,
     [...(delegates ?? [])],
     agentWalletMap
   );
+
+  // Unified voter list
+  const voters = isSubgraphEnabled ? subgraphVoters : rpcVoters;
+  const isLoading = isSubgraphEnabled ? subgraphLoading : rpcLoading;
 
   // Filter voters by search query
   const filteredVoters = React.useMemo(() => {
@@ -51,6 +60,18 @@ export function DelegatesList() {
     const query = searchQuery.toLowerCase();
     return voters.filter((v) => v.address.toLowerCase().includes(query));
   }, [voters, searchQuery]);
+
+  // Resolve delegatedTo for a voter
+  const getDelegatedTo = React.useCallback(
+    (voter: { address: `0x${string}`; balance: bigint }) => {
+      if (isSubgraphEnabled) {
+        const sgVoter = voter as SubgraphVoterInfo;
+        return sgVoter.delegatedTo ?? null;
+      }
+      return delegationMap.get(voter.address.toLowerCase()) ?? null;
+    },
+    [isSubgraphEnabled, delegationMap]
+  );
 
   return (
     <div className="space-y-6">
@@ -78,7 +99,7 @@ export function DelegatesList() {
         }
       />
 
-      {!isDeployed && (
+      {!isSubgraphEnabled && !isDeployed && (
         <div className="text-center py-2 text-[var(--text-tertiary)]">
           <p className="text-xs">
             Showing mock data (contracts not deployed)
@@ -132,7 +153,7 @@ export function DelegatesList() {
                     address={voter.address}
                     votingPower={voter.balance}
                     isActive={voter.balance > BigInt(0)}
-                    delegatedTo={delegationMap.get(voter.address.toLowerCase()) ?? null}
+                    delegatedTo={getDelegatedTo(voter)}
                   />
                 ))}
               </tbody>

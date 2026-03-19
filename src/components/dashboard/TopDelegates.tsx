@@ -8,38 +8,46 @@ import { useReadContracts, useChainId } from "wagmi";
 import { getContractAddresses, areContractsDeployed, DELEGATE_REGISTRY_ABI } from "@/constants/contracts";
 import { useMemo } from "react";
 import { formatUnits } from "viem";
+import { useSubgraphDelegates } from "@/hooks/subgraph/useSubgraphDelegates";
 
 /**
  * Top Delegates Section
- * Shows top 5 delegates by voting power
+ * Shows top 5 delegates by voting power.
+ * Uses subgraph when available, otherwise falls back to RPC.
  */
 export function TopDelegates() {
+  // Subgraph path
+  const {
+    delegates: subgraphDelegates,
+    isSubgraphEnabled,
+  } = useSubgraphDelegates(5);
+
+  // RPC fallback path
   const chainId = useChainId();
   const addresses = getContractAddresses(chainId);
   const isDeployed = areContractsDeployed(chainId);
   const { data: delegates } = useAllDelegates();
 
-  // Build contract calls to get total delegated for each delegate
   const delegatedCalls = useMemo(() => {
-    if (!delegates || delegates.length === 0) return [];
+    if (isSubgraphEnabled || !delegates || delegates.length === 0) return [];
     return delegates.map((delegate) => ({
       address: addresses.delegateRegistry as `0x${string}`,
       abi: DELEGATE_REGISTRY_ABI,
       functionName: "getTotalDelegated" as const,
       args: [delegate],
     }));
-  }, [delegates, addresses.delegateRegistry]);
+  }, [delegates, addresses.delegateRegistry, isSubgraphEnabled]);
 
   const { data: delegatedResults } = useReadContracts({
     contracts: delegatedCalls,
     query: {
-      enabled: isDeployed && delegatedCalls.length > 0,
+      enabled: !isSubgraphEnabled && isDeployed && delegatedCalls.length > 0,
     },
   });
 
-  // Combine delegates with their voting power and sort
-  const topDelegates = useMemo(() => {
-    if (!delegates || !delegatedResults) return [];
+  // Combine delegates with their voting power and sort (RPC path)
+  const rpcTopDelegates = useMemo(() => {
+    if (isSubgraphEnabled || !delegates || !delegatedResults) return [];
 
     const delegatesWithPower = delegates.map((address, index) => {
       const result = delegatedResults[index];
@@ -51,11 +59,19 @@ export function TopDelegates() {
       };
     });
 
-    // Sort by voting power descending and take top 5
     return delegatesWithPower
       .sort((a, b) => (b.votingPower > a.votingPower ? 1 : -1))
       .slice(0, 5);
-  }, [delegates, delegatedResults]);
+  }, [delegates, delegatedResults, isSubgraphEnabled]);
+
+  // Unified top delegates
+  const topDelegates = isSubgraphEnabled
+    ? subgraphDelegates.map((d) => ({
+        address: d.address,
+        votingPower: d.totalDelegated,
+        votingPowerFormatted: d.totalDelegatedFormatted,
+      }))
+    : rpcTopDelegates;
 
   return (
     <Card>
@@ -69,7 +85,7 @@ export function TopDelegates() {
         </Link>
       </CardHeader>
       <CardContent>
-        {!isDeployed && (
+        {!isSubgraphEnabled && !isDeployed && (
           <div className="text-center py-4 text-[var(--text-tertiary)]">
             <p className="text-sm">Contracts not deployed</p>
             <p className="text-xs mt-1">
@@ -77,7 +93,7 @@ export function TopDelegates() {
             </p>
           </div>
         )}
-        {isDeployed && topDelegates.length === 0 && (
+        {(isSubgraphEnabled || isDeployed) && topDelegates.length === 0 && (
           <div className="text-center py-4 text-[var(--text-tertiary)]">
             <p className="text-sm">No voters yet</p>
             <p className="text-xs mt-1">

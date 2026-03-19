@@ -15,7 +15,10 @@
     "time-travel": "./contracts/scripts/time-travel.sh",
     "faucet": "./contracts/scripts/faucet-local.sh",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "subgraph:codegen": "cd subgraph && graph codegen",
+    "subgraph:build": "cd subgraph && graph build",
+    "subgraph:deploy": "cd subgraph && graph deploy tokamak-dao-v-2-sepolia --node https://api.studio.thegraph.com/deploy/"
   },
   "dependencies": {
     "@metamask/sdk": "^0.34.0",
