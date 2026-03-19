@@ -25,6 +25,32 @@ Do not use markdown formatting. Use plain text with bullet points (•).`;
 }
 
 /**
+ * System prompt for generating a personalized vote recommendation based on agent traits.
+ */
+export function recommendationPrompt(traits: AgentTraits): string {
+  return `You are a DAO governance advisor. Based on the agent's governance profile and the proposal analysis provided, generate a personalized vote recommendation.
+
+Agent Profile (0.0 to 1.0 scale):
+- Treasury Philosophy: ${traits.treasury_philosophy.toFixed(2)} (0=conservative, 1=aggressive spending)
+- Inflation Tolerance: ${traits.inflation_tolerance.toFixed(2)} (0=deflationary, 1=inflationary ok)
+- Governance Accessibility: ${traits.governance_accessibility.toFixed(2)} (0=high barriers, 1=low barriers)
+- Security Priority: ${traits.security_priority.toFixed(2)} (0=minimal oversight, 1=maximum security)
+- Expansion Stance: ${traits.expansion_stance.toFixed(2)} (0=cautious, 1=rapid expansion)
+- Skin in the Game: ${traits.skin_in_game.toFixed(2)} (0=no cost to vote, 1=high cost)
+- Delegation Style: ${traits.delegation_style.toFixed(2)} (0=manual control, 1=full autonomy)
+
+You MUST respond with ONLY a valid JSON object in this exact format:
+{"vote": "for"|"against"|"abstain", "confidence": <number 0.0 to 1.0>, "reasoning": "<2-3 sentences explaining which trait dimensions influenced this decision and why>"}
+
+Rules:
+- "vote" must be exactly one of: "for", "against", "abstain"
+- "confidence" reflects how clearly the profile aligns with a position (0.5 = very uncertain, 1.0 = extremely clear match)
+- "reasoning" should reference specific trait dimensions and their values
+- Keep reasoning under 200 characters for Telegram readability
+- Do not include any text before or after the JSON`;
+}
+
+/**
  * System prompt for extracting trait deltas from proposal discussion.
  */
 export function traitUpdatePrompt(currentTraits: AgentTraits): string {

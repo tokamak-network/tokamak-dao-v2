@@ -1,6 +1,6 @@
 import type { AgentTraits } from "@/types/agent-profile";
 import { callClaude } from "./agent-llm";
-import { proposalAnalysisPrompt, traitUpdatePrompt } from "./agent-prompts";
+import { proposalAnalysisPrompt, traitUpdatePrompt, recommendationPrompt } from "./agent-prompts";
 import { extractTraitDeltas, applyTraitDeltas } from "./agent-traits";
 import { agentSupabase } from "./agent-supabase";
 
@@ -36,6 +36,53 @@ export async function analyzeProposalForAgent(
   });
 
   return analysis;
+}
+
+export interface VoteRecommendation {
+  vote: "for" | "against" | "abstain";
+  confidence: number;
+  reasoning: string;
+}
+
+/**
+ * Generate a personalized vote recommendation based on agent traits and proposal analysis.
+ * Returns null on failure (graceful fallback).
+ */
+export async function generateRecommendation(
+  traits: AgentTraits,
+  analysis: string
+): Promise<VoteRecommendation | null> {
+  try {
+    const output = await callClaude({
+      system: recommendationPrompt(traits),
+      messages: [
+        {
+          role: "user",
+          content: `Based on the following proposal analysis, generate a vote recommendation:\n\n${analysis}`,
+        },
+      ],
+      maxTokens: 512,
+    });
+
+    const parsed = JSON.parse(output);
+
+    if (
+      !parsed.vote ||
+      !["for", "against", "abstain"].includes(parsed.vote) ||
+      typeof parsed.confidence !== "number" ||
+      typeof parsed.reasoning !== "string"
+    ) {
+      return null;
+    }
+
+    return {
+      vote: parsed.vote,
+      confidence: Math.max(0, Math.min(1, parsed.confidence)),
+      reasoning: parsed.reasoning,
+    };
+  } catch {
+    return null;
+  }
 }
 
 /**

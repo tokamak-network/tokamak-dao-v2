@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { agentSupabase } from "@/lib/agent-supabase";
 import { sendTelegramMessage, escapeHtml } from "@/lib/telegram";
 import { callClaude } from "@/lib/agent-llm";
+import { generateRecommendation } from "@/lib/agent-analysis";
 import { decodeProposalActions, formatActionsForLLM } from "@/lib/decode-calldata";
 import type { AgentTraits } from "@/types/agent-profile";
 
@@ -151,20 +152,16 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Build notification message
-    const lines = [
+    // Build base notification message (shared across agents)
+    const baseLines = [
       `📋 <b>New Proposal</b>`,
       ``,
       `<b>${escapeHtml(title)}</b>`,
       `Proposed by <code>${escapeHtml(shortProposer)}</code>`,
     ];
     if (analysis) {
-      lines.push(``, `───────────────────`, ``, escapeHtml(analysis));
+      baseLines.push(``, `───────────────────`, ``, escapeHtml(analysis));
     }
-    if (proposalUrl) {
-      lines.push(``, `👉 <a href="${proposalUrl}">View Proposal</a>`);
-    }
-    const notificationMessage = lines.join("\n");
 
     // Vote inline keyboard buttons
     const { createHash } = await import("crypto");
@@ -180,9 +177,46 @@ export async function POST(req: NextRequest) {
       ],
     };
 
-    // Send notification to all connected agents
+    // Send notification to all connected agents (with per-agent recommendation)
     const results = await Promise.allSettled(
       agents.map(async (agent) => {
+        // Build per-agent message with personalized recommendation
+        const agentLines = [...baseLines];
+        const traits = profileMap.get(agent.agent_id);
+
+        if (analysis && traits) {
+          try {
+            const recommendation = await generateRecommendation(traits, analysis);
+            if (recommendation) {
+              const voteEmoji =
+                recommendation.vote === "for" ? "👍 For" :
+                recommendation.vote === "against" ? "👎 Against" :
+                "🤚 Abstain";
+              const confidencePct = Math.round(recommendation.confidence * 100);
+
+              agentLines.push(
+                ``,
+                `───────────────────`,
+                ``,
+                `🤖 <b>Agent's Decision</b>`,
+                ``,
+                `Vote: ${voteEmoji}`,
+                `Confidence: ${confidencePct}%`,
+                ``,
+                escapeHtml(recommendation.reasoning),
+              );
+            }
+          } catch (err) {
+            console.error(`Recommendation failed for agent ${agent.agent_id}:`, err);
+          }
+        }
+
+        if (proposalUrl) {
+          agentLines.push(``, `👉 <a href="${proposalUrl}">View Proposal</a>`);
+        }
+
+        const notificationMessage = agentLines.join("\n");
+
         const notifyResult = await sendTelegramMessage(agent.telegram_bot_token, {
           chatId: agent.telegram_chat_id,
           text: notificationMessage,
