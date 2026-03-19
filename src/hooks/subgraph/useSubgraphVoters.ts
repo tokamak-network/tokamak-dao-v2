@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { querySubgraph, isSubgraphEnabled } from "@/lib/graphql";
+import { querySubgraph } from "@/lib/graphql";
 
 interface SubgraphTokenHolder {
   id: string;
@@ -55,8 +55,6 @@ const VOTERS_QUERY = `
 `;
 
 export function useSubgraphVoters(first = 100, skip = 0) {
-  const enabled = isSubgraphEnabled();
-
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["subgraph-voters", first, skip],
     queryFn: async () => {
@@ -68,7 +66,6 @@ export function useSubgraphVoters(first = 100, skip = 0) {
       });
       return result.tokenHolders;
     },
-    enabled,
     staleTime: 30_000,
   });
 
@@ -90,6 +87,5 @@ export function useSubgraphVoters(first = 100, skip = 0) {
     isLoading,
     isError,
     error,
-    isSubgraphEnabled: enabled,
   };
 }
