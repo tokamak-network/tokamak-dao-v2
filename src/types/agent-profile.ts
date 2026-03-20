@@ -39,7 +39,7 @@ export interface AgentProfile {
 export interface ConversationRecord {
   id: string;
   agent_id: number;
-  context_type: "proposal_analysis";
+  context_type: "proposal_analysis" | "general_chat";
   context_id: string | null; // proposal_id
   messages: Array<{ role: "user" | "assistant"; content: string }>;
   trait_deltas: Partial<AgentTraits> | null;

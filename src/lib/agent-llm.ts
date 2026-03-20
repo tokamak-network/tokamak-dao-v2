@@ -47,6 +47,7 @@ export async function callClaude({
       max_tokens: maxTokens,
       messages: fullMessages,
     }),
+    signal: AbortSignal.timeout(30_000),
   });
 
   if (!res.ok) {

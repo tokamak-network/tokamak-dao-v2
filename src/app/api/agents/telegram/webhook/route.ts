@@ -5,7 +5,7 @@ import {
   answerCallbackQuery,
   editMessageReplyMarkup,
 } from "@/lib/telegram";
-import { handleProposalDiscussion } from "@/lib/agent-analysis";
+import { handleProposalDiscussion, handleGeneralChat } from "@/lib/agent-analysis";
 import { castAgentVote, voteCodeToSupport } from "@/lib/agent-vote";
 import crypto from "crypto";
 
@@ -120,11 +120,9 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // General message - guide user
-    await sendTelegramMessage(botToken, {
-      chatId,
-      text: "I'll send you analysis when new proposals come up. Reply to a proposal analysis message to discuss further.",
-    });
+    // General message - free-form governance chat
+    const generalResponse = await handleGeneralChat(agentId, userText);
+    await sendTelegramMessage(botToken, { chatId, text: generalResponse });
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("Webhook error:", err);

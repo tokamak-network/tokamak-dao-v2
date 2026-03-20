@@ -186,7 +186,30 @@ export async function POST(req: NextRequest) {
 
         if (analysis && traits) {
           try {
-            const recommendation = await generateRecommendation(traits, analysis);
+            // Fetch recent general chat context for richer recommendations
+            const { data: chatHistory } = await agentSupabase
+              .from("agent_conversations")
+              .select("messages")
+              .eq("agent_id", agent.agent_id)
+              .eq("context_type", "general_chat")
+              .eq("context_id", "general")
+              .order("created_at", { ascending: false })
+              .limit(3);
+
+            let enrichedAnalysis = analysis;
+            if (chatHistory && chatHistory.length > 0) {
+              const chatSummary = [...chatHistory]
+                .reverse()
+                .flatMap((row) =>
+                  (row.messages as Array<{ role: string; content: string }>).map(
+                    (m) => `${m.role}: ${m.content}`
+                  )
+                )
+                .join("\n");
+              enrichedAnalysis += `\n\nRecent owner conversation context:\n${chatSummary}`;
+            }
+
+            const recommendation = await generateRecommendation(traits, enrichedAnalysis);
             if (recommendation) {
               const voteEmoji =
                 recommendation.vote === "for" ? "👍 For" :

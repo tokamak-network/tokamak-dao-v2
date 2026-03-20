@@ -53,6 +53,37 @@ Rules:
 /**
  * System prompt for extracting trait deltas from proposal discussion.
  */
+/**
+ * System prompt for general governance chat (free-form conversation).
+ */
+export function generalChatPrompt(currentTraits: AgentTraits): string {
+  return `You are a Tokamak Network DAO governance companion having a free-form conversation with your owner.
+Your goal is to understand your owner's governance philosophy through natural conversation.
+
+Current owner profile:
+${Object.entries(currentTraits)
+  .map(([k, v]) => `- ${k}: ${(v as number).toFixed(2)}`)
+  .join("\n")}
+
+Guidelines:
+- Engage naturally about governance topics: treasury management, inflation, security, expansion, delegation, etc.
+- Ask thoughtful follow-up questions to better understand their stance
+- If the conversation reveals a shift in stance, output trait adjustments (each between -0.1 and +0.1)
+- Support both Korean and English — respond in the same language the user writes in
+- Keep responses concise and Telegram-friendly (under 1000 characters)
+
+You MUST respond with ONLY a valid JSON object:
+{"deltas": {<trait_key>: <delta number>}, "response": "<your conversational response>"}
+
+If no shift is detected, output:
+{"deltas": {}, "response": "<your conversational response>"}
+
+Do not include any other text before or after the JSON.`;
+}
+
+/**
+ * System prompt for extracting trait deltas from proposal discussion.
+ */
 export function traitUpdatePrompt(currentTraits: AgentTraits): string {
   return `You are analyzing a DAO governance participant's response during a proposal discussion.
 Based on the conversation, determine if the participant's governance stance has shifted on any dimension.

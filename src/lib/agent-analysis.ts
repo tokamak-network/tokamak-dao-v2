@@ -1,6 +1,6 @@
 import type { AgentTraits } from "@/types/agent-profile";
 import { callClaude } from "./agent-llm";
-import { proposalAnalysisPrompt, traitUpdatePrompt, recommendationPrompt } from "./agent-prompts";
+import { proposalAnalysisPrompt, traitUpdatePrompt, generalChatPrompt, recommendationPrompt } from "./agent-prompts";
 import { extractTraitDeltas, applyTraitDeltas } from "./agent-traits";
 import { agentSupabase } from "./agent-supabase";
 
@@ -64,7 +64,20 @@ export async function generateRecommendation(
       maxTokens: 512,
     });
 
-    const parsed = JSON.parse(output);
+    // Strip markdown code blocks and surrounding text to extract JSON
+    let jsonStr = output.trim();
+    const fenceMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (fenceMatch) {
+      jsonStr = fenceMatch[1].trim();
+    } else {
+      // Try to extract first JSON object if LLM added surrounding text
+      const braceMatch = jsonStr.match(/\{[\s\S]*\}/);
+      if (braceMatch) {
+        jsonStr = braceMatch[0];
+      }
+    }
+
+    const parsed = JSON.parse(jsonStr);
 
     if (
       !parsed.vote ||
@@ -161,6 +174,90 @@ export async function handleProposalDiscussion(
     agent_id: agentId,
     context_type: "proposal_analysis",
     context_id: proposalId,
+    messages: [
+      { role: "user", content: userMessage },
+      { role: "assistant", content: response },
+    ],
+    trait_deltas: Object.keys(deltas).length > 0 ? deltas : null,
+  });
+
+  return response;
+}
+
+/**
+ * Handle a general chat message (free-form governance conversation).
+ * Uses a rolling conversation per agent (context_id: "general").
+ */
+export async function handleGeneralChat(
+  agentId: number,
+  userMessage: string
+): Promise<string> {
+  // 1. Fetch current profile
+  const { data: profile } = await agentSupabase
+    .from("agent_profiles")
+    .select("traits")
+    .eq("agent_id", agentId)
+    .single();
+
+  if (!profile) {
+    return "Profile not found. Please complete profiling first.";
+  }
+
+  const traits = profile.traits as AgentTraits;
+
+  // 2. Fetch recent conversation history (last 10 rows, reversed to chronological order)
+  const { data: convData } = await agentSupabase
+    .from("agent_conversations")
+    .select("messages")
+    .eq("agent_id", agentId)
+    .eq("context_type", "general_chat")
+    .eq("context_id", "general")
+    .order("created_at", { ascending: false })
+    .limit(10);
+
+  const previousMessages: Array<{ role: "user" | "assistant"; content: string }> = [];
+  if (convData) {
+    for (const conv of [...convData].reverse()) {
+      previousMessages.push(
+        ...(conv.messages as Array<{ role: "user" | "assistant"; content: string }>)
+      );
+    }
+  }
+
+  // 3. Call Claude with general chat prompt
+  const messages = [
+    ...previousMessages,
+    { role: "user" as const, content: userMessage },
+  ];
+
+  const llmOutput = await callClaude({
+    system: generalChatPrompt(traits),
+    messages,
+    maxTokens: 1024,
+  });
+
+  // 4. Extract deltas and response
+  const result = extractTraitDeltas(llmOutput);
+  const response = result?.response || llmOutput;
+  const deltas = result?.deltas || {};
+
+  // 5. Apply trait deltas if any
+  if (Object.keys(deltas).length > 0) {
+    const updatedTraits = applyTraitDeltas(traits, deltas);
+    await agentSupabase
+      .from("agent_profiles")
+      .update({
+        traits: updatedTraits,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("agent_id", agentId);
+  }
+
+  // 6. Save conversation
+  await agentSupabase.from("agent_conversations").insert({
+    agent_id: agentId,
+    context_type: "general_chat",
+    context_id: "general",
     messages: [
       { role: "user", content: userMessage },
       { role: "assistant", content: response },
