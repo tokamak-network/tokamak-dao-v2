@@ -75,6 +75,7 @@ const moreDropdownChildren = [
   { href: "/vton-issuance-simulator", label: "vTON Issuance Simulator" },
   { href: "https://vton-airdrop-simulator.vercel.app/", label: "vTON Airdrop Simulator", external: true },
   { href: "/sc-action-simulator", label: "SC Action Simulator" },
+  { href: "/migration", label: "Migration Simulator" },
 ];
 
 export default function AppLayout({
