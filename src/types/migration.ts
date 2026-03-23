@@ -40,3 +40,32 @@ export interface MigrationResult {
   totalTransactions: number;
   executionTimeMs: number;
 }
+
+// ---------------------------------------------------------------------------
+// Step-by-step migration types
+// ---------------------------------------------------------------------------
+
+export interface MigrationStepDef {
+  globalIndex: number;
+  phase: number;
+  stepInPhase: number;
+  description: string;
+  type: "deploy" | "call" | "verify";
+  contractName?: string;
+  contractVersion?: "v1" | "v2";
+  contractCategory?: string;
+  /** Address keys this step reads from the registry */
+  requires: string[];
+  /** Address key this step writes to the registry (deploy steps) */
+  produces?: string;
+}
+
+export interface StepExecutionResult {
+  success: boolean;
+  stepIndex: number;
+  txHash?: string;
+  contractAddress?: string;
+  error?: string;
+  gasUsed?: string;
+  blockNumber?: number;
+}
