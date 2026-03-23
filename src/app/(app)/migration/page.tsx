@@ -1,152 +1,53 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useMigrationStepper } from "@/hooks/useMigrationStepper";
+import { TOTAL_STEPS } from "@/lib/migration-steps";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { MigrationDashboard } from "@/components/migration/MigrationDashboard";
-import type { MigrationResult, MigrationPhase } from "@/types/migration";
+import type { MigrationResult } from "@/types/migration";
 
-const STEP_INTERVAL_MS = 300;
-
-/**
- * Compute the total number of steps across all phases.
- */
-function countTotalSteps(phases: MigrationPhase[]): number {
-  return phases.reduce((sum, phase) => sum + phase.steps.length, 0);
-}
-
-/**
- * Given the original phases and a currentStep index, produce a new set of
- * phases where each step/phase status reflects the animation progress.
- *
- * Steps with index < currentStep are "success", the step at currentStep
- * is "success" (just revealed), and steps beyond are "pending".
- * Phase status is derived: all steps done = "completed", any step revealed
- * = "running", otherwise "pending".
- */
-function buildAnimatedPhases(
-  phases: MigrationPhase[],
-  currentStep: number,
-  isFinished: boolean,
-): MigrationPhase[] {
-  let stepCounter = 0;
-
-  return phases.map((phase) => {
-    const animatedSteps = phase.steps.map((step) => {
-      const idx = stepCounter;
-      stepCounter++;
-
-      if (isFinished || idx <= currentStep) {
-        return { ...step, status: "success" as const };
-      }
-      return { ...step, status: "pending" as const };
-    });
-
-    const completedCount = animatedSteps.filter(
-      (s) => s.status === "success",
-    ).length;
-    let phaseStatus: MigrationPhase["status"];
-
-    if (completedCount === animatedSteps.length) {
-      phaseStatus = "completed";
-    } else if (completedCount > 0) {
-      phaseStatus = "running";
-    } else {
-      phaseStatus = "pending";
-    }
-
-    return { ...phase, steps: animatedSteps, status: phaseStatus };
-  });
-}
+const PHASE_NAMES = [
+  "V1 Deploy",
+  "V2 Deploy",
+  "Configure",
+  "Transition",
+  "Deprecate V1",
+];
 
 export default function MigrationPage() {
-  const [result, setResult] = useState<MigrationResult | null>(null);
-  const [isRunning, setIsRunning] = useState(false);
-  const [currentStep, setCurrentStep] = useState(0);
-  const [error, setError] = useState<string | null>(null);
+  const stepper = useMigrationStepper();
+  const {
+    isExecuting,
+    isComplete,
+    error,
+    currentStep,
+    progress,
+    executeNextStep,
+    retry,
+    reset,
+  } = stepper;
 
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const rawResultRef = useRef<MigrationResult | null>(null);
-
-  // Cleanup interval on unmount
-  useEffect(() => {
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-    };
-  }, []);
-
-  const startMigration = useCallback(async () => {
-    // Reset state
-    setIsRunning(true);
-    setError(null);
-    setResult(null);
-    setCurrentStep(0);
-    rawResultRef.current = null;
-
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-
-    try {
-      const response = await fetch("/api/migration/simulate", {
-        method: "POST",
-      });
-
-      if (!response.ok) {
-        const body = await response.text();
-        throw new Error(
-          body || `Simulation failed with status ${response.status}`,
-        );
-      }
-
-      const data: MigrationResult = await response.json();
-      rawResultRef.current = data;
-
-      const totalSteps = countTotalSteps(data.phases);
-
-      if (totalSteps === 0) {
-        setResult(data);
-        setIsRunning(false);
-        return;
-      }
-
-      // Initialize with all phases/steps pending
-      const initialPhases = buildAnimatedPhases(data.phases, -1, false);
-      setResult({ ...data, phases: initialPhases });
-
-      // Animate through steps
-      let step = 0;
-      intervalRef.current = setInterval(() => {
-        const isLast = step >= totalSteps - 1;
-        const animated = buildAnimatedPhases(data.phases, step, isLast);
-
-        setResult({ ...data, phases: animated });
-        setCurrentStep(step);
-
-        if (isLast) {
-          if (intervalRef.current) {
-            clearInterval(intervalRef.current);
-            intervalRef.current = null;
-          }
-          setIsRunning(false);
+  // Build MigrationResult for the dashboard
+  const migrationResult: MigrationResult | null =
+    stepper.progress.completed > 0
+      ? {
+          success: stepper.isComplete,
+          phases: stepper.phases,
+          contracts: stepper.contracts,
+          finalState: {
+            pauseProxy: stepper.isComplete,
+            daoVaultOwner: "",
+            vtonOwner: "",
+            timelockAdmin: "",
+            governorOwner: "",
+            delegateRegistryOwner: "",
+          },
+          totalTransactions: stepper.progress.completed,
+          executionTimeMs: 0,
         }
-
-        step++;
-      }, STEP_INTERVAL_MS);
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "An unexpected error occurred.";
-      setError(message);
-      setIsRunning(false);
-    }
-  }, []);
-
-  const isComplete =
-    result !== null &&
-    !isRunning &&
-    result.phases.every((p) => p.status === "completed");
+      : null;
 
   return (
     <div className="space-y-6">
@@ -156,68 +57,148 @@ export default function MigrationPage() {
           Migration Simulator
         </h1>
         <p className="text-base text-[var(--text-secondary)] max-w-lg">
-          Tokamak DAO V1에서 V2로의 마이그레이션 전체 과정을 로컬 환경에서
-          시뮬레이션합니다.
+          Tokamak DAO V1에서 V2로의 마이그레이션을 단계별로 실행하고 시각적으로
+          확인하세요.
         </p>
       </section>
 
-      {/* Controls */}
-      <section className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-        <Button
-          variant="primary"
-          size="lg"
-          onClick={startMigration}
-          disabled={isRunning}
-          loading={isRunning}
-        >
-          {isRunning
-            ? "Simulating..."
-            : isComplete
-              ? "Re-run Simulation"
-              : "Start Migration"}
-        </Button>
-
-        <p className="text-xs text-[var(--text-secondary)]">
-          로컬 Anvil 노드가 실행 중이어야 합니다. (
-          <code className="font-mono text-[var(--text-primary)]">
-            npm run anvil
-          </code>
-          )
-        </p>
-      </section>
-
-      {/* Execution stats after completion */}
-      {isComplete && result && (
-        <section className="flex items-center gap-6 text-sm text-[var(--text-secondary)]">
-          <span>
-            총 트랜잭션:{" "}
-            <strong className="text-[var(--text-primary)]">
-              {result.totalTransactions}
-            </strong>
+      {/* Progress bar */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-[var(--text-secondary)]">
+            Step {progress.completed}/{progress.total}
+            {currentStep &&
+              ` · Phase ${currentStep.phase}: ${PHASE_NAMES[currentStep.phase]}`}
           </span>
-          <span>
-            실행 시간:{" "}
-            <strong className="text-[var(--text-primary)]">
-              {(result.executionTimeMs / 1000).toFixed(1)}s
-            </strong>
-          </span>
-        </section>
-      )}
+          {isComplete && <Badge variant="success">Migration Complete</Badge>}
+        </div>
+        <div className="h-2 rounded-full bg-[var(--bg-tertiary)] overflow-hidden">
+          <div
+            className="h-full rounded-full bg-[var(--fg-brand-primary)] transition-all duration-500"
+            style={{
+              width: `${(progress.completed / progress.total) * 100}%`,
+            }}
+          />
+        </div>
+      </div>
 
-      {/* Error state */}
+      {/* Current Step Preview Card */}
+      <Card>
+        <CardContent className="py-4">
+          {isComplete ? (
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-semibold text-green-600">
+                  Migration Complete
+                </p>
+                <p className="text-xs text-[var(--text-secondary)]">
+                  모든 {TOTAL_STEPS}개 스텝이 성공적으로 실행되었습니다.
+                </p>
+              </div>
+              <Button variant="secondary" size="sm" onClick={reset}>
+                Reset &amp; Restart
+              </Button>
+            </div>
+          ) : currentStep ? (
+            <div className="flex items-start justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <Badge
+                    variant={
+                      currentStep.phase <= 1
+                        ? currentStep.contractVersion === "v1"
+                          ? "error"
+                          : "info"
+                        : "default"
+                    }
+                    size="sm"
+                  >
+                    Phase {currentStep.phase} · Step {currentStep.stepInPhase}
+                  </Badge>
+                  {currentStep.type === "deploy" && (
+                    <Badge variant="success" size="sm">
+                      Deploy
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-sm font-semibold text-[var(--text-primary)]">
+                  {currentStep.description}
+                </p>
+                {currentStep.requires.length > 0 && (
+                  <p className="text-xs text-[var(--text-secondary)]">
+                    Requires: {currentStep.requires.join(", ")}
+                  </p>
+                )}
+              </div>
+              <div className="flex gap-2 shrink-0">
+                {error && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={retry}
+                    disabled={isExecuting}
+                  >
+                    Retry
+                  </Button>
+                )}
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={executeNextStep}
+                  disabled={isExecuting}
+                  loading={isExecuting}
+                >
+                  {isExecuting ? "Executing..." : "Execute Step"}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-semibold text-[var(--text-primary)]">
+                  Ready to Start
+                </p>
+                <p className="text-xs text-[var(--text-secondary)]">
+                  Anvil 노드가 실행 중이어야 합니다. (npm run anvil)
+                </p>
+              </div>
+              <Button variant="primary" size="sm" onClick={executeNextStep}>
+                Start Migration
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Error display */}
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          <p className="font-semibold mb-1">Simulation Error</p>
+          <p className="font-semibold mb-1">Step Execution Error</p>
           <p>{error}</p>
         </div>
       )}
 
-      {/* Dashboard */}
+      {/* Migration Dashboard */}
       <MigrationDashboard
-        result={result}
-        isRunning={isRunning}
-        currentStep={currentStep}
+        result={migrationResult}
+        isRunning={stepper.isExecuting}
+        currentStep={stepper.progress.completed - 1}
+        highlightContract={stepper.lastDeployedContract ?? undefined}
       />
+
+      {/* Bottom Reset button */}
+      {stepper.progress.completed > 0 && !stepper.isComplete && (
+        <div className="flex justify-end">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={stepper.reset}
+            disabled={stepper.isExecuting}
+          >
+            Reset
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

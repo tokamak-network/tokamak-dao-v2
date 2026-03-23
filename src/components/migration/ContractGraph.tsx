@@ -8,6 +8,7 @@ import type { ContractInfo } from "@/types/migration";
 interface ContractGraphProps {
   contracts: { v1: ContractInfo[]; v2: ContractInfo[] };
   activePhase: number;
+  highlightContract?: string;
 }
 
 const MIGRATION_ARROWS: {
@@ -53,7 +54,7 @@ function sortContracts(contracts: ContractInfo[], order: string[]) {
   );
 }
 
-export function ContractGraph({ contracts, activePhase }: ContractGraphProps) {
+export function ContractGraph({ contracts, activePhase, highlightContract }: ContractGraphProps) {
   const v1Sorted = sortContracts(contracts.v1, V1_ORDER);
   const v2Sorted = sortContracts(contracts.v2, V2_ORDER);
 
@@ -89,7 +90,9 @@ export function ContractGraph({ contracts, activePhase }: ContractGraphProps) {
                   "transition-all duration-500",
                   activePhase >= 0
                     ? "opacity-100 scale-100 translate-y-0"
-                    : "opacity-0 scale-95 translate-y-2"
+                    : "opacity-0 scale-95 translate-y-2",
+                  contract.name === highlightContract &&
+                    "ring-2 ring-green-400 animate-pulse rounded-lg"
                 )}
                 style={{ transitionDelay: `${i * 80}ms` }}
               >
@@ -198,7 +201,9 @@ export function ContractGraph({ contracts, activePhase }: ContractGraphProps) {
                   "transition-all duration-500",
                   v2Active
                     ? "opacity-100 scale-100 translate-y-0"
-                    : "opacity-0 scale-95 translate-y-2"
+                    : "opacity-0 scale-95 translate-y-2",
+                  contract.name === highlightContract &&
+                    "ring-2 ring-blue-400 animate-pulse rounded-lg"
                 )}
                 style={{ transitionDelay: `${i * 80}ms` }}
               >

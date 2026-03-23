@@ -19,6 +19,7 @@ interface MigrationDashboardProps {
   result: MigrationResult | null;
   isRunning: boolean;
   currentStep: number;
+  highlightContract?: string;
 }
 
 function CheckItem({
@@ -54,6 +55,7 @@ export function MigrationDashboard({
   result,
   isRunning,
   currentStep,
+  highlightContract,
 }: MigrationDashboardProps) {
   const currentPhase = useMemo(() => {
     if (!result) return isRunning ? 0 : -1;
@@ -176,6 +178,7 @@ export function MigrationDashboard({
           <ContractGraph
             contracts={result.contracts}
             activePhase={currentPhase}
+            highlightContract={highlightContract}
           />
         </CardContent>
       </Card>
