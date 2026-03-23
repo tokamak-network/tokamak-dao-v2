@@ -241,7 +241,7 @@ export function useMigrationStepper(): UseMigrationStepperReturn {
     dispatch({ type: "EXECUTE_START" });
 
     const batchResults: StepExecutionResult[] = [];
-    let currentAddresses: Record<string, string> = { ...state.addresses };
+    const currentAddresses: Record<string, string> = { ...state.addresses };
 
     try {
       for (let i = 0; i <= PHASE_0_LAST_INDEX; i++) {
