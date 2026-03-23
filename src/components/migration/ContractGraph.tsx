@@ -78,16 +78,26 @@ export function ContractGraph({ contracts, activePhase }: ContractGraphProps) {
           </div>
           <div
             className={cn(
-              "space-y-2 transition-opacity duration-700",
-              v1Dimmed ? "opacity-40" : "opacity-100"
+              "space-y-2 transition-all duration-700",
+              v1Dimmed ? "opacity-40 scale-[0.97]" : "opacity-100 scale-100"
             )}
           >
-            {v1Sorted.map((contract) => (
-              <ContractCard
+            {v1Sorted.map((contract, i) => (
+              <div
                 key={contract.address}
-                contract={contract}
-                isActive={!v1Dimmed}
-              />
+                className={cn(
+                  "transition-all duration-500",
+                  activePhase >= 0
+                    ? "opacity-100 scale-100 translate-y-0"
+                    : "opacity-0 scale-95 translate-y-2"
+                )}
+                style={{ transitionDelay: `${i * 80}ms` }}
+              >
+                <ContractCard
+                  contract={contract}
+                  isActive={!v1Dimmed}
+                />
+              </div>
             ))}
           </div>
         </div>
@@ -177,16 +187,26 @@ export function ContractGraph({ contracts, activePhase }: ContractGraphProps) {
           </div>
           <div
             className={cn(
-              "space-y-2 transition-opacity duration-700",
-              v2Active ? "opacity-100" : "opacity-30"
+              "space-y-2 transition-all duration-700",
+              v2Active ? "opacity-100 scale-100" : "opacity-30 scale-[0.97]"
             )}
           >
-            {v2Sorted.map((contract) => (
-              <ContractCard
+            {v2Sorted.map((contract, i) => (
+              <div
                 key={contract.address}
-                contract={contract}
-                isActive={v2Active}
-              />
+                className={cn(
+                  "transition-all duration-500",
+                  v2Active
+                    ? "opacity-100 scale-100 translate-y-0"
+                    : "opacity-0 scale-95 translate-y-2"
+                )}
+                style={{ transitionDelay: `${i * 80}ms` }}
+              >
+                <ContractCard
+                  contract={contract}
+                  isActive={v2Active}
+                />
+              </div>
             ))}
           </div>
         </div>

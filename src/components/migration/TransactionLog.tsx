@@ -95,6 +95,9 @@ export function TransactionLog({ phases, visibleUpTo }: TransactionLogProps) {
                 <span className="text-sm font-semibold text-[var(--text-primary)]">
                   Phase {phase.phase}: {phase.name}
                 </span>
+                <span className="text-[10px] font-normal text-[var(--text-secondary)] bg-[var(--card-bg)] px-1.5 py-0.5 rounded-full">
+                  {phase.steps.length} steps
+                </span>
               </div>
               <Badge
                 variant={

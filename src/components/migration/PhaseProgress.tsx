@@ -11,6 +11,14 @@ const PHASE_NAMES = [
   "V1 비활성화",
 ] as const;
 
+const PHASE_DESCRIPTIONS = [
+  "V1 컨트랙트 배포",
+  "V2 컨트랙트 배포",
+  "컨트랙트 연동 설정",
+  "거버넌스 전환",
+  "V1 비활성화",
+] as const;
+
 interface PhaseProgressProps {
   phases: MigrationPhase[];
   currentPhase: number;
@@ -107,6 +115,9 @@ export function PhaseProgress({ phases, currentPhase }: PhaseProgressProps) {
               >
                 {name}
               </span>
+              <span className="mt-0.5 text-[10px] text-center text-[var(--text-secondary)] leading-tight">
+                {PHASE_DESCRIPTIONS[index]}
+              </span>
             </div>
           );
         })}
@@ -159,14 +170,19 @@ export function PhaseProgress({ phases, currentPhase }: PhaseProgressProps) {
               </div>
 
               {/* Label */}
-              <span
-                className={cn(
-                  "text-sm transition-colors duration-300",
-                  styles.label
-                )}
-              >
-                Phase {index}: {name}
-              </span>
+              <div className="flex flex-col">
+                <span
+                  className={cn(
+                    "text-sm transition-colors duration-300",
+                    styles.label
+                  )}
+                >
+                  Phase {index}: {name}
+                </span>
+                <span className="text-[10px] text-[var(--text-secondary)] leading-tight">
+                  {PHASE_DESCRIPTIONS[index]}
+                </span>
+              </div>
             </div>
           );
         })}
