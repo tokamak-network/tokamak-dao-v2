@@ -25,6 +25,8 @@ export default function MigrationPage() {
     currentStep,
     progress,
     executeNextStep,
+    initializeV1,
+    isV1Deployed,
     retry,
     reset,
   } = stepper;
@@ -66,9 +68,13 @@ export default function MigrationPage() {
       <div className="space-y-2">
         <div className="flex items-center justify-between text-sm">
           <span className="text-[var(--text-secondary)]">
-            Step {progress.completed}/{progress.total}
-            {currentStep &&
-              ` · Phase ${currentStep.phase}: ${PHASE_NAMES[currentStep.phase]}`}
+            {!isV1Deployed
+              ? "V1 컨트랙트를 배포하여 시작하세요"
+              : `Step ${progress.completed}/${progress.total}${
+                  currentStep
+                    ? ` · Phase ${currentStep.phase}: ${PHASE_NAMES[currentStep.phase]}`
+                    : ""
+                }`}
           </span>
           {isComplete && <Badge variant="success">Migration Complete</Badge>}
         </div>
@@ -113,6 +119,27 @@ export default function MigrationPage() {
               </div>
               <Button variant="secondary" size="sm" onClick={reset}>
                 Reset &amp; Restart
+              </Button>
+            </div>
+          ) : !isV1Deployed ? (
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-semibold text-[var(--text-primary)]">
+                  V1 컨트랙트 배포
+                </p>
+                <p className="text-xs text-[var(--text-secondary)]">
+                  마이그레이션을 시작하려면 V1 컨트랙트를 먼저 배포합니다. (Anvil
+                  필요)
+                </p>
+              </div>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={initializeV1}
+                loading={isExecuting}
+                disabled={isExecuting}
+              >
+                {isExecuting ? "Deploying V1..." : "Deploy V1 & Start"}
               </Button>
             </div>
           ) : currentStep ? (
@@ -180,21 +207,7 @@ export default function MigrationPage() {
                 </Button>
               </div>
             </div>
-          ) : (
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-semibold text-[var(--text-primary)]">
-                  Ready to Start
-                </p>
-                <p className="text-xs text-[var(--text-secondary)]">
-                  Anvil 노드가 실행 중이어야 합니다. (npm run anvil)
-                </p>
-              </div>
-              <Button variant="primary" size="sm" onClick={executeNextStep}>
-                Start Migration
-              </Button>
-            </div>
-          )}
+          ) : null}
         </div>
       </div>
     </div>

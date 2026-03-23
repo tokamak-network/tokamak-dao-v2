@@ -55,8 +55,12 @@ export interface UseMigrationStepperReturn {
 
   // Actions
   executeNextStep: () => Promise<void>;
+  initializeV1: () => Promise<void>;
   retry: () => Promise<void>;
   reset: () => Promise<void>;
+
+  // V1 deployment status
+  isV1Deployed: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -67,6 +71,7 @@ type Action =
   | { type: "EXECUTE_START" }
   | { type: "EXECUTE_SUCCESS"; result: StepExecutionResult }
   | { type: "EXECUTE_FAILURE"; error: string }
+  | { type: "BATCH_SUCCESS"; results: StepExecutionResult[] }
   | { type: "RESET" };
 
 const initialState: MigrationStepperState = {
@@ -128,6 +133,37 @@ function reducer(
       };
     }
 
+    case "BATCH_SUCCESS": {
+      const newResults = new Map(state.results);
+      const newAddresses = { ...state.addresses };
+      let maxIndex = state.nextStepIndex;
+
+      for (const result of action.results) {
+        newResults.set(result.stepIndex, {
+          txHash: result.txHash,
+          contractAddress: result.contractAddress,
+          executedAt: Date.now(),
+        });
+        const stepDef = MIGRATION_STEPS[result.stepIndex];
+        if (stepDef?.produces && result.contractAddress) {
+          newAddresses[stepDef.produces] = result.contractAddress;
+        }
+        if (result.stepIndex >= maxIndex) {
+          maxIndex = result.stepIndex + 1;
+        }
+      }
+
+      return {
+        ...state,
+        results: newResults,
+        addresses: newAddresses,
+        nextStepIndex: maxIndex,
+        isExecuting: false,
+        error: null,
+        isComplete: maxIndex >= TOTAL_STEPS,
+      };
+    }
+
     case "RESET": {
       return {
         ...initialState,
@@ -144,6 +180,8 @@ function reducer(
 // ---------------------------------------------------------------------------
 // Hook
 // ---------------------------------------------------------------------------
+
+const PHASE_0_LAST_INDEX = 7; // Phase 0 steps are 0-7
 
 export function useMigrationStepper(): UseMigrationStepperReturn {
   const [state, dispatch] = useReducer(reducer, initialState);
@@ -197,6 +235,53 @@ export function useMigrationStepper(): UseMigrationStepperReturn {
     dispatch({ type: "RESET" });
   }, []);
 
+  const initializeV1 = useCallback(async () => {
+    if (state.isExecuting || state.nextStepIndex > 0) return;
+
+    dispatch({ type: "EXECUTE_START" });
+
+    const batchResults: StepExecutionResult[] = [];
+    let currentAddresses: Record<string, string> = { ...state.addresses };
+
+    try {
+      for (let i = 0; i <= PHASE_0_LAST_INDEX; i++) {
+        const response = await fetch("/api/migration/step", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            stepIndex: i,
+            addresses: currentAddresses,
+          }),
+        });
+
+        const data: StepExecutionResult = await response.json();
+
+        if (!data.success) {
+          dispatch({
+            type: "EXECUTE_FAILURE",
+            error: data.error ?? `Phase 0 step ${i} failed`,
+          });
+          return;
+        }
+
+        batchResults.push(data);
+
+        // Update addresses for next step
+        const stepDef = MIGRATION_STEPS[i];
+        if (stepDef?.produces && data.contractAddress) {
+          currentAddresses[stepDef.produces] = data.contractAddress;
+        }
+      }
+
+      dispatch({ type: "BATCH_SUCCESS", results: batchResults });
+    } catch (err) {
+      dispatch({
+        type: "EXECUTE_FAILURE",
+        error: err instanceof Error ? err.message : "V1 deployment failed",
+      });
+    }
+  }, [state.isExecuting, state.nextStepIndex, state.addresses]);
+
   // -- Derived values --------------------------------------------------------
 
   const phases = useMemo(
@@ -232,6 +317,7 @@ export function useMigrationStepper(): UseMigrationStepperReturn {
   );
 
   const isComplete = state.nextStepIndex >= TOTAL_STEPS;
+  const isV1Deployed = state.nextStepIndex > PHASE_0_LAST_INDEX;
 
   const lastDeployedContract = useMemo(() => {
     let lastDeploy: string | null = null;
@@ -259,7 +345,9 @@ export function useMigrationStepper(): UseMigrationStepperReturn {
     progress,
     lastDeployedContract,
     executeNextStep,
+    initializeV1,
     retry,
     reset,
+    isV1Deployed,
   };
 }
