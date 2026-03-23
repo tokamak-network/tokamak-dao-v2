@@ -50,7 +50,7 @@ export default function MigrationPage() {
       : null;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-24">
       {/* Header */}
       <section className="py-4">
         <h1 className="text-3xl sm:text-4xl font-bold text-[var(--text-primary)] mb-2">
@@ -82,9 +82,25 @@ export default function MigrationPage() {
         </div>
       </div>
 
-      {/* Current Step Preview Card */}
-      <Card>
-        <CardContent className="py-4">
+      {/* Error display */}
+      {error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <p className="font-semibold mb-1">Step Execution Error</p>
+          <p>{error}</p>
+        </div>
+      )}
+
+      {/* Migration Dashboard */}
+      <MigrationDashboard
+        result={migrationResult}
+        isRunning={stepper.isExecuting}
+        currentStep={stepper.progress.completed - 1}
+        highlightContract={stepper.lastDeployedContract ?? undefined}
+      />
+
+      {/* Fixed Bottom Bar */}
+      <div className="fixed bottom-0 left-0 right-0 z-50 border-t border-[var(--card-border)] bg-[var(--bg-primary)]/95 backdrop-blur-sm">
+        <div className="container mx-auto max-w-7xl px-4 py-3">
           {isComplete ? (
             <div className="flex items-center justify-between">
               <div>
@@ -100,9 +116,9 @@ export default function MigrationPage() {
               </Button>
             </div>
           ) : currentStep ? (
-            <div className="flex items-start justify-between gap-4">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="flex items-center gap-2 shrink-0">
                   <Badge
                     variant={
                       currentStep.phase <= 1
@@ -121,16 +137,28 @@ export default function MigrationPage() {
                     </Badge>
                   )}
                 </div>
-                <p className="text-sm font-semibold text-[var(--text-primary)]">
-                  {currentStep.description}
-                </p>
-                {currentStep.requires.length > 0 && (
-                  <p className="text-xs text-[var(--text-secondary)]">
-                    Requires: {currentStep.requires.join(", ")}
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-[var(--text-primary)] truncate">
+                    {currentStep.description}
                   </p>
-                )}
+                  {currentStep.requires.length > 0 && (
+                    <p className="text-xs text-[var(--text-secondary)] truncate">
+                      Requires: {currentStep.requires.join(", ")}
+                    </p>
+                  )}
+                </div>
               </div>
               <div className="flex gap-2 shrink-0">
+                {stepper.progress.completed > 0 && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={reset}
+                    disabled={isExecuting}
+                  >
+                    Reset
+                  </Button>
+                )}
                 {error && (
                   <Button
                     variant="secondary"
@@ -167,38 +195,8 @@ export default function MigrationPage() {
               </Button>
             </div>
           )}
-        </CardContent>
-      </Card>
-
-      {/* Error display */}
-      {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          <p className="font-semibold mb-1">Step Execution Error</p>
-          <p>{error}</p>
         </div>
-      )}
-
-      {/* Migration Dashboard */}
-      <MigrationDashboard
-        result={migrationResult}
-        isRunning={stepper.isExecuting}
-        currentStep={stepper.progress.completed - 1}
-        highlightContract={stepper.lastDeployedContract ?? undefined}
-      />
-
-      {/* Bottom Reset button */}
-      {stepper.progress.completed > 0 && !stepper.isComplete && (
-        <div className="flex justify-end">
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={stepper.reset}
-            disabled={stepper.isExecuting}
-          >
-            Reset
-          </Button>
-        </div>
-      )}
+      </div>
     </div>
   );
 }
