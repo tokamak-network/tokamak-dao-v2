@@ -59,8 +59,8 @@ export default function MigrationPage() {
           Migration Simulator
         </h1>
         <p className="text-base text-[var(--text-secondary)] max-w-lg">
-          Tokamak DAO V1에서 V2로의 마이그레이션을 단계별로 실행하고 시각적으로
-          확인하세요.
+          Execute the Tokamak DAO V1 to V2 migration step by step and
+          visualize the process.
         </p>
       </section>
 
@@ -69,7 +69,7 @@ export default function MigrationPage() {
         <div className="flex items-center justify-between text-sm">
           <span className="text-[var(--text-secondary)]">
             {!isV1Deployed
-              ? "V1 컨트랙트를 배포하여 시작하세요"
+              ? "Deploy V1 contracts to get started"
               : `Step ${progress.completed}/${progress.total}${
                   currentStep
                     ? ` · Phase ${currentStep.phase}: ${PHASE_NAMES[currentStep.phase]}`
@@ -114,7 +114,7 @@ export default function MigrationPage() {
                   Migration Complete
                 </p>
                 <p className="text-xs text-[var(--text-secondary)]">
-                  모든 {TOTAL_STEPS}개 스텝이 성공적으로 실행되었습니다.
+                  All {TOTAL_STEPS} steps executed successfully.
                 </p>
               </div>
               <Button variant="secondary" size="sm" onClick={reset}>
@@ -125,11 +125,11 @@ export default function MigrationPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-semibold text-[var(--text-primary)]">
-                  V1 컨트랙트 배포
+                  Deploy V1 Contracts
                 </p>
                 <p className="text-xs text-[var(--text-secondary)]">
-                  마이그레이션을 시작하려면 V1 컨트랙트를 먼저 배포합니다. (Anvil
-                  필요)
+                  Deploy V1 contracts first to begin the migration. (Requires
+                  Anvil)
                 </p>
               </div>
               <Button

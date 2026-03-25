@@ -16,9 +16,9 @@ function truncateAddress(address: string): string {
 }
 
 const STATUS_CONFIG = {
-  pending: { variant: "default" as const, label: "대기" },
-  success: { variant: "success" as const, label: "완료" },
-  failed: { variant: "error" as const, label: "실패" },
+  pending: { variant: "default" as const, label: "Pending" },
+  success: { variant: "success" as const, label: "Done" },
+  failed: { variant: "error" as const, label: "Failed" },
 } as const;
 
 const PHASE_BG = [
@@ -48,13 +48,13 @@ export function TransactionLog({ phases, visibleUpTo }: TransactionLogProps) {
     });
   }, []);
 
-  // Auto-scroll to the latest visible step
+  // Auto-scroll within the log container only (not the page)
   useEffect(() => {
-    if (lastVisibleRef.current) {
-      lastVisibleRef.current.scrollIntoView({
-        behavior: "smooth",
-        block: "nearest",
-      });
+    if (lastVisibleRef.current && scrollRef.current) {
+      const container = scrollRef.current;
+      const el = lastVisibleRef.current;
+      const elTop = el.offsetTop - container.offsetTop;
+      container.scrollTo({ top: elTop - container.clientHeight + el.clientHeight + 16, behavior: "smooth" });
     }
   }, [visibleUpTo]);
 
@@ -112,12 +112,12 @@ export function TransactionLog({ phases, visibleUpTo }: TransactionLogProps) {
                 size="sm"
               >
                 {phase.status === "completed"
-                  ? "완료"
+                  ? "Done"
                   : phase.status === "running"
-                  ? "진행 중"
+                  ? "In Progress"
                   : phase.status === "failed"
-                  ? "실패"
-                  : "대기"}
+                  ? "Failed"
+                  : "Pending"}
               </Badge>
             </button>
 
@@ -187,7 +187,7 @@ export function TransactionLog({ phases, visibleUpTo }: TransactionLogProps) {
 
       {phases.length === 0 && (
         <div className="px-4 py-8 text-center text-sm text-[var(--text-secondary)]">
-          트랜잭션 로그가 비어 있습니다.
+          Transaction log is empty.
         </div>
       )}
     </div>

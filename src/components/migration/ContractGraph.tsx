@@ -15,37 +15,37 @@ const MIGRATION_RELATIONS = [
     v1: "MockTON",
     v2: "vTON",
     label: "Token Migration",
-    description: "TON → vTON 거버넌스 토큰 전환",
+    description: "TON → vTON governance token",
   },
   {
     v1: "MockDAOCommitteeProxy",
     v2: "DAOGovernor",
     label: "Governance",
-    description: "위원회 → 대의 민주주의 전환",
+    description: "Committee → representative governance",
   },
   {
     v1: "MockDAOVault",
     v2: "Timelock",
     label: "Treasury",
-    description: "금고 → Timelock 제어",
+    description: "Vault → Timelock control",
   },
   {
     v1: "MockSeigManager",
     v2: "vTON",
     label: "Seigniorage",
-    description: "시뇨리지 → vTON 민팅",
+    description: "Seigniorage → vTON minting",
   },
   {
     v1: "MockDAOAgendaManager",
     v2: "DAOGovernor",
     label: "Proposals",
-    description: "안건 관리 → Governor 통합",
+    description: "Agenda mgmt → Governor",
   },
   {
     v1: "MockCandidateFactory",
     v2: "DelegateRegistry",
     label: "Delegates",
-    description: "후보 → 위임자 등록",
+    description: "Candidates → delegate registry",
   },
 ];
 

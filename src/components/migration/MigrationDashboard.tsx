@@ -94,8 +94,8 @@ export function MigrationDashboard({
               DAO Migration Simulator
             </h2>
             <p className="text-sm text-[var(--text-secondary)] max-w-md">
-              Tokamak DAO V1에서 V2로의 마이그레이션 과정을 시뮬레이션합니다.
-              시뮬레이션을 시작하여 5단계의 마이그레이션 프로세스를 확인하세요.
+              Simulate the Tokamak DAO V1 to V2 migration process.
+              Start the simulation to explore the 5-phase migration workflow.
             </p>
           </div>
         </CardContent>
@@ -111,10 +111,10 @@ export function MigrationDashboard({
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <div className="w-12 h-12 rounded-full border-4 border-blue-200 border-t-blue-500 animate-spin mb-4" />
             <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-2">
-              마이그레이션 준비 중...
+              Preparing migration...
             </h2>
             <p className="text-sm text-[var(--text-secondary)]">
-              시뮬레이션 환경을 초기화하고 있습니다.
+              Initializing simulation environment.
             </p>
           </div>
         </CardContent>
@@ -138,25 +138,25 @@ export function MigrationDashboard({
               <CardTitle className="text-base">Migration Progress</CardTitle>
               <CardDescription>
                 {isComplete
-                  ? "마이그레이션이 완료되었습니다."
+                  ? "Migration completed successfully."
                   : hasFailed
-                  ? "마이그레이션 중 오류가 발생했습니다."
-                  : "마이그레이션이 진행 중입니다..."}
+                  ? "An error occurred during migration."
+                  : "Migration in progress..."}
               </CardDescription>
             </div>
             {isComplete && (
               <Badge variant="success" size="lg">
-                완료
+                Done
               </Badge>
             )}
             {hasFailed && (
               <Badge variant="error" size="lg">
-                실패
+                Failed
               </Badge>
             )}
             {isRunning && !isComplete && !hasFailed && (
               <Badge variant="info" size="lg">
-                진행 중
+                In Progress
               </Badge>
             )}
           </div>
@@ -171,7 +171,7 @@ export function MigrationDashboard({
         <CardHeader>
           <CardTitle className="text-base">Contract Architecture</CardTitle>
           <CardDescription>
-            V1 컨트랙트에서 V2 컨트랙트로의 마이그레이션 구조
+            Migration architecture from V1 to V2 contracts
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -188,7 +188,7 @@ export function MigrationDashboard({
         <CardHeader>
           <CardTitle className="text-base">Transaction Log</CardTitle>
           <CardDescription>
-            각 단계별 트랜잭션 실행 기록
+            Transaction execution log for each phase
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -202,7 +202,7 @@ export function MigrationDashboard({
           <CardHeader>
             <CardTitle className="text-base">Migration Summary</CardTitle>
             <CardDescription>
-              마이그레이션 결과 요약
+              Migration result summary
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -210,12 +210,12 @@ export function MigrationDashboard({
               {/* Stats */}
               <div className="space-y-3">
                 <h4 className="text-sm font-semibold text-[var(--text-primary)]">
-                  실행 통계
+                  Execution Stats
                 </h4>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="rounded-md bg-[var(--bg-tertiary)] px-3 py-2">
                     <p className="text-xs text-[var(--text-secondary)]">
-                      총 트랜잭션
+                      Total Transactions
                     </p>
                     <p className="text-lg font-bold text-[var(--text-primary)]">
                       {result.totalTransactions}
@@ -223,7 +223,7 @@ export function MigrationDashboard({
                   </div>
                   <div className="rounded-md bg-[var(--bg-tertiary)] px-3 py-2">
                     <p className="text-xs text-[var(--text-secondary)]">
-                      실행 시간
+                      Execution Time
                     </p>
                     <p className="text-lg font-bold text-[var(--text-primary)]">
                       {(result.executionTimeMs / 1000).toFixed(1)}s
@@ -235,7 +235,7 @@ export function MigrationDashboard({
               {/* Final State Checks */}
               <div className="space-y-3">
                 <h4 className="text-sm font-semibold text-[var(--text-primary)]">
-                  최종 상태 검증
+                  Final State Verification
                 </h4>
                 <div className="space-y-2">
                   <CheckItem

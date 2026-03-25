@@ -4,19 +4,19 @@ import { cn } from "@/lib/utils";
 import type { MigrationPhase } from "@/types/migration";
 
 const PHASE_NAMES = [
-  "V1 배포",
-  "V2 배포",
-  "연동 설정",
-  "거버넌스 전환",
-  "V1 비활성화",
+  "V1 Deploy",
+  "V2 Deploy",
+  "Configure",
+  "Transition",
+  "Deprecate V1",
 ] as const;
 
 const PHASE_DESCRIPTIONS = [
-  "V1 컨트랙트 배포",
-  "V2 컨트랙트 배포",
-  "컨트랙트 연동 설정",
-  "거버넌스 전환",
-  "V1 비활성화",
+  "Deploy V1 contracts",
+  "Deploy V2 contracts",
+  "Configure connections",
+  "Governance transition",
+  "Deprecate V1",
 ] as const;
 
 interface PhaseProgressProps {
