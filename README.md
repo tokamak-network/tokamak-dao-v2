@@ -6,16 +6,27 @@ Tokamak Network DAO governance contracts.
 
 V2 replaces the fixed-committee governance of V1 with a token-delegation model.
 
-```
-V1: Committee-based                      V2: Delegation-based
-─────────────────────                    ─────────────────────
-TON staking                              vTON (governance token)
-  └─ Candidate (L2 operator)               └─ delegate to a registered Delegate
-       └─ 3-member Committee                    └─ Delegate votes with delegated weight
-            └─ castVote (1 person = 1 vote)          └─ DAOGovernor (token-weighted)
-DAOCommitteeProxy + DAOAgendaManager     DAOGovernor + DelegateRegistry
-No execution delay                       Timelock (7-day delay + 14-day grace)
-Gnosis Safe multisig admin               SecurityCouncil (2/3, veto + pause only)
+```mermaid
+flowchart LR
+    subgraph V1["V1 — Committee-based"]
+        direction TB
+        A1["TON staking"] --> A2["Candidate<br/>(L2 operator)"]
+        A2 --> A3["3-member Committee<br/>1 person = 1 vote"]
+        A3 --> A4["DAOCommitteeProxy<br/>+ DAOAgendaManager"]
+        A4 --> A5["Execute immediately<br/>(no timelock)"]
+        A6["Gnosis Safe multisig<br/>(admin)"] -.->|admin control| A4
+    end
+
+    subgraph V2["V2 — Delegation-based"]
+        direction TB
+        B1["vTON<br/>(governance token)"] --> B2["DelegateRegistry<br/>delegate to a registered Delegate"]
+        B2 --> B3["DAOGovernor<br/>token-weighted voting"]
+        B3 --> B4["Timelock<br/>7-day delay + 14-day grace"]
+        B4 --> B5["Execute"]
+        B6["SecurityCouncil<br/>2/3 multisig, veto + pause only"] -.->|cancel / pause| B3
+    end
+
+    V1 ==>|"migration"| V2
 ```
 
 | | V1 | V2 |
