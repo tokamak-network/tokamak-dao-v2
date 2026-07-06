@@ -2,6 +2,8 @@
 
 Tokamak Network DAO governance system.
 
+> **인수인계 문서**: 프로젝트 전체 구조, V1→V2 변경사항, 문서 지도, 운영 인프라는 [HANDOVER.md](./HANDOVER.md)에서 시작하세요.
+
 ## Local Development
 
 ```bash
