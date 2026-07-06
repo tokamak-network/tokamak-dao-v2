@@ -1,5 +1,8 @@
 # Tokamak DAO v2
 
+> This repository is contracts-only. The Next.js web app, subgraph, and agent
+> backend were removed in July 2026 (see HANDOVER.md and git history).
+
 ## Rule
 
 1. Plan Mode Default
@@ -28,7 +31,7 @@ Review lessons at session start for relevant project
 Never mark a task complete without proving it works
 Diff behavior between main and your changes when relevant
 Ask yourself: "Would a staff engineer approve this?"
-Run tests, check logs, demonstrate correctness (do NOT run npm run build unless explicitly asked)
+Run tests, check logs, demonstrate correctness
 
 5. Demand Elegance (Balanced)
 
@@ -61,36 +64,13 @@ Simplicity First: Make every change as simple as possible. Impact minimal code.
 No Laziness: Find root causes. No temporary fixes. Senior developer standards.
 Minimal Impact: Changes should only touch what's necessary. Avoid introducing bugs.
 
-## Design System Rules
-
-- **Design specification**: See `docs/design-spec.md` (required reading for frontend design work)
-
-## Code Style
-- TypeScript strict mode
-- ES modules (import/export)
-- Tailwind CSS + CSS variables
-
-## Dependencies
-
-### @tokamak-ecosystem/dao-action-builder
-- Core package for building DAO proposal actions
-- Always check for latest version before use: `npm outdated @tokamak-ecosystem/dao-action-builder`
-- Update if needed: `npm install @tokamak-ecosystem/dao-action-builder@latest`
-- Source code location: `node_modules/@tokamak-ecosystem/dao-action-builder/dist/`
-
-## Commands
-- `npm run dev` - Development server
-- `npm run build` - Build
-- `npm run lint` - Lint
-
 ## Contracts
 
 - Foundry project: `contracts/`
 - **Contract specification**: See `contracts/contract-spec.md` (required)
 - `cd contracts && forge build` - Build
 - `cd contracts && forge test` - Test
-
-### Web App Development Notes
-- Check parameters/return values in `contract-spec.md` before calling contract functions
-- Verify event signatures when subscribing to events
-- State-changing functions require transactions, view functions use call
+- Deployed addresses: `contracts/deployments.md`
+- Local dev helpers: `contracts/scripts/` (anvil, deploy, faucet, time travel)
+- The spec docs live in `docs/specs/`; code is the source of truth — keep
+  `contract-spec.md` in sync when contracts change

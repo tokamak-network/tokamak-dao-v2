@@ -3,6 +3,12 @@
 > **작성일**: 2026-07-06
 > **목적**: 사업 종료에 따른 프로젝트 인수인계. 이 문서는 저장소 전체의 **진입점(인덱스)**입니다.
 > 상세 내용은 각 링크된 문서에 있으며, 여기서는 "무엇을, 어떤 순서로 봐야 하는지"를 안내합니다.
+>
+> ⚠️ **2026-07-06 저장소 슬림화**: 인수인계 결정에 따라 Next.js 웹앱(`src/`, `public/`),
+> The Graph 서브그래프(`subgraph/`), Supabase 스키마(`sql/`) 등 웹 서비스 코드를 모두 제거하고
+> **스마트 컨트랙트(`contracts/`)와 문서(`docs/`)만 남겼습니다**. 제거된 코드는 git 히스토리에서
+> 복구할 수 있습니다 (`git log --oneline -- src/` 등). 이 문서의 6절(외부 서비스)은 과거 운영
+> 기록으로 남겨둡니다.
 
 ---
 
@@ -11,9 +17,9 @@
 Tokamak Network의 DAO 거버넌스를 **V1(Committee 기반, 3인 고정 위원회)**에서
 **V2(Delegation 기반, vTON 토큰 위임 투표)**로 전환하는 프로젝트입니다.
 
-- **스마트 컨트랙트**: Foundry 프로젝트 (`contracts/`) — vTON, DelegateRegistry, DAOGovernor, SecurityCouncil, Timelock
-- **웹앱**: Next.js 15 + React 18 + Wagmi/Viem (`src/`) — 제안 생성/투표/위임 UI, AI 에이전트, 샌드박스 데모
-- **인덱싱**: The Graph 서브그래프 (`subgraph/`)
+- **스마트 컨트랙트**: Foundry 프로젝트 (`contracts/`) — vTON, DelegateRegistry, DAOGovernor, SecurityCouncil, Timelock (+ VoteRelayFund, V1 목 컨트랙트)
+- ~~**웹앱**: Next.js 15 + React 18 + Wagmi/Viem~~ — 2026-07 제거, git 히스토리에 보존
+- ~~**인덱싱**: The Graph 서브그래프~~ — 2026-07 제거, git 히스토리에 보존
 
 ## 2. V1 → V2 핵심 변경 요약
 
@@ -48,64 +54,57 @@ Tokamak Network의 DAO 거버넌스를 **V1(Committee 기반, 3인 고정 위원
 - [docs/migration-presentation.html](docs/migration-presentation.html) — 마이그레이션 발표 슬라이드
 
 **기능별 문서:**
-- [docs/design-spec.md](docs/design-spec.md) — 프론트엔드 디자인 시스템 (프론트 작업 시 필독)
-- [docs/vote-relay-fund.md](docs/vote-relay-fund.md) — AI 에이전트 투표 릴레이 구조와 개선안
-- [docs/telegram-notifications.md](docs/telegram-notifications.md) — 제안 생성 시 Telegram 알림 기능
+- [docs/vote-relay-fund.md](docs/vote-relay-fund.md) — AI 에이전트 투표 릴레이 구조와 개선안 (백엔드/프론트는 제거됨, VoteRelayFund 컨트랙트 설명은 유효)
+
+> 프론트엔드 전용 문서(design-spec.md, telegram-notifications.md)는 웹앱 제거와 함께 삭제되었습니다 (git 히스토리 참고).
 
 ## 4. 개발 환경
 
-### 로컬 (Chain ID 1337)
-
-```bash
-npm install
-npm run anvil                      # 터미널 1: 로컬 체인
-npm run faucet -- <주소>            # 테스트 TON/ETH 지급
-npm run contracts:deploy:local     # V2 컨트랙트 배포
-npm run dev                        # 터미널 2: 웹앱 (localhost:3000)
-npm run time-travel -- 1h          # 투표 기간 등 시간 스킵
-```
-
-로컬에서는 Voting Delay / Voting Period / Timelock Delay가 각 **1시간**으로 단축되어 있습니다.
-
-### 컨트랙트
+Foundry만 있으면 됩니다 (`foundryup`으로 설치). Node.js 불필요.
 
 ```bash
 cd contracts && forge build && forge test
 ```
 
+### 로컬 체인 (Chain ID 1337)
+
+```bash
+./contracts/scripts/start-anvil.sh          # 터미널 1: 로컬 체인
+./contracts/scripts/faucet-local.sh <주소>   # 테스트 TON/ETH 지급
+./contracts/scripts/deploy-local.sh          # V2 컨트랙트 배포
+./contracts/scripts/time-travel.sh 1h        # 시간+블록 스킵 (pending/voting/timelock 프리셋 지원)
+```
+
+로컬 거버넌스 파라미터: Voting Delay **1시간**(300블록), Voting Period **1일**(7,200블록 = `MIN_VOTING_PERIOD`),
+Timelock Delay **7일**(`MINIMUM_DELAY`). 컨트랙트가 강제하는 최소값 때문에 이보다 짧게 설정할 수 없습니다.
+
 - 마이그레이션 전체 시뮬레이션: `contracts/script/MigrationSimulation.s.sol` (V1 목 컨트랙트 → V2 전환 생명주기 재현)
 - V1 목 컨트랙트: `contracts/src/migration/`
+- Sepolia 배포: `./contracts/scripts/deploy-sepolia.sh`
 
-### 샌드박스 데모 (Fly.io, Chain ID 13374)
-
-체험용 임시 체인. Fly.io Machines에서 Anvil을 띄우고, 웹앱의 `/api/sandbox/rpc` 프록시를 통해 접근합니다.
-
-- 백엔드: `src/app/api/sandbox/lib/fly.ts`
-- Fly 앱: `tokamak-dao-demo` (도쿄 `nrt`), 머신은 2시간 후 자동 파괴
-- Wagmi 읽기와 MetaMask 쓰기 모두 단일 프록시(`/api/sandbox/rpc`) 경유
-- deploy-data 재생성: `scripts/setup-sandbox-deploy-data.sh`
-- **주의**: MetaMask는 등록된 체인의 RPC URL을 갱신하지 않음 → RPC URL이 바뀌면 체인 ID를 올려야 함 (13371→13374 이력)
+> 과거에 운영하던 웹앱 개발환경(Next.js)과 샌드박스 데모(Fly.io Machines + Anvil, Chain ID 13374)는
+> 코드와 함께 제거되었습니다. 구현이 필요하면 git 히스토리의 `src/app/api/sandbox/`를 참고하세요.
 
 ## 5. 배포 현황
 
 - **Sepolia 테스트넷**: [contracts/deployments.md](contracts/deployments.md) — vTON, DelegateRegistry, Timelock, DAOGovernor, SecurityCouncil 주소
 - **메인넷**: V2 미배포. V1 메인넷 주소는 [docs/migration-v1-to-v2.md 9.1절](docs/migration-v1-to-v2.md) 및 [docs/v1-architecture.md](docs/v1-architecture.md) 참고
-- **웹앱**: Vercel 배포 (Next.js)
-- **서브그래프**: The Graph Studio `tokamak-dao-v-2-sepolia` (`npm run subgraph:deploy`)
+- ~~**웹앱**: Vercel 배포~~ / ~~**서브그래프**: The Graph Studio `tokamak-dao-v-2-sepolia`~~ — 코드 제거됨, 배포·서비스는 해지 대상 (6절 참고)
 
-## 6. 외부 서비스 / 인수인계 시 필요한 접근 권한
+## 6. 외부 서비스 (과거 운영 기록 — 해지/정리 대상)
 
-| 서비스 | 용도 | 위치/식별자 |
-|--------|------|------------|
-| Vercel | 웹앱 호스팅 | 이 저장소 연결 프로젝트 |
-| Fly.io | 샌드박스 Anvil 머신 | 앱 `tokamak-dao-demo` (API 토큰 필요) |
-| Supabase | AI 에이전트 데이터 (agents, agent_profiles 등) | 스키마: `sql/` 디렉토리 |
-| The Graph Studio | 이벤트 인덱싱 | `tokamak-dao-v-2-sepolia` |
-| Pinata | IPFS 업로드 (`src/app/api/pinata`) | API 키 필요 |
-| Telegram Bot | 제안 알림 | [docs/telegram-notifications.md](docs/telegram-notifications.md) |
-| Sepolia deployer | 테스트넷 배포 계정 | `0x488f3660FCD32099F2A250633822a6fbF6Eb771B` |
+웹 서비스 코드가 제거되었으므로 아래 서비스들은 **해지하거나 소유권을 정리**해야 합니다.
+스키마·구현은 git 히스토리에서 확인할 수 있습니다.
 
-환경변수는 Vercel 프로젝트 설정 및 `.env.local`(비공개)에 있습니다. 인수인계 시 각 서비스의 소유권 이전 또는 키 재발급이 필요합니다.
+| 서비스 | 과거 용도 | 위치/식별자 | 조치 |
+|--------|----------|------------|------|
+| Vercel | 웹앱 호스팅 | 이 저장소 연결 프로젝트 | 프로젝트 삭제 또는 연결 해제 |
+| Fly.io | 샌드박스 Anvil 머신 | 앱 `tokamak-dao-demo` | 앱 삭제 (머신은 2시간 자동 파괴형) |
+| Supabase | AI 에이전트 데이터 | 스키마: git 히스토리의 `sql/` | 프로젝트 정리/백업 |
+| The Graph Studio | 이벤트 인덱싱 | `tokamak-dao-v-2-sepolia` | 서브그래프 정리 |
+| Pinata | IPFS 업로드 | API 키 | 키 폐기 |
+| Telegram Bot | 제안 알림 | git 히스토리의 `docs/telegram-notifications.md` | 봇 비활성화 |
+| Sepolia deployer | 테스트넷 배포 계정 (**유지**) | `0x488f3660FCD32099F2A250633822a6fbF6Eb771B` | 키 인수인계 필요 |
 
 ## 7. 알아둘 것 / 잔여 이슈
 
@@ -113,23 +112,23 @@ cd contracts && forge build && forge test
 2. **burnRate는 ABI 호환용 잔재**: `DAOGovernor.propose`의 `burnRate` 파라미터는 기능이 제거되어 0 이외 값은 revert합니다 (스펙 0.1.3).
 3. **SecurityCouncil은 Veto+Pause 전용**: 임의 실행/긴급 업그레이드 권한 없음. 권한 유효기간 12개월, 만료 시 누구나 `expireCouncil()` 호출 가능 (스펙 0.1.4).
 4. **문서-코드 동기화**: 코드가 진실의 원천입니다. `contract-spec.md`와 마이그레이션 가이드는 2026-07-06 기준 코드와 일치하도록 갱신되었습니다.
-5. **`@tokamak-ecosystem/dao-action-builder`**: DAO 제안 액션 빌더 패키지 의존성 — 버전 확인 후 사용 (CLAUDE.md 참고).
+5. **테스트 현황**: 2026-07-06 기준 `forge test` 358개 전체 통과. 스펙 0.1.4 이전에 작성되어 자기방어 제한과 모순되던 가디언 취소 테스트 2개를 스펙에 맞게 수정했습니다.
 
 ## 8. 저장소 구조
 
 ```
 ├── HANDOVER.md              ← 이 문서
+├── README.md                ← V1/V2 비교 + 시작 가이드
 ├── CLAUDE.md                ← AI 어시스턴트용 프로젝트 규칙
 ├── contracts/               ← Foundry 프로젝트
 │   ├── contract-spec.md     ← V2 컨트랙트 명세 (필독)
-│   ├── deployments.md       ← 배포 주소
+│   ├── deployments.md       ← 배포 주소 (Sepolia)
 │   ├── src/                 ← V2 컨트랙트 + migration/ (V1 목)
-│   ├── script/              ← 배포·마이그레이션 시뮬레이션 스크립트
-│   └── test/                ← Foundry 테스트
-├── src/                     ← Next.js 웹앱 (App Router)
-│   └── app/api/             ← sandbox(Fly.io), agents(AI), migration, pinata 등
-├── subgraph/                ← The Graph 서브그래프
-├── sql/                     ← Supabase 스키마/마이그레이션
-├── docs/                    ← 문서 (3절 문서 지도 참고)
-└── scripts/                 ← 유틸리티 스크립트
+│   ├── script/              ← 배포·마이그레이션 시뮬레이션 스크립트 (.s.sol)
+│   ├── scripts/             ← 셸 헬퍼 (anvil, deploy, faucet, time-travel)
+│   └── test/                ← Foundry 테스트 (358개)
+└── docs/                    ← 문서 (3절 문서 지도 참고)
 ```
+
+> 과거 구조(웹앱 `src/`, `subgraph/`, `sql/`, 루트 `scripts/`)는 git 히스토리에서 확인:
+> `git log --oneline -- src/` 후 `git show <커밋>:<경로>`

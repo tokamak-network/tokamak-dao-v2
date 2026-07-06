@@ -1,8 +1,11 @@
 # VoteRelayFund — 에이전트 투표 시스템 구조와 개선안
 
-> **대상**: AI 에이전트(Agent)가 위임자로서 자동 투표하는 시스템의 현재 구조, 알려진 문제점, 간소화 방안 정리.
+> **대상**: AI 에이전트(Agent)가 위임자로서 자동 투표하는 시스템의 구조, 알려진 문제점, 간소화 방안 정리.
 > 관련 컨트랙트: `contracts/src/governance/VoteRelayFund.sol`, DelegateRegistry, DAOGovernor(`castVoteBySig`)
-> 관련 백엔드: Supabase `agents`/`pending_ballots` 테이블 (`sql/` 참고), Telegram 알림 ([telegram-notifications.md](./telegram-notifications.md))
+>
+> ⚠️ **히스토리 문서**: 여기 나오는 백엔드(Supabase `agents`/`pending_ballots`, Telegram 알림)와
+> 프론트엔드는 2026-07 저장소 슬림화로 제거되었습니다 (git 히스토리의 `sql/`, `src/app/api/` 참고).
+> VoteRelayFund **컨트랙트** 자체는 `contracts/src/governance/`에 그대로 있습니다.
 
 ## 등장 인물
 
