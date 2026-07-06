@@ -5,10 +5,12 @@ The vTON DAO Governance Model specification documents are available in the `docs
 | Version | Date | Diff |
 |---------|----------|--------|
 | [0.1.4](./0.1.4/spec.md) | 2026-03-06 | |
-| [0.1.3](./0.1.3/spec.md) | 2026-03-03 | [View](https://www.diffchecker.com/W83j3k91/) |
-| [0.1.2](./0.1.2/spec.md) | 2026-02-11 | [View](https://www.diffchecker.com/l6VTe6Mj/) |
-| [0.1.1](./0.1.1/spec.md) | 2026-02-03 | [View](https://www.diffchecker.com/QtLCN05H/) |
-| [0.1.0](./0.1.0/spec.md) | 2026-01-30 |  |
+| 0.1.3 | 2026-03-03 | [View](https://www.diffchecker.com/W83j3k91/) |
+| 0.1.2 | 2026-02-11 | [View](https://www.diffchecker.com/l6VTe6Mj/) |
+| 0.1.1 | 2026-02-03 | [View](https://www.diffchecker.com/QtLCN05H/) |
+| 0.1.0 | 2026-01-30 |  |
+
+> 최신 버전(0.1.4)만 저장소에 유지합니다. 구버전 스펙 문서(0.1.0~0.1.3)는 git 히스토리에서 확인할 수 있습니다 (`git log -- docs/specs/`). 버전 간 변경 내용은 아래 Changelog에 정리되어 있습니다.
 
 ## Changelog
 

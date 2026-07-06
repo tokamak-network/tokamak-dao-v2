@@ -58,3 +58,6 @@ subgraph/node_modules/
 # Agent data (large compiled artifacts)
 data/agent/contracts-src/
 data/agent/contracts-out/
+
+# oh-my-claudecode state
+.omc/
