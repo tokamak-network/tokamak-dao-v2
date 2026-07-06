@@ -35,9 +35,9 @@ HOUR=3600
 DAY=86400
 
 # Preset durations
-PENDING_PERIOD=$((1 * HOUR))  # 1 hour
-VOTING_PERIOD=$((1 * HOUR))   # 1 hour
-TIMELOCK_DELAY=$((1 * HOUR))  # 1 hour
+PENDING_PERIOD=$((1 * HOUR))  # 1 hour (300 blocks voting delay)
+VOTING_PERIOD=$((1 * DAY))    # 1 day (7,200 blocks = MIN_VOTING_PERIOD)
+TIMELOCK_DELAY=$((7 * DAY))   # 7 days (contract MINIMUM_DELAY)
 GRACE_PERIOD=$((14 * DAY))    # 14 days
 
 # Usage message
@@ -74,7 +74,7 @@ check_anvil() {
         echo -e "Please start Anvil first:"
         echo -e "  ${CYAN}cd contracts && ./scripts/start-anvil.sh${NC}"
         echo -e "  or"
-        echo -e "  ${CYAN}npm run anvil${NC}"
+        echo -e "  ${CYAN}./contracts/scripts/start-anvil.sh${NC}"
         exit 1
     fi
 }

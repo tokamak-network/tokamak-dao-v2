@@ -1,13 +1,11 @@
 #!/bin/bash
-# Deploy contracts to Sepolia and update webapp addresses
-# Usage: ./scripts/deploy-sepolia.sh
+# Deploy contracts to Sepolia
+# Usage: ./contracts/scripts/deploy-sepolia.sh
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONTRACTS_DIR="$(dirname "$SCRIPT_DIR")"
-PROJECT_ROOT="$(dirname "$CONTRACTS_DIR")"
-CONTRACTS_TS="$PROJECT_ROOT/src/constants/contracts.ts"
 
 # Colors for output
 RED='\033[0;31m'
@@ -48,7 +46,7 @@ echo -e "${YELLOW}Deploying to Sepolia...${NC}"
 OUTPUT=$(forge script script/Deploy.s.sol:DeploySepoliaScript \
     --rpc-url "$RPC_URL_SEPOLIA" \
     --broadcast \
-    -vvv 2>&1
+    -vvv 2>&1)
 
 echo "$OUTPUT"
 
@@ -82,43 +80,6 @@ echo "SecurityCouncil:  $SECURITY_COUNCIL"
 echo "VTONFaucet:       $FAUCET"
 echo "TONFaucet:        $TON_FAUCET"
 
-# Update contracts.ts
-echo -e "\n${YELLOW}Updating webapp contract addresses...${NC}"
-
-if [ ! -f "$CONTRACTS_TS" ]; then
-    echo -e "${RED}Error: $CONTRACTS_TS not found${NC}"
-    exit 1
-fi
-
-# Create sed pattern for updating Sepolia addresses
-# Use temporary file for cross-platform compatibility
-TMP_FILE=$(mktemp)
-
-awk -v ton="$MOCK_TON" \
-    -v vton="$VTON" \
-    -v registry="$DELEGATE_REGISTRY" \
-    -v governor="$DAO_GOVERNOR" \
-    -v council="$SECURITY_COUNCIL" \
-    -v timelock="$TIMELOCK" \
-    -v faucet="$FAUCET" \
-    -v tonfaucet="$TON_FAUCET" '
-BEGIN { in_sepolia = 0 }
-/\/\/ Sepolia Testnet/ { in_sepolia = 1 }
-/11155111:/ && in_sepolia { in_block = 1 }
-in_block && /ton:/ && !/vton:/ && !/tonFaucet:/ { gsub(/"0x[a-fA-F0-9]+"/, "\"" ton "\"") }
-in_block && /vton:/ { gsub(/"0x[a-fA-F0-9]+"/, "\"" vton "\"") }
-in_block && /delegateRegistry:/ { gsub(/"0x[a-fA-F0-9]+"/, "\"" registry "\"") }
-in_block && /daoGovernor:/ { gsub(/"0x[a-fA-F0-9]+"/, "\"" governor "\"") }
-in_block && /securityCouncil:/ { gsub(/"0x[a-fA-F0-9]+"/, "\"" council "\"") }
-in_block && /timelock:/ { gsub(/"0x[a-fA-F0-9]+"/, "\"" timelock "\"") }
-in_block && /faucet:/ && !/tonFaucet:/ { gsub(/"0x[a-fA-F0-9]+"/, "\"" faucet "\"") }
-in_block && /tonFaucet:/ { gsub(/"0x[a-fA-F0-9]+"/, "\"" tonfaucet "\"") }
-in_block && /},/ { in_block = 0; in_sepolia = 0 }
-{ print }
-' "$CONTRACTS_TS" > "$TMP_FILE"
-
-mv "$TMP_FILE" "$CONTRACTS_TS"
-
 # Update DeployFaucet.s.sol with new vTON address
 FAUCET_SCRIPT="$CONTRACTS_DIR/script/DeployFaucet.s.sol"
 if [ -f "$FAUCET_SCRIPT" ]; then
@@ -127,17 +88,7 @@ if [ -f "$FAUCET_SCRIPT" ]; then
     echo -e "${GREEN}Updated DeployFaucet.s.sol${NC}"
 fi
 
-# Cleanup Supabase data for Sepolia network
-if [ -n "$ADMIN_CLEANUP_SECRET" ]; then
-    WEBAPP_URL="${WEBAPP_URL:-http://localhost:3000}"
-    echo -e "\n${YELLOW}Cleaning up Supabase data for Sepolia (network=11155111)...${NC}"
-    CLEANUP_RESULT=$(curl -s -X DELETE "${WEBAPP_URL}/api/admin/cleanup?network=11155111&table=all&secret=${ADMIN_CLEANUP_SECRET}")
-    echo -e "Cleanup result: $CLEANUP_RESULT"
-    echo -e "${GREEN}Supabase cleanup complete${NC}"
-fi
-
 echo -e "\n${GREEN}=== Deployment Complete ===${NC}"
-echo -e "Webapp addresses updated in: ${YELLOW}src/constants/contracts.ts${NC}"
 echo ""
 echo "You can verify the contracts on Etherscan:"
 echo "  https://sepolia.etherscan.io/address/$VTON"

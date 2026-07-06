@@ -3,21 +3,20 @@
 # Usage: ./scripts/faucet-local.sh <address>
 #
 # Prerequisites:
-#   - Run 'npm run anvil' in another terminal
-#   - Run 'npm run contracts:deploy:local' first
+#   - Run './contracts/scripts/start-anvil.sh' in another terminal
+#   - Run './contracts/scripts/deploy-local.sh' first
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONTRACTS_DIR="$(dirname "$SCRIPT_DIR")"
-PROJECT_ROOT="$(dirname "$CONTRACTS_DIR")"
-CONTRACTS_TS="$PROJECT_ROOT/src/constants/contracts.ts"
+ADDRESSES_ENV="$CONTRACTS_DIR/.local-addresses.env"
 
 source "$SCRIPT_DIR/local-config.sh"
 
 # Validate argument
 if [ -z "$1" ]; then
-    echo -e "${RED}Usage: npm run faucet -- <address>${NC}"
+    echo -e "${RED}Usage: ./contracts/scripts/faucet-local.sh <address>${NC}"
     exit 1
 fi
 
@@ -32,22 +31,22 @@ fi
 # Check anvil connection
 if ! cast chain-id --rpc-url "$LOCAL_RPC_URL" &>/dev/null; then
     echo -e "${RED}Error: Cannot connect to anvil at $LOCAL_RPC_URL${NC}"
-    echo -e "Please start anvil first: ${CYAN}npm run anvil${NC}"
+    echo -e "Please start anvil first: ${CYAN}./contracts/scripts/start-anvil.sh${NC}"
     exit 1
 fi
 
-# Parse contract addresses from contracts.ts
-if [ ! -f "$CONTRACTS_TS" ]; then
-    echo -e "${RED}Error: $CONTRACTS_TS not found. Run deploy first.${NC}"
+# Load contract addresses saved by deploy-local.sh
+if [ ! -f "$ADDRESSES_ENV" ]; then
+    echo -e "${RED}Error: $ADDRESSES_ENV not found.${NC}"
+    echo -e "Run ${CYAN}./contracts/scripts/deploy-local.sh${NC} first."
     exit 1
 fi
 
-TON=$(grep -A 5 "1337:" "$CONTRACTS_TS" | grep 'ton:' | grep -v 'vton:' | grep -o '"0x[a-fA-F0-9]\{40\}"' | tr -d '"')
-VTON=$(grep -A 5 "1337:" "$CONTRACTS_TS" | grep 'vton:' | grep -o '"0x[a-fA-F0-9]\{40\}"' | tr -d '"')
+source "$ADDRESSES_ENV"
 
 if [ -z "$TON" ] || [ -z "$VTON" ]; then
-    echo -e "${RED}Error: Could not parse TON/vTON addresses from contracts.ts${NC}"
-    echo -e "Run ${CYAN}npm run contracts:deploy:local${NC} first."
+    echo -e "${RED}Error: TON/vTON addresses missing in $ADDRESSES_ENV${NC}"
+    echo -e "Run ${CYAN}./contracts/scripts/deploy-local.sh${NC} first."
     exit 1
 fi
 

@@ -1,16 +1,14 @@
 #!/bin/bash
-# Deploy contracts to local Anvil and update webapp addresses
-# Usage: ./scripts/deploy-local.sh
+# Deploy contracts to local Anvil
+# Usage: ./contracts/scripts/deploy-local.sh
 #
 # Prerequisites:
-#   - Run 'npm run anvil' in another terminal first
+#   - Run './contracts/scripts/start-anvil.sh' in another terminal first
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONTRACTS_DIR="$(dirname "$SCRIPT_DIR")"
-PROJECT_ROOT="$(dirname "$CONTRACTS_DIR")"
-CONTRACTS_TS="$PROJECT_ROOT/src/constants/contracts.ts"
 
 source "$SCRIPT_DIR/local-config.sh"
 
@@ -22,7 +20,7 @@ echo -e "${YELLOW}Checking anvil connection...${NC}"
 if ! cast chain-id --rpc-url "$LOCAL_RPC_URL" &>/dev/null; then
     echo -e "${RED}Error: Cannot connect to anvil at $LOCAL_RPC_URL${NC}"
     echo -e "Please start anvil first:"
-    echo -e "  ${CYAN}npm run anvil${NC}"
+    echo -e "  ${CYAN}./contracts/scripts/start-anvil.sh${NC}"
     exit 1
 fi
 
@@ -81,47 +79,21 @@ echo "SecurityCouncil:  $SECURITY_COUNCIL"
 echo "VTONFaucet:       $FAUCET"
 echo "TONFaucet:        $TON_FAUCET"
 
-# Update contracts.ts
-echo -e "\n${YELLOW}Updating webapp contract addresses...${NC}"
-
-if [ ! -f "$CONTRACTS_TS" ]; then
-    echo -e "${RED}Error: $CONTRACTS_TS not found${NC}"
-    exit 1
-fi
-
-TMP_FILE=$(mktemp)
-
-awk -v ton="$TON" \
-    -v vton="$VTON" \
-    -v registry="$DELEGATE_REGISTRY" \
-    -v governor="$DAO_GOVERNOR" \
-    -v council="$SECURITY_COUNCIL" \
-    -v timelock="$TIMELOCK" \
-    -v faucet="$FAUCET" \
-    -v tonFaucet="$TON_FAUCET" '
-BEGIN { in_localhost = 0 }
-/\/\/ Localhost/ { in_localhost = 1 }
-/1337:/ && in_localhost { in_block = 1 }
-in_block && /ton:/ && !/vton:/ { gsub(/ZERO_ADDRESS|"0x[a-fA-F0-9]+"/, "\"" ton "\"") }
-in_block && /vton:/ { gsub(/ZERO_ADDRESS|"0x[a-fA-F0-9]+"/, "\"" vton "\"") }
-in_block && /delegateRegistry:/ { gsub(/ZERO_ADDRESS|"0x[a-fA-F0-9]+"/, "\"" registry "\"") }
-in_block && /daoGovernor:/ { gsub(/ZERO_ADDRESS|"0x[a-fA-F0-9]+"/, "\"" governor "\"") }
-in_block && /securityCouncil:/ { gsub(/ZERO_ADDRESS|"0x[a-fA-F0-9]+"/, "\"" council "\"") }
-in_block && /timelock:/ { gsub(/ZERO_ADDRESS|"0x[a-fA-F0-9]+"/, "\"" timelock "\"") }
-in_block && /faucet:/ && !/tonFaucet:/ { gsub(/ZERO_ADDRESS|"0x[a-fA-F0-9]+"/, "\"" faucet "\"") }
-in_block && /tonFaucet:/ { gsub(/ZERO_ADDRESS|"0x[a-fA-F0-9]+"/, "\"" tonFaucet "\"") }
-in_block && /},/ { in_block = 0; in_localhost = 0 }
-{ print }
-' "$CONTRACTS_TS" > "$TMP_FILE"
-
-mv "$TMP_FILE" "$CONTRACTS_TS"
+# Save addresses for other scripts (e.g. faucet-local.sh)
+ADDRESSES_ENV="$CONTRACTS_DIR/.local-addresses.env"
+cat > "$ADDRESSES_ENV" <<EOF
+TON=$TON
+VTON=$VTON
+DELEGATE_REGISTRY=$DELEGATE_REGISTRY
+TIMELOCK=$TIMELOCK
+DAO_GOVERNOR=$DAO_GOVERNOR
+SECURITY_COUNCIL=$SECURITY_COUNCIL
+VTON_FAUCET=$FAUCET
+TON_FAUCET=$TON_FAUCET
+EOF
+echo -e "Addresses saved to: ${YELLOW}$ADDRESSES_ENV${NC}"
 
 echo -e "\n${GREEN}=== Deployment Complete ===${NC}"
-echo -e "Webapp addresses updated in: ${YELLOW}src/constants/contracts.ts${NC}"
-echo ""
-echo -e "${CYAN}=== Next Steps ===${NC}"
-echo "Run the webapp:"
-echo -e "  ${CYAN}npm run dev${NC}"
 echo ""
 echo -e "${CYAN}=== Useful Commands ===${NC}"
 echo "Skip 7 days (for Timelock/voting tests):"
