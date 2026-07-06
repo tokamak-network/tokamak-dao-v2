@@ -123,7 +123,7 @@ event DelegateVTONBurned(address indexed delegate, uint256 amount);
 | `timelockDelay` | `uint256` | `7 days` | 타임락 지연 (초) |
 | `gracePeriod` | `uint256` | `14 days` | 유예 기간 (초) |
 | `passRate` | `uint256` | `5000` | 통과율 (basis points, 5000 = 50%, >50% 필요) |
-| `MAX_BURN_RATE` | `uint16` | `10000` | 최대 소각률 (basis points, 10000 = 100%) |
+| `MAX_BURN_RATE` | `uint16` | `10000` | (제거된 기능의 잔재) 비례 소각은 스펙 0.1.3에서 제거됨 — propose의 burnRate는 0만 허용 |
 | `pauseGuardian` | `address` | `address(0)` | 일시정지 가디언 (owner 외에 pause/unpause 가능) |
 
 **Enums**:
@@ -149,8 +149,8 @@ enum VoteType {
 **주요 함수**:
 | 함수 | 파라미터 | 반환값 | 설명 |
 |------|----------|--------|------|
-| `propose` | `targets: address[], values: uint256[], calldatas: bytes[], description: string, burnRate: uint16` | `uint256` | 제안 생성 (burnRate: 0-10000 basis points) |
-| `castVote` | `proposalId: uint256, support: uint8` | `uint256` | 투표 (burnRate만큼 vTON 소각) |
+| `propose` | `targets: address[], values: uint256[], calldatas: bytes[], description: string, burnRate: uint16` | `uint256` | 제안 생성 (burnRate는 ABI 호환용 잔재 — 0 이외 값은 revert, 소각 기능 제거됨) |
+| `castVote` | `proposalId: uint256, support: uint8` | `uint256` | 투표 (가중치 = 투표 시점의 위임량 `getTotalDelegated`, 라이브 방식) |
 | `castVoteWithReason` | `proposalId: uint256, support: uint8, reason: string` | `uint256` | 사유 포함 투표 |
 | `queue` | `proposalId: uint256` | - | 타임락 큐에 추가 |
 | `execute` | `proposalId: uint256` | - | 제안 실행 |
@@ -194,38 +194,44 @@ event PauseGuardianSet(address oldGuardian, address newGuardian);
 
 ### SecurityCouncil (`governance/SecurityCouncil.sol`)
 
-**역할**: 긴급 상황 대응 멀티시그
+**역할**: 긴급 상황 대응 멀티시그 (스펙 0.1.4부터 Veto + Pause 전용, Direct Execution 권한 없음)
 
 **구성**:
 - 총 3명 (재단 1명 + 외부 2명)
 - 임계값: 2/3 (67%)
+- 권한 유효기간: 12개월 (`DEFAULT_VALIDITY_PERIOD` = 365 days)
+  - 만료 후 `expireCouncil()`을 누구나(permissionless) 호출해 권한 소멸 처리 가능
+  - DAO 제안으로 `renewCouncilValidity(newValidUntil)` 갱신 가능
 
 **권한**:
-- 제안 취소
-- 프로토콜 일시정지
-- 긴급 업그레이드
+- 제안 취소 (Veto): 반드시 `DAOGovernor.cancel()` 경유. 자신을 target으로 하는 제안은 취소 불가 (자기방어 제한, `SelfDefenseRestricted`)
+- 프로토콜 일시정지/재개
+- 모든 액션은 생성 → 2/3 승인 → 실행 절차를 거치며, 생성 후 7일(`ACTION_TTL`) 내 실행하지 않으면 만료
 
 **Enums**:
 ```solidity
 enum ActionType {
-    CancelProposal,    // 0: 제안 취소
+    CancelProposal,    // 0: 제안 취소 (Timelock 내 제안 포함)
     PauseProtocol,     // 1: 프로토콜 일시정지
-    UnpauseProtocol,   // 2: 프로토콜 재개
-    EmergencyUpgrade,  // 3: 긴급 업그레이드
-    Custom             // 4: 커스텀 액션
+    UnpauseProtocol    // 2: 프로토콜 재개
 }
 ```
 
 **주요 함수**:
 | 함수 | 파라미터 | 반환값 | 설명 |
 |------|----------|--------|------|
-| `proposeEmergencyAction` | `type: ActionType, target: address, data: bytes, reason: string` | `uint256` | 긴급 액션 제안 |
-| `approveEmergencyAction` | `actionId: uint256` | - | 승인 |
-| `executeEmergencyAction` | `actionId: uint256` | - | 실행 |
-| `cancelProposal` | `proposalId: uint256` | - | 제안 취소 요청 |
-| `pauseProtocol` | `reason: string` | - | 프로토콜 일시정지 요청 |
-| `getMembers` | - | `address[]` | 멤버 목록 조회 |
+| `cancelProposal` | `proposalId: uint256` | - | 제안 취소 액션 생성 (멤버만, 제안자 자동 승인) |
+| `pauseProtocol` | `reason: string` | - | 일시정지 액션 생성 (멤버만) |
+| `unpauseProtocol` | - | - | 재개 액션 생성 (멤버만) |
+| `approveEmergencyAction` | `actionId: uint256` | - | 승인 (멤버만, TTL 이내) |
+| `executeEmergencyAction` | `actionId: uint256` | - | 실행 (threshold 충족 + TTL 이내) |
+| `cancelEmergencyAction` | `actionId: uint256` | - | 액션 취소 (제안자만) |
+| `expireCouncil` | - | - | validUntil 경과 시 누구나 만료 처리 |
+| `renewCouncilValidity` | `newValidUntil: uint256` | - | 유효기간 갱신 (DAO만) |
+| `addMember` / `removeMember` / `setThreshold` | ... | - | 멤버·임계값 관리 (DAO만) |
+| `getMembers` | - | `Member[]` | 멤버 목록 조회 |
 | `getPendingActions` | - | `uint256[]` | 대기중 액션 조회 |
+| `isExpired` | - | `bool` | 만료 여부 조회 |
 
 **이벤트**:
 ```solidity
@@ -234,6 +240,8 @@ event EmergencyActionApproved(uint256 actionId, address approver);
 event EmergencyActionExecuted(uint256 actionId, address executor);
 event MemberAdded(address member, bool isFoundation);
 event MemberRemoved(address member);
+event CouncilExpired(address caller, uint256 timestamp);
+event CouncilValidityRenewed(uint256 oldValidUntil, uint256 newValidUntil);
 ```
 
 ---

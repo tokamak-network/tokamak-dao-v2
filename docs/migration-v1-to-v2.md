@@ -112,9 +112,10 @@
 │ 실행 유예기간      │ 7일                  │ 14일                     │
 │ 프록시 패턴        │ 커스텀 (non-EIP-1967) │ 직접 배포 (프록시 없음)    │
 │ 토큰 공급          │ 무제한              │ 100M 상한 + 반감기         │
-│ 스냅샷            │ 첫 투표 시점          │ 제안 생성 - maturityPeriod│
-│                  │                     │ (DAOGovernor 소속)       │
-│ Flash loan 방어    │ 미흡                │ votingDelay + maturity    │
+│ 투표력 산정        │ 첫 투표 시점 고정      │ 투표 시점 라이브 위임량     │
+│                  │                     │ (정족수만 생성 시점 고정)  │
+│ Flash loan 방어    │ 미흡                │ 위임 필수(vTON 예치)      │
+│                  │                     │ + 등록 Delegate만 투표    │
 └────────────────────┴──────────────────────┴──────────────────────────┘
 ```
 
@@ -198,14 +199,14 @@ V2 제안 생명주기 (Proposal)
 ═══════════════════════════════════════════════════════════
 
   생성       투표 대기     투표 기간      큐잉      Timelock     실행 유예
- (Pending)  (1일 delay)  (7일 period)  (Queue)   (7일 delay)  (14일 grace)
+ (Pending)  (delay=0)    (7일 period)  (Queue)   (7일 delay)  (14일 grace)
 ───┬──────────┬───────────┬───────────┬──────────┬───────────┬───
    │          │           │           │          │           │
-   │ 10 TON   │ snapshot  │ castVote  │ queue()  │   대기    │ execute()
-   │ burn     │ 확정      │           │          │           │
-   │          │           │ FOR>50%   │          │ SC가     │
-   │ threshold│           │ +quorum≥4%│          │ cancel   │
-   │ check    │           │ =Succeed  │          │ 가능     │
+   │ 10 TON   │ 즉시 투표  │ castVote  │ queue()  │   대기    │ execute()
+   │ burn     │ 시작      │ (라이브    │          │           │
+   │          │           │  투표력)   │          │ SC가     │
+   │ threshold│           │ FOR>50%   │          │ cancel   │
+   │ 정족수 고정│           │ +quorum≥4%│          │ 가능     │
    └──────────┴───────────┴───────────┴──────────┴───────────┴───
    결과: Executed / Defeated / Expired / Canceled
 
@@ -247,6 +248,14 @@ V2: 위임 투표 (Delegation Model)
   정족수 = 위임된 총 vTON × 4%
   통과 = FOR > 50% (기권 제외)
 
+  투표력 산정 (라이브 방식, 2026-03 스냅샷 제거):
+  ─────────────────────────────────────────────
+  · 투표 시점의 현재 위임량(getTotalDelegated)이 그대로 가중치
+  · 스냅샷·maturityPeriod 없음 (getVotingPower의 snapshotBlock
+    파라미터는 인터페이스 호환용으로만 유지, 미사용)
+  · 정족수 기준(총 위임량 × quorum%)만 제안 생성 시점에 고정
+    (totalDelegatedAtSnapshot, snapshotQuorum)
+
   위임 만료 정책 (autoExpiryPeriod):
   ──────────────────────────────────
   · DelegateRegistry.autoExpiryPeriod (기본값: 0 = 만료 없음)
@@ -266,11 +275,11 @@ V1 보안 모델                              V2 보안 모델
 │ Gnosis Safe    │                        │   SecurityCouncil      │
 │ 2-of-3 Multisig│                        │   2/3 스마트 컨트랙트   │
 │                │                        │                        │
-│ · 프록시 일시정지│                        │ · 제안 취소 (cancel)    │
-│ · 구현체 업그레이드│                      │ · 프로토콜 일시정지      │
-│ · 관리 기능     │                        │ · 프로토콜 재개 (unpause)│
-│                │                        │ · 긴급 업그레이드       │
-│                │                        │ · 7일 TTL 행동 만료    │
+│ · 프록시 일시정지│                        │ · 제안 취소 (Veto 전용)  │
+│ · 구현체 업그레이드│                      │ · 프로토콜 일시정지/재개  │
+│ · 관리 기능     │                        │ · 7일 TTL 행동 만료     │
+│                │                        │ · 12개월 유효기간        │
+│                │                        │   (만료 후 권한 소멸)    │
 │ ※ 실행 권한 有  │                        │ ※ 실행 권한 無 (차단만)  │
 └────────────────┘                        └────────────────────────┘
                                                     │
@@ -283,9 +292,9 @@ V1 보안 모델                              V2 보안 모델
                                                     │
                                           ┌─────────▼────────────┐
                                           │ Flash Loan 방어       │
-                                          │ · votingDelay (1일)   │
-                                          │ · maturityPeriod (7일)│
-                                          │ · 스냅샷 기반 투표력   │
+                                          │ · 위임 필수 (vTON 예치)│
+                                          │ · 등록 Delegate만 투표 │
+                                          │ · 이중 투표 방지       │
                                           └──────────────────────┘
 ```
 
@@ -310,7 +319,7 @@ V1 토큰 구조                              V2 토큰 구조
                                               ├── 최대 100M 공급
                                               ├── 에폭당 25% 반감기
                                               ├── emissionRatio 조정 가능
-                                              ├── ERC20Votes (투표력 스냅샷)
+                                              ├── ERC20Votes 기반 (getVotes)
                                               └── 위임 필수 (직접 투표 불가)
 ```
 
@@ -680,10 +689,10 @@ V1 비활성화 절차
 │                                                                  │
 │  🟠 HI-02: 위임 시스템 조작                                      │
 │  ────────────────────────                                        │
-│  위험: maturityPeriod 우회, 다중 위임 악용                         │
-│  검증: 블록 기반 스냅샷 정확성                                     │
-│        위임 해제 시 비례 반환 정확성                                │
-│  테스트: maturity 직전/직후 위임 → 투표 가능 여부                   │
+│  위험: 라이브 투표력 악용 (투표 직후 재위임으로 투표력 재사용)        │
+│  검증: 위임 체크포인트 정확성                                      │
+│        투표 가중치가 투표 시점 위임량과 일치하는지                    │
+│  테스트: 투표 → 재위임 → 새 Delegate 투표 시 가중치 검증            │
 │                                                                  │
 │  🟠 HI-03: SecurityCouncil 자기 방어 메커니즘                     │
 │  ────────────────────────────────────────                        │
@@ -692,17 +701,19 @@ V1 비활성화 절차
 │        제안을 cancel할 수 없는 로직 확인                           │
 │  테스트: SC 교체 제안 시 SC의 cancel 시도 → 실패 확인              │
 │                                                                  │
-│  🟡 ME-01: Vote Burn 비례 계산                                   │
-│  ────────────────────────────                                    │
-│  위험: burn 후 undelegation 시 반환량 계산 오류                    │
+│  🟡 ME-01: burnFromDelegate 비례 반환 계산                        │
+│  ──────────────────────────────────────                          │
+│  위험: 거버넌스 소각(burnFromDelegate) 후 undelegate 반환량 오류    │
 │  검증: proportionalReturn 수학적 정확성                            │
 │        (totalDelegated / (totalDelegated + totalBurned))          │
+│        ※ 제안자 지정 투표 소각(burnRate)은 제거됨 —                │
+│          propose(burnRate != 0) → 항상 revert 확인                │
 │  테스트: 연속 burn → undelegate 시나리오 퍼징                      │
 │                                                                  │
 │  🟡 ME-02: Quorum 계산 기준 시점                                 │
 │  ────────────────────────────                                    │
 │  위험: 제안 생성 시점 quorum vs 투표 종료 시점 quorum 불일치        │
-│  검증: quorum이 제안 생성 시 스냅샷되는지 확인                      │
+│  검증: totalDelegatedAtSnapshot·snapshotQuorum 고정 확인          │
 │  테스트: 투표 중 대량 위임 해제 → quorum 영향 없음 확인             │
 │                                                                  │
 │  🟡 ME-03: Grace Period 만료 경계                                │
@@ -771,9 +782,11 @@ V1 비활성화 절차
 ├────────────────┬───────────────────────┬─────────────────────────┤
 │    공격 유형    │       시나리오         │        V2 대응          │
 ├────────────────┼───────────────────────┼─────────────────────────┤
-│ Flash Loan     │ 대량 vTON 차입 →      │ votingDelay (1일)       │
-│ 투표 조작       │ 위임 → 투표 → 반환     │ + maturityPeriod (7일)  │
-│                │                       │ = 7일 이상 위임 유지 필요 │
+│ Flash Loan     │ 대량 vTON 차입 →      │ 등록 Delegate만 투표     │
+│ 투표 조작       │ 위임 → 투표 → 반환     │ + 위임 시 vTON 예치      │
+│                │                       │ ※ 스냅샷 제거로 잔여 위험 │
+│                │                       │   有 → vTON 차입 시장    │
+│                │                       │   형성 시 재검토 필요     │
 ├────────────────┼───────────────────────┼─────────────────────────┤
 │ Governance     │ 악의적 제안 통과 →     │ Timelock 7일 지연       │
 │ Attack         │ 재무 탈취             │ + SC cancel 가능        │
@@ -854,11 +867,11 @@ DelegateRegistry
 □ delegate - 정상 위임 (vTON 잔액 차감)
 □ delegate - 비활성 위임자에게 위임 → revert
 □ delegate - 잔액 부족 → revert
-□ undelegate - 정상 해제 (비례 반환 포함)
-□ undelegate - burn 후 비례 반환 정확성
-□ redelegate - 위임 이전 (원자적 실행)
-□ getVotingPower - 스냅샷 블록 기준 정확한 투표력
-□ getVotingPower - maturity 미달 위임 → 0 반환
+□ undelegate - 정상 해제 (vTON 반환)
+□ undelegate - burnFromDelegate 후 비례 반환 정확성
+□ redelegate - 위임 이전 (원자적 실행, 비례 계산 포함)
+□ getVotingPower - 체크포인트 기반 정확한 투표력
+□ getVotingPower - snapshotBlock 파라미터 무시(호환용) 확인
 □ burnFromDelegate - governor만 호출 가능
 □ deactivateDelegate / reactivateDelegate - 상태 전환
 
@@ -866,6 +879,7 @@ DAOGovernor
 ═══════════
 □ propose - 정상 제안 생성 (TON burn + threshold 확인)
 □ propose - threshold 미달 → revert
+□ propose - burnRate != 0 → revert (기능 제거됨, ABI 호환용 파라미터)
 □ propose - TON 잔액 부족 → revert
 □ castVote - FOR/AGAINST/ABSTAIN 투표
 □ castVote - 미등록 위임자 → revert
@@ -905,6 +919,8 @@ SecurityCouncil
 □ addMember / removeMember - DAO만 가능
 □ removeMember - 마지막 Foundation 멤버 제거 → revert
 □ setThreshold - DAO만 가능 + 범위 검증
+□ expireCouncil - validUntil(12개월) 경과 후 누구나 만료 처리 가능
+□ 만료된 SC의 cancelProposal/pauseProtocol → revert
 ```
 
 ### 7.3 통합 테스트 시나리오
@@ -925,14 +941,15 @@ SecurityCouncil
 │  SC proposeEmergencyAction → SC approve(2/3) →                  │
 │  SC executeEmergencyAction → 제안 취소 확인                       │
 │                                                                  │
-│  IT-03: 위임 해제 후 투표력 반영                                   │
-│  ─────────────────────────────                                   │
-│  위임 → maturity 경과 → 제안 생성 (스냅샷) →                      │
-│  위임 해제 → 투표 → 해제 전 스냅샷 기준 투표력 사용                 │
+│  IT-03: 위임 해제 후 투표력 반영 (라이브 방식)                      │
+│  ──────────────────────────────────────                          │
+│  위임 → 제안 생성 → 위임 해제 → 투표 →                            │
+│  해제가 반영된 현재 위임량으로 가중치 계산되는지 확인                  │
 │                                                                  │
-│  IT-04: Vote Burn + Undelegate 정확성                            │
-│  ─────────────────────────────────                               │
-│  위임(1000) → 투표(burnRate=10%, burn=100) →                     │
+│  IT-04: burnRate 제거 + burnFromDelegate 비례 반환                │
+│  ─────────────────────────────────────────────                   │
+│  propose(burnRate=1000) → InvalidBurnRate revert 확인.           │
+│  위임(1000) → 거버넌스 제안으로 burnFromDelegate(100) →           │
 │  undelegate(500) → 반환량 = 500×(900/1000) = 450 확인            │
 │                                                                  │
 │  IT-05: Timelock Grace Period 만료                               │
@@ -1022,9 +1039,12 @@ SecurityCouncil
 │  FUZZ-03: votingPower(delegate) ≤ totalDelegated(delegate)       │
 │  위임자의 투표력은 위임받은 양을 초과할 수 없다                      │
 │                                                                  │
-│  FUZZ-04: burn(amount) 후 undelegation 반환량                    │
-│  반환량 = undelegateAmount × (remaining / (remaining + burned))  │
-│  → 항상 undelegateAmount 이하                                    │
+│  FUZZ-04: burnFromDelegate 후 undelegation 반환량                │
+│  반환량 = amount × (totalDelegated / (totalDelegated + burned))  │
+│  → 항상 요청량 이하                                               │
+│                                                                  │
+│  FUZZ-09: castVote 가중치 = 투표 시점 getTotalDelegated          │
+│  기록된 weight가 투표 블록의 실제 위임량과 항상 일치해야 한다        │
 │                                                                  │
 │  FUZZ-05: Timelock eta 계산                                      │
 │  queueTransaction 후 eta == block.timestamp + delay 항상 성립    │
@@ -1165,15 +1185,15 @@ forge test --fork-url $ETH_MAINNET_RPC --match-contract E2EMigrationTest
 | `proposalThreshold` | 0.25% (25 bp) | 0 (제한 없음) | 제안 최소 요건 |
 | `quorum` | 4% (400 bp) | 1 bp | 정족수 |
 | `passRate` | >50% (5,000 bp) | 1 bp | 통과 기준 |
-| `votingDelay` | 7,200 blocks (~1일) | 1,800 blocks (~6시간) | 투표 대기 |
+| `votingDelay` | 0 blocks (즉시 투표) | 0 | 투표 대기 (DAO 조정 가능) |
 | `votingPeriod` | 50,400 blocks (~7일) | 7,200 blocks (~1일) | 투표 기간 |
-| `maturityPeriod` | 50,400 blocks (~7일) | 7,200 blocks (~1일) 또는 0 | 위임 성숙 기간 (0=비활성) |
 | `timelockDelay` | 7 days | 7 days | 실행 지연 |
 | `gracePeriod` | 14 days | 1 day | 실행 유예 |
 | `MINIMUM_DELAY` | 7 days | — | Timelock 최소 (상수) |
 | `MAXIMUM_DELAY` | 30 days | — | Timelock 최대 (상수) |
 | `SC threshold` | ceil(members × 2/3) | — | 보안위원회 승인 기준 |
 | `ACTION_TTL` | 7 days | — | SC 행동 만료 (상수) |
+| `DEFAULT_VALIDITY_PERIOD` | 365 days | — | SC 권한 유효기간, 만료 후 expireCouncil() 누구나 호출 가능 |
 
 ### 9.3 V1 거버넌스 현황 (마이그레이션 시점 참조)
 
@@ -1199,3 +1219,4 @@ forge test --fork-url $ETH_MAINNET_RPC --match-contract E2EMigrationTest
 | 2026-03-04 | 0.2.0 | 생성자 시그니처, 소유권 이전 대상, MINIMUM_DELAY 수정 |
 | 2026-03-04 | 0.3.0 | protocolTarget 명시, Ownable 구분표, deployer 잔여 권한, autoExpiryPeriod, 파라미터 최소값 추가 |
 | 2026-03-05 | 0.4.0 | pauseGuardian 추가 (SC가 Timelock 경유 없이 즉시 pause/unpause 가능), Phase 2 TX 추가, 소유권 다이어그램 업데이트 |
+| 2026-07-06 | 0.5.0 | 코드 현행화 (인수인계 최신화): 라이브 투표력 전환 반영 (스냅샷·maturityPeriod 제거), 비례 소각(burnRate) 제거 반영, votingDelay 기본값 0, SC Veto+Pause 전용·12개월 유효기간(expireCouncil) 반영 |
