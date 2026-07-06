@@ -2,12 +2,6 @@
 
 Tokamak Network DAO governance contracts.
 
-> **Note**: The Next.js web app, The Graph subgraph, and the AI-agent backend that
-> previously lived in this repository were removed in July 2026 as part of the
-> project hand-over. This repository now contains only the smart contracts and
-> documentation. The removed code remains available in git history.
-> For the full hand-over guide, see [HANDOVER.md](./HANDOVER.md).
-
 ## V1 vs V2 Architecture
 
 V2 replaces the fixed-committee governance of V1 with a token-delegation model.
