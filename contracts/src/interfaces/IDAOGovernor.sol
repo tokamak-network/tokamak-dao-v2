@@ -69,7 +69,6 @@ interface IDAOGovernor {
     );
 
     /// @notice Deprecated in spec 0.1.4 (vote burn removed)
-    event VoteBurn(address indexed voter, uint256 indexed proposalId, uint256 burnAmount);
 
     /// @notice Emitted when a vote is cast
     event VoteCast(

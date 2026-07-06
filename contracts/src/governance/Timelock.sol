@@ -7,7 +7,8 @@ import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.s
 /// @notice Enforces a delay between proposal approval and execution
 /// @dev Implements 7-day timelock as per vTON DAO Governance Model
 ///      - Proposals must wait in queue before execution
-///      - Security Council can cancel queued proposals
+///      - Cancellation flows through the Governor (the SecurityCouncil
+///        vetoes via DAOGovernor.cancel, which calls cancelTransaction)
 ///      - Grace period of 14 days after eta
 contract Timelock is ReentrancyGuard {
     /*//////////////////////////////////////////////////////////////
@@ -16,7 +17,6 @@ contract Timelock is ReentrancyGuard {
 
     error NotAdmin();
     error NotGovernor();
-    error NotSecurityCouncil();
     error TransactionNotQueued();
     error TransactionAlreadyQueued();
     error TransactionNotReady();
@@ -42,8 +42,6 @@ contract Timelock is ReentrancyGuard {
     event DelayUpdated(uint256 oldDelay, uint256 newDelay);
 
     event GovernorUpdated(address oldGovernor, address newGovernor);
-
-    event SecurityCouncilUpdated(address oldCouncil, address newCouncil);
 
     event AdminTransferStarted(address indexed currentAdmin, address indexed pendingAdmin);
 
@@ -71,9 +69,6 @@ contract Timelock is ReentrancyGuard {
 
     /// @notice DAO Governor address
     address public governor;
-
-    /// @notice Security Council address
-    address public securityCouncil;
 
     /// @notice Execution delay in seconds
     uint256 public delay;
@@ -116,11 +111,6 @@ contract Timelock is ReentrancyGuard {
 
     modifier onlyGovernor() {
         if (msg.sender != governor) revert NotGovernor();
-        _;
-    }
-
-    modifier onlySecurityCouncil() {
-        if (msg.sender != securityCouncil) revert NotSecurityCouncil();
         _;
     }
 
@@ -211,17 +201,6 @@ contract Timelock is ReentrancyGuard {
         governor = newGovernor;
 
         emit GovernorUpdated(oldGovernor, newGovernor);
-    }
-
-    /// @notice Set the security council address
-    /// @param newCouncil New security council address
-    function setSecurityCouncil(address newCouncil) external onlyAdmin {
-        if (newCouncil == address(0)) revert ZeroAddress();
-
-        address oldCouncil = securityCouncil;
-        securityCouncil = newCouncil;
-
-        emit SecurityCouncilUpdated(oldCouncil, newCouncil);
     }
 
     /// @notice Set the delay

@@ -17,7 +17,8 @@ import { Timelock } from "./Timelock.sol";
 /// @notice Main governance contract for Tokamak Network DAO
 /// @dev Implements vTON DAO Governance Model:
 ///      - Proposal creation requires burning 10 TON
-///      - Snapshot-based voting power (7-day delegation requirement)
+///      - Live voting power: vote weight = delegated vTON at vote time
+///        (quorum basis and pass rate are fixed at proposal creation)
 ///      - 7-day on-chain voting period
 ///      - 4% quorum of total delegated vTON
 ///      - Simple majority pass rate
@@ -31,24 +32,18 @@ contract DAOGovernor is IDAOGovernor, Ownable, Pausable, ReentrancyGuard, EIP712
 
     error InvalidProposal();
     error ProposalNotFound();
-    error ProposalNotActive();
     error ProposalNotSucceeded();
     error ProposalNotQueued();
     error ProposalAlreadyExecuted();
     error ProposalAlreadyCanceled();
     error AlreadyVoted();
-    error NotProposer();
-    error InvalidVoteType();
     error VotingNotStarted();
     error VotingEnded();
-    error QuorumNotReached();
     error TimelockNotReady();
     error TimelockExpired();
-    error ExecutionFailed();
     error ZeroAddress();
     error ArrayLengthMismatch();
     error NotDelegate();
-    error InsufficientTON();
     error InsufficientVTON();
     error InvalidPassRate();
     error SelfDefenseRestricted();
@@ -88,9 +83,6 @@ contract DAOGovernor is IDAOGovernor, Ownable, Pausable, ReentrancyGuard, EIP712
 
     /// @notice Default pass rate (50% = 5000 basis points, majority means > 50%)
     uint256 public constant DEFAULT_PASS_RATE = 5000;
-
-    /// @notice Maximum burn rate (100% = 10000 basis points)
-    uint16 public constant MAX_BURN_RATE = 10_000;
 
     /// @notice Minimum voting delay (0 = immediate voting allowed)
     uint256 public constant MIN_VOTING_DELAY = 0;

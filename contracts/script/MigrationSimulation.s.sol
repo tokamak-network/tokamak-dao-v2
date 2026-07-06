@@ -183,12 +183,9 @@ contract MigrationSimulationScript is Script, IMigrationEvents {
         emit MigrationStep(2, 1, "Timelock.setGovernor", address(governor));
         console.log("  [2-1] Timelock.governor set to DAOGovernor");
 
-        // Step 2: Timelock -> SecurityCouncil
-        timelock.setSecurityCouncil(address(securityCouncil));
-        emit MigrationStep(2, 2, "Timelock.setSecurityCouncil", address(securityCouncil));
-        console.log("  [2-2] Timelock.securityCouncil set");
-
-        // Step 3: DelegateRegistry -> Governor
+        // Step 2: DelegateRegistry -> Governor
+        // (Timelock no longer references the SecurityCouncil directly;
+        //  SC vetoes flow through DAOGovernor.cancel)
         delegateRegistry.setGovernor(address(governor));
         emit MigrationStep(2, 3, "DelegateRegistry.setGovernor", address(governor));
         console.log("  [2-3] DelegateRegistry.governor set to DAOGovernor");
@@ -333,7 +330,6 @@ contract MigrationSimulationScript is Script, IMigrationEvents {
         console.log("    admin:", timelock.admin());
         console.log("    pendingAdmin:", timelock.pendingAdmin());
         console.log("    governor:", timelock.governor());
-        console.log("    securityCouncil:", timelock.securityCouncil());
         console.log("    delay:", timelock.delay());
         console.log("  DAOGovernor:", address(governor));
         console.log("    owner:", governor.owner());

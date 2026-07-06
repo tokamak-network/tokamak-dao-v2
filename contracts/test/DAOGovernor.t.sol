@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import { Test, console } from "forge-std/Test.sol";
+import { Test } from "forge-std/Test.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { vTON } from "../src/token/vTON.sol";
 import { DelegateRegistry } from "../src/governance/DelegateRegistry.sol";
@@ -9,7 +9,6 @@ import { DAOGovernor } from "../src/governance/DAOGovernor.sol";
 import { Timelock } from "../src/governance/Timelock.sol";
 import { IDAOGovernor } from "../src/interfaces/IDAOGovernor.sol";
 import { SecurityCouncil } from "../src/governance/SecurityCouncil.sol";
-import { ISecurityCouncil } from "../src/interfaces/ISecurityCouncil.sol";
 
 /// @notice Mock execution target for testing proposal execution
 contract MockExecutionTarget {

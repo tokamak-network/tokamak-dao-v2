@@ -280,42 +280,35 @@ contract SecurityCouncil is ISecurityCouncil, ReentrancyGuard {
 
     /// @inheritdoc ISecurityCouncil
     function cancelProposal(uint256 proposalId) external override onlyMember {
-        // Call the DAOGovernor's cancel function directly
-        // SecurityCouncil must be set as proposalGuardian in DAOGovernor
-        bytes memory data = abi.encodeWithSignature("cancel(uint256)", proposalId);
-
-        uint256 actionId = _actionCount++;
-
-        address[] memory approvers = new address[](1);
-        approvers[0] = msg.sender;
-
-        _actions[actionId] = EmergencyAction({
-            id: actionId,
-            actionType: ActionType.CancelProposal,
-            target: daoGovernor,
-            data: data,
-            reason: "Cancel malicious proposal",
-            createdAt: block.timestamp,
-            executedAt: 0,
-            executed: false,
-            canceled: false,
-            approvers: approvers
-        });
-
-        _approvals[actionId][msg.sender] = true;
-        _actionProposer[actionId] = msg.sender;
-        _pendingActionIds.push(actionId);
-
-        emit EmergencyActionProposed(
-            actionId, ActionType.CancelProposal, daoGovernor, data, "Cancel malicious proposal", msg.sender
+        // Routes through the DAOGovernor's cancel function.
+        // SecurityCouncil must be set as proposalGuardian in DAOGovernor.
+        _createAction(
+            ActionType.CancelProposal,
+            daoGovernor,
+            abi.encodeWithSignature("cancel(uint256)", proposalId),
+            "Cancel malicious proposal"
         );
-        emit EmergencyActionApproved(actionId, msg.sender);
     }
 
     /// @inheritdoc ISecurityCouncil
     function pauseProtocol(string calldata reason) external override onlyMember {
-        bytes memory data = abi.encodeWithSignature("pause()");
+        _createAction(ActionType.PauseProtocol, protocolTarget, abi.encodeWithSignature("pause()"), reason);
+    }
 
+    /// @inheritdoc ISecurityCouncil
+    function unpauseProtocol() external override onlyMember {
+        _createAction(
+            ActionType.UnpauseProtocol, protocolTarget, abi.encodeWithSignature("unpause()"), "Unpause protocol"
+        );
+    }
+
+    /// @dev Create an emergency action proposed and auto-approved by msg.sender
+    function _createAction(
+        ActionType actionType,
+        address target,
+        bytes memory data,
+        string memory reason
+    ) internal {
         uint256 actionId = _actionCount++;
 
         address[] memory approvers = new address[](1);
@@ -323,8 +316,8 @@ contract SecurityCouncil is ISecurityCouncil, ReentrancyGuard {
 
         _actions[actionId] = EmergencyAction({
             id: actionId,
-            actionType: ActionType.PauseProtocol,
-            target: protocolTarget,
+            actionType: actionType,
+            target: target,
             data: data,
             reason: reason,
             createdAt: block.timestamp,
@@ -338,41 +331,7 @@ contract SecurityCouncil is ISecurityCouncil, ReentrancyGuard {
         _actionProposer[actionId] = msg.sender;
         _pendingActionIds.push(actionId);
 
-        emit EmergencyActionProposed(
-            actionId, ActionType.PauseProtocol, protocolTarget, data, reason, msg.sender
-        );
-        emit EmergencyActionApproved(actionId, msg.sender);
-    }
-
-    /// @inheritdoc ISecurityCouncil
-    function unpauseProtocol() external override onlyMember {
-        bytes memory data = abi.encodeWithSignature("unpause()");
-
-        uint256 actionId = _actionCount++;
-
-        address[] memory approvers = new address[](1);
-        approvers[0] = msg.sender;
-
-        _actions[actionId] = EmergencyAction({
-            id: actionId,
-            actionType: ActionType.UnpauseProtocol,
-            target: protocolTarget,
-            data: data,
-            reason: "Unpause protocol",
-            createdAt: block.timestamp,
-            executedAt: 0,
-            executed: false,
-            canceled: false,
-            approvers: approvers
-        });
-
-        _approvals[actionId][msg.sender] = true;
-        _actionProposer[actionId] = msg.sender;
-        _pendingActionIds.push(actionId);
-
-        emit EmergencyActionProposed(
-            actionId, ActionType.UnpauseProtocol, protocolTarget, data, "Unpause protocol", msg.sender
-        );
+        emit EmergencyActionProposed(actionId, actionType, target, data, reason, msg.sender);
         emit EmergencyActionApproved(actionId, msg.sender);
     }
 

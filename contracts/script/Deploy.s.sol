@@ -88,7 +88,6 @@ contract DeployScript is Script {
 
         // 6. Configure Timelock
         timelock.setGovernor(address(governor));
-        timelock.setSecurityCouncil(address(securityCouncil));
         console.log("Timelock configured");
 
         // 7. Configure DelegateRegistry to allow governor to burn vTON
@@ -165,7 +164,6 @@ contract DeployLocalScript is Script {
 
         // Configure
         timelock.setGovernor(address(governor));
-        timelock.setSecurityCouncil(address(securityCouncil));
 
         // Configure DelegateRegistry to allow governor to burn vTON
         delegateRegistry.setGovernor(address(governor));
@@ -321,7 +319,6 @@ contract DeploySepoliaScript is Script {
 
         // 7. Configure Timelock
         timelock.setGovernor(address(governor));
-        timelock.setSecurityCouncil(address(securityCouncil));
 
         // 8. Configure DelegateRegistry to allow governor to burn vTON
         delegateRegistry.setGovernor(address(governor));

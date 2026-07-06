@@ -44,11 +44,9 @@ contract TimelockTest is Test {
         target = new MockTarget();
         revertingTarget = new RevertingTarget();
 
-        // Set governor and security council
-        vm.startPrank(admin);
+        // Set governor
+        vm.prank(admin);
         timelock.setGovernor(governor);
-        timelock.setSecurityCouncil(securityCouncil);
-        vm.stopPrank();
 
         // Fund the timelock with ETH for value transfers
         vm.deal(address(timelock), 100 ether);
@@ -61,7 +59,6 @@ contract TimelockTest is Test {
     function test_Deployment() public view {
         assertEq(timelock.admin(), admin);
         assertEq(timelock.governor(), governor);
-        assertEq(timelock.securityCouncil(), securityCouncil);
         assertEq(timelock.delay(), DELAY);
         assertEq(timelock.MINIMUM_DELAY(), 7 days);
         assertEq(timelock.MAXIMUM_DELAY(), 30 days);
@@ -125,40 +122,6 @@ contract TimelockTest is Test {
         vm.prank(admin);
         vm.expectRevert(Timelock.ZeroAddress.selector);
         timelock.setGovernor(address(0));
-    }
-
-    /*//////////////////////////////////////////////////////////////
-                    ADMIN FUNCTIONS - setSecurityCouncil
-    //////////////////////////////////////////////////////////////*/
-
-    function test_SetSecurityCouncil() public {
-        address newCouncil = makeAddr("newCouncil");
-
-        vm.prank(admin);
-        timelock.setSecurityCouncil(newCouncil);
-
-        assertEq(timelock.securityCouncil(), newCouncil);
-    }
-
-    function test_SetSecurityCouncilEmitsEvent() public {
-        address newCouncil = makeAddr("newCouncil");
-
-        vm.prank(admin);
-        vm.expectEmit(true, true, true, true);
-        emit Timelock.SecurityCouncilUpdated(securityCouncil, newCouncil);
-        timelock.setSecurityCouncil(newCouncil);
-    }
-
-    function test_SetSecurityCouncilRevertsIfNotAdmin() public {
-        vm.prank(alice);
-        vm.expectRevert(Timelock.NotAdmin.selector);
-        timelock.setSecurityCouncil(alice);
-    }
-
-    function test_SetSecurityCouncilRevertsIfZeroAddress() public {
-        vm.prank(admin);
-        vm.expectRevert(Timelock.ZeroAddress.selector);
-        timelock.setSecurityCouncil(address(0));
     }
 
     /*//////////////////////////////////////////////////////////////
