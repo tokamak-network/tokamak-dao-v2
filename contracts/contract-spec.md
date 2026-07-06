@@ -123,7 +123,6 @@ event DelegateVTONBurned(address indexed delegate, uint256 amount);
 | `timelockDelay` | `uint256` | `7 days` | 타임락 지연 (초) |
 | `gracePeriod` | `uint256` | `14 days` | 유예 기간 (초) |
 | `passRate` | `uint256` | `5000` | 통과율 (basis points, 5000 = 50%, >50% 필요) |
-| `MAX_BURN_RATE` | `uint16` | `10000` | (제거된 기능의 잔재) 비례 소각은 스펙 0.1.3에서 제거됨 — propose의 burnRate는 0만 허용 |
 | `pauseGuardian` | `address` | `address(0)` | 일시정지 가디언 (owner 외에 pause/unpause 가능) |
 
 **Enums**:
@@ -262,7 +261,7 @@ event CouncilValidityRenewed(uint256 oldValidUntil, uint256 newValidUntil);
 |------|----------|--------|------|
 | `queueTransaction` | `target: address, value: uint256, data: bytes` | `bytes32` | 트랜잭션 큐잉 |
 | `executeTransaction` | `target: address, value: uint256, data: bytes, eta: uint256` | - | 트랜잭션 실행 |
-| `cancelTransaction` | `target: address, value: uint256, data: bytes, eta: uint256` | - | 취소 (Security Council) |
+| `cancelTransaction` | `target: address, value: uint256, data: bytes, eta: uint256` | - | 취소 (Governor만 — SC의 Veto는 `DAOGovernor.cancel()` 경유) |
 | `isQueued` | `txHash: bytes32` | `bool` | 큐 상태 확인 |
 | `isReady` | `txHash: bytes32` | `bool` | 실행 가능 여부 확인 |
 

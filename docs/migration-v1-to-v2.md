@@ -485,8 +485,8 @@ Phase 1              Phase 2              Phase 3              Phase 4
   │  TX3: timelock.setGovernor(governor)                     │
   │       → Timelock에 Governor 주소 설정                    │
   │                                                         │
-  │  TX4: timelock.setSecurityCouncil(securityCouncil)       │
-  │       → Timelock에 SecurityCouncil 주소 설정             │
+  │  TX4: (삭제됨) Timelock은 SC를 직접 참조하지 않음         │
+  │       → SC의 Veto는 DAOGovernor.cancel() 경유 (0.1.4)    │
   │                                                         │
   │  TX5: governor.setProposalGuardian(securityCouncil)      │
   │       → Governor에 제안 가디언 설정                       │
@@ -522,7 +522,6 @@ Phase 1              Phase 2              Phase 3              Phase 4
 
   deployer가 이 기간 동안 가능한 작업:
   · timelock.setGovernor() — Governor 주소 변경
-  · timelock.setSecurityCouncil() — SC 주소 변경
   · timelock.setDelay() — Timelock 지연 시간 변경
 
   deployer가 불가능한 작업:
